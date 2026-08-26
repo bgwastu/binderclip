@@ -164,6 +164,12 @@ class MainActivity : AppCompatActivity() {
                             enabled = enabled
                         )
                     },
+                    onToggleSyncToasts = { hidden ->
+                        startService(
+                            BinderClipService.ACTION_SET_SYNC_TOASTS,
+                            hidden = hidden
+                        )
+                    },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
                     onRemove = { id -> startService(BinderClipService.ACTION_REMOVE_MEMBER, memberId = id) },
                     onUpdateDeviceName = { memberId, name ->
@@ -309,12 +315,14 @@ class MainActivity : AppCompatActivity() {
         action: String,
         visible: Boolean? = null,
         enabled: Boolean? = null,
+        hidden: Boolean? = null,
         memberId: String? = null,
         deviceName: String? = null,
     ) {
         ContextCompat.startForegroundService(this, Intent(this, BinderClipService::class.java).setAction(action).also {
             if (visible != null) it.putExtra("visible", visible)
             if (enabled != null) it.putExtra("enabled", enabled)
+            if (hidden != null) it.putExtra("hidden", hidden)
             if (memberId != null) it.putExtra(BinderClipService.EXTRA_MEMBER_ID, memberId)
             if (deviceName != null) it.putExtra(BinderClipService.EXTRA_DEVICE_NAME, deviceName)
         })
@@ -338,6 +346,7 @@ private fun BinderClipScreen(
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
     onToggleRoot: (Boolean) -> Unit,
+    onToggleSyncToasts: (Boolean) -> Unit,
     onDisableAccessibility: () -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
@@ -546,6 +555,14 @@ private fun BinderClipScreen(
                     }
                 }
             }
+            item {
+                PreferenceToggle(
+                    title = "Hide Sync Toasts",
+                    summary = if (state.syncToastHidden) "Clipboard copy/receive toasts are hidden." else "Show a toast when clipboard text or images sync.",
+                    checked = state.syncToastHidden,
+                    onChanged = onToggleSyncToasts,
+                )
+            }
         }
 
             androidx.compose.animation.AnimatedVisibility(
@@ -590,10 +607,10 @@ private fun BinderClipScreen(
                             )
                         }
                     }
+                    }
                 }
             }
         }
-    }
     val selectedDevice = devices.firstOrNull { it.deviceId == selectedDeviceId }
     var deviceToRename by remember { mutableStateOf<RememberedPeer?>(null) }
     var renameInput by remember { mutableStateOf("") }

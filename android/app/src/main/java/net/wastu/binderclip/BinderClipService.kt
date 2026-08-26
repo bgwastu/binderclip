@@ -41,6 +41,7 @@ data class AppState(
     val members: List<RememberedPeer> = emptyList(),
     val rootAvailable: Boolean = false,
     val automaticClipboardEnabled: Boolean = false,
+    val syncToastHidden: Boolean = false,
     val accessibilityEnabled: Boolean = false,
     val localDeviceId: String = "",
     val localDeviceName: String = "",
@@ -60,6 +61,7 @@ class BinderClipService : Service() {
         const val ACTION_COPY_PENDING = "net.wastu.binderclip.COPY_PENDING"
         const val ACTION_UI_VISIBLE = "net.wastu.binderclip.UI_VISIBLE"
         const val ACTION_TOGGLE_ROOT_AUTOMATION = "net.wastu.binderclip.TOGGLE_ROOT_AUTOMATION"
+        const val ACTION_SET_SYNC_TOASTS = "net.wastu.binderclip.SET_SYNC_TOASTS"
         const val ACTION_REFRESH_CAPABILITIES = "net.wastu.binderclip.REFRESH_CAPABILITIES"
         const val ACTION_DISABLE_ACCESSIBILITY = "net.wastu.binderclip.DISABLE_ACCESSIBILITY"
         const val ACTION_REMOVE_MEMBER = "net.wastu.binderclip.REMOVE_MEMBER"
@@ -249,12 +251,12 @@ class BinderClipService : Service() {
                 store.pendingText?.let { text ->
                     applyText(text)
                     store.pendingText = null
-                    toast("Copied text")
+                    syncToast("Copied text")
                 }
                 pendingImage?.let { image ->
                     applyImage(image)
                     pendingImage = null
-                    toast("Copied image")
+                    syncToast("Copied image")
                 }
                 publishState()
             }
@@ -284,6 +286,11 @@ class BinderClipService : Service() {
                         else -> "Automatic sync off"
                     }
                 )
+            }
+
+            ACTION_SET_SYNC_TOASTS -> executor.execute {
+                store.setSyncToastHidden(intent?.getBooleanExtra("hidden", false) ?: false)
+                publishState()
             }
 
             ACTION_REFRESH_CAPABILITIES -> executor.execute {
@@ -380,7 +387,7 @@ class BinderClipService : Service() {
 
         if (uiVisible || automaticClipboardEnabled) {
             applyText(text)
-            toast("Received text")
+            syncToast("Received text")
         } else {
             store.pendingText = text
             notifyPending("New clipboard text received", text)
@@ -395,7 +402,7 @@ class BinderClipService : Service() {
             return
         }
         notifyOpenUrl(trimmed)
-        toast("Received link")
+        syncToast("Received link")
     }
 
     private fun receiveImage(image: ImagePayload) {
@@ -404,7 +411,7 @@ class BinderClipService : Service() {
 
         if (uiVisible || automaticClipboardEnabled) {
             applyImage(image)
-            toast("Received image (${image.mimeType})")
+            syncToast("Received image (${image.mimeType})")
         } else {
             pendingImage = image
             notifyPending("New image received", "Image (${image.mimeType})")
@@ -419,13 +426,13 @@ class BinderClipService : Service() {
                 if (hash == lastSeenHash) return
                 lastSeenHash = hash
                 client.sendText(payload.value, hash)
-                if (userInitiated) toast("Sent text")
+                if (userInitiated) syncToast("Sent text")
             }
             is LocalClipboardContent.Image -> {
                 if (payload.value.sha256 == lastSeenHash) return
                 lastSeenHash = payload.value.sha256
                 client.sendImage(payload.value)
-                if (userInitiated) toast("Sent image")
+                if (userInitiated) syncToast("Sent image")
             }
             is LocalClipboardContent.Unsupported -> {
                 if (userInitiated) toast("Clipboard content is unsupported")
@@ -546,6 +553,7 @@ class BinderClipService : Service() {
             members = members,
             rootAvailable = rootAvailable,
             automaticClipboardEnabled = automaticClipboardEnabled,
+            syncToastHidden = store.isSyncToastHidden(),
             accessibilityEnabled = AccessibilityClipboardBridge.isEnabled(this),
             localDeviceId = store.deviceId,
             localDeviceName = DeviceNames.android(this),
@@ -563,6 +571,10 @@ class BinderClipService : Service() {
         }
     }
 
+    /** Clipboard copy/receive/send feedback; suppressed by the Hide Sync Toasts setting. */
+    private fun syncToast(msg: String) {
+        if (!store.isSyncToastHidden()) toast(msg)
+    }
 
     // MARK: - Notifications
 

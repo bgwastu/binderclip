@@ -177,6 +177,10 @@ class DeviceStore(context: Context) {
     fun isRootClipboardAutomationEnabled(): Boolean = prefs.getBoolean("root_clipboard_automation", false)
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
 
+    /** When true, suppress the transient toasts shown for automatic clipboard copy/receive/send. */
+    fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", false)
+    fun setSyncToastHidden(hidden: Boolean) { prefs.edit().putBoolean("hide_sync_toasts", hidden).apply() }
+
     fun reset() { prefs.edit().clear().apply() }
 
     private fun keyAlias(): String {
