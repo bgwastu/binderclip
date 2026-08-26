@@ -3,6 +3,7 @@ package net.wastu.binderclip
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
@@ -79,5 +80,31 @@ class SyncProtocolTest {
         val hash = SyncProtocol.sha256Hex(text)
         assertEquals(64, hash.length)
         assertEquals(hash, SyncProtocol.sha256Hex(text.toByteArray(Charsets.UTF_8)))
+    }
+
+    @Test
+    fun nsdTxtDecodesAndTrimsAttributes() {
+        val attributes = mapOf(
+            "id" to " mac-studio-123 ".toByteArray(Charsets.UTF_8),
+            "v" to "2".toByteArray(Charsets.UTF_8),
+            "empty" to ByteArray(0)
+        )
+        assertEquals("mac-studio-123", SyncProtocol.nsdTxt(attributes, "id"))
+        assertEquals("2", SyncProtocol.nsdTxt(attributes, "v"))
+        assertNull(SyncProtocol.nsdTxt(attributes, "empty"))
+        assertNull(SyncProtocol.nsdTxt(attributes, "missing"))
+    }
+
+    @Test
+    fun discoveredMacIdentityFiltering() {
+        // Both ids known and equal -> accept.
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-1"))
+        // Both known but different -> reject foreign BinderClip Mac.
+        assertFalse(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-2"))
+        // Legacy Mac without TXT id -> keep legacy accept behavior.
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", null))
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", ""))
+        // No stored peer id -> cannot verify, keep legacy accept behavior.
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac(null, "mac-1"))
     }
 }

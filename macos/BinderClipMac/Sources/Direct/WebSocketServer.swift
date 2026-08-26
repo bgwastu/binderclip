@@ -62,6 +62,7 @@ public final class WebSocketServer: @unchecked Sendable {
             guard let self else { return }
             let updated = self.rosterManager.setLocalName(name)
             self.updateCachedState()
+            self.refreshBonjour()
             self.broadcastText(["type": "rename", "id": self.rosterManager.localID, "name": updated])
             self.publishPeers()
         }
@@ -265,7 +266,10 @@ public final class WebSocketServer: @unchecked Sendable {
             let port = NWEndpoint.Port(rawValue: SyncProtocol.defaultPort) ?? .any
             let listener = try NWListener(using: params, on: port)
 
-            listener.service = NWListener.Service(name: localDeviceName, type: "_binderclip._tcp")
+            listener.service = Self.makeBonjourService(
+                deviceID: localDeviceID,
+                deviceName: localDeviceName
+            )
 
             listener.stateUpdateHandler = { [weak self] state in
                 guard let self else { return }
@@ -763,7 +767,28 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func refreshBonjour() {
-        listener?.service = NWListener.Service(name: localDeviceName, type: "_binderclip._tcp")
+        listener?.service = Self.makeBonjourService(
+            deviceID: localDeviceID,
+            deviceName: localDeviceName
+        )
+    }
+
+    /// TXT payload for the `_binderclip._tcp` advertisement. Android matches `id` against its
+    /// paired peer so discovery on a shared LAN ignores foreign BinderClip Macs.
+    static func bonjourTXTRecords(deviceID: String, deviceName: String, version: Int) -> [String: String] {
+        ["id": deviceID, "name": deviceName, "v": String(version)]
+    }
+
+    static func makeBonjourService(deviceID: String, deviceName: String) -> NWListener.Service {
+        NWListener.Service(
+            name: deviceName,
+            type: "_binderclip._tcp",
+            txtRecord: NWTXTRecord(bonjourTXTRecords(
+                deviceID: deviceID,
+                deviceName: deviceName,
+                version: SyncProtocol.version
+            ))
+        )
     }
 
     private func updateCachedState() {

@@ -97,6 +97,21 @@ object SyncProtocol {
         return (incomingClean + currentClean).distinct().take(limit)
     }
 
+    const val MDNS_TXT_ID = "id"
+    const val MDNS_TXT_NAME = "name"
+    const val MDNS_TXT_VERSION = "v"
+
+    fun nsdTxt(attributes: Map<String, ByteArray>, key: String): String? =
+        attributes[key]?.toString(Charsets.UTF_8)?.trim()?.takeIf { it.isNotBlank() }
+
+    /** Only reject a discovered Mac when both identities are known and differ; missing ids keep
+     *  legacy accept behavior so older Mac builds stay reachable. */
+    fun shouldAcceptDiscoveredMac(pairedPeerId: String?, advertisedId: String?): Boolean {
+        if (advertisedId.isNullOrBlank()) return true
+        if (pairedPeerId.isNullOrBlank()) return true
+        return advertisedId == pairedPeerId
+    }
+
     fun endpointsFromJson(json: JSONObject): List<String> {
         val array = json.optJSONArray("endpoints") ?: return emptyList()
         return buildList {

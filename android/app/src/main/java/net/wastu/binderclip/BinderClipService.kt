@@ -25,6 +25,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import java.net.Inet4Address
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
@@ -155,14 +156,19 @@ class BinderClipService : Service() {
             onFailure = ::reportFailure,
             onPeerIdentity = { id, name ->
                 store.peer = store.peer?.copy(name = name, deviceId = id)
+                refreshNsdDiscovery()
                 publishState()
             },
             onRosterChanged = { publishState() },
-            onDisconnected = { publishState() },
+            onDisconnected = {
+                refreshNsdDiscovery()
+                publishState()
+            },
             onUnpaired = {
                 lastError = null
                 pairingHint = null
                 store.unpair()
+                stopNsdDiscovery()
                 DiagnosticLog.info("Mac unpaired this phone")
                 executor.execute { RootClipboardBridge.syncKeepAlive(this, paired = false) }
                 publishState()
@@ -180,7 +186,7 @@ class BinderClipService : Service() {
         AccessibilityClipboardBridge.onAvailabilityChanged = { executor.execute(::publishState) }
 
         registerNetworkCallback()
-        startNsdDiscovery()
+        refreshNsdDiscovery()
 
         val screenFilter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -557,6 +563,7 @@ class BinderClipService : Service() {
         }
     }
 
+
     // MARK: - Notifications
 
     private fun enterForeground(statusText: String) {
@@ -644,44 +651,100 @@ class BinderClipService : Service() {
 
     // MARK: - mDNS Discovery
 
+    private fun nsdLog(message: String) {
+        Log.i("BinderClipNSD", message)
+        DiagnosticLog.info(message)
+    }
+
     private fun startNsdDiscovery() {
         stopNsdDiscovery()
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {}
             override fun onServiceFound(service: NsdServiceInfo) {
-                if (service.serviceType.contains("_binderclip._tcp")) {
-                    nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
-                        override fun onServiceResolved(info: NsdServiceInfo) {
-                            if (store.groupKey == null) return
-                            val host = info.host?.hostAddress ?: return
-                            if (host == "127.0.0.1" || host == "::1" || host.startsWith("127.")) return
-                            val endpoint = "$host:${info.port}"
-                            val candidates = store.peerCandidates.toMutableList()
-                            if (!candidates.contains(endpoint)) {
-                                candidates.add(0, endpoint)
-                                store.peerCandidates = candidates
+                if (!service.serviceType.contains("_binderclip._tcp")) return
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        val infoCallback = object : NsdManager.ServiceInfoCallback {
+                            override fun onServiceUpdated(info: NsdServiceInfo) {
+                                runCatching { nsdManager.unregisterServiceInfoCallback(this) }
+                                handleResolvedMac(info)
                             }
-                            if (!client.isConnected()) {
-                                client.requestConnectResettingBackoff()
+                            override fun onServiceLost() {}
+                            override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {}
+                            override fun onServiceInfoCallbackUnregistered() {}
+                        }
+                        nsdManager.registerServiceInfoCallback(service, mainExecutor, infoCallback)
+                    } else {
+                        val resolveListener = object : NsdManager.ResolveListener {
+                            override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
+                            override fun onServiceResolved(info: NsdServiceInfo) {
+                                handleResolvedMac(info)
                             }
                         }
-                    })
+                        @Suppress("DEPRECATION")
+                        nsdManager.resolveService(service, resolveListener)
+                    }
                 }
             }
             override fun onServiceLost(service: NsdServiceInfo) {}
             override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                DiagnosticLog.info("NSD discovery failed to start (error $errorCode)")
+                nsdDiscoveryListener = null
+            }
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                nsdDiscoveryListener = null
+            }
         }
         nsdDiscoveryListener = listener
         runCatching { nsdManager.discoverServices("_binderclip._tcp.", NsdManager.PROTOCOL_DNS_SD, listener) }
+            .onSuccess { nsdLog("NSD discovery started") }
     }
 
     private fun stopNsdDiscovery() {
         nsdDiscoveryListener?.let {
             runCatching { nsdManager.stopServiceDiscovery(it) }
             nsdDiscoveryListener = null
+        }
+    }
+
+    /** Discovery is only useful while disconnected; pause it while connected to save battery. */
+    private fun refreshNsdDiscovery() {
+        if (store.groupKey == null || client.isConnected()) {
+            if (nsdDiscoveryListener != null) nsdLog("NSD paused (paired and connected)")
+            stopNsdDiscovery()
+        } else if (nsdDiscoveryListener == null) {
+            startNsdDiscovery()
+        }
+    }
+
+    /** Bare "host:port" candidates must stay IPv4 (see parseEndpoint); loopback is never advertised. */
+    private fun resolvedIPv4(info: NsdServiceInfo): String? {
+        val hosts = if (Build.VERSION.SDK_INT >= 34) {
+            info.hostAddresses.mapNotNull { it.hostAddress }
+        } else {
+            @Suppress("DEPRECATION")
+            listOfNotNull(info.host?.hostAddress)
+        }
+        return hosts.firstOrNull { it.contains('.') && !it.startsWith("127.") }
+    }
+
+    private fun handleResolvedMac(info: NsdServiceInfo) {
+        if (store.groupKey == null) return
+        val host = resolvedIPv4(info) ?: return
+        val advertisedId = SyncProtocol.nsdTxt(info.attributes, SyncProtocol.MDNS_TXT_ID)
+        if (!SyncProtocol.shouldAcceptDiscoveredMac(store.peer?.deviceId, advertisedId)) {
+            nsdLog("Ignoring BinderClip Mac at $host (device id mismatch)")
+            return
+        }
+        val endpoint = "$host:${info.port}"
+        val merged = SyncProtocol.mergeAdvertisedEndpoints(store.peerCandidates, listOf(endpoint))
+        if (merged != store.peerCandidates) {
+            store.peerCandidates = merged
+            nsdLog("Discovered paired Mac at $endpoint")
+        }
+        if (!client.isConnected()) {
+            client.requestConnectResettingBackoff()
         }
     }
 
