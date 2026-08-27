@@ -17,6 +17,7 @@ public final class WebSocketServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
     private let rosterManager = RosterManager()
     private var listener: NWListener?
+    private let bluetoothConnector = BluetoothConnector()
     private var pathMonitor: NWPathMonitor?
     private var pathDebounce: DispatchWorkItem?
     private var lastLocalAddresses: [String] = []
@@ -95,6 +96,7 @@ public final class WebSocketServer: @unchecked Sendable {
             self.startPathMonitor()
             self.startAddressWatch()
             self.startHeartbeat()
+            self.bluetoothConnector.start(server: self)
         }
     }
 
@@ -113,6 +115,7 @@ public final class WebSocketServer: @unchecked Sendable {
             self.heartbeatTimer = nil
             self.listener?.cancel()
             self.listener = nil
+            self.bluetoothConnector.stop()
             for session in self.activeSessions.values {
                 session.connection.cancel()
             }
@@ -160,6 +163,10 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func notifyUnpairAndDrop(_ sessions: [WebSocketSession]) {
+        for session in bluetoothConnector.authenticatedSessions {
+            session.sendFrame([("type", .text("unpair"))])
+            session.channel.close()
+        }
         for session in sessions {
             let id = ObjectIdentifier(session.connection)
             session.sendText(["type": "unpair"]) { [weak self] in
@@ -493,9 +500,7 @@ public final class WebSocketServer: @unchecked Sendable {
             return
         }
 
-        let expectedPsk = SyncProtocol.urlSafeBase64(rosterManager.groupKey)
-        let standardPsk = rosterManager.groupKey.base64EncodedString()
-        let match = token == expectedPsk || token == standardPsk || SyncProtocol.decodeBase64(token) == rosterManager.groupKey
+        let match = Self.pskMatches(token, groupKey: rosterManager.groupKey)
         print("[WebSocketServer] Auth check: token=\(token.prefix(10))... match=\(match)")
         fflush(stdout)
         guard match else {
@@ -583,6 +588,38 @@ public final class WebSocketServer: @unchecked Sendable {
             if let targetPeerId, session.peerID != targetPeerId { continue }
             if SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: locals) { continue }
             session.sendText(object)
+        }
+        for session in bluetoothConnector.authenticatedSessions {
+            if let targetPeerId, session.peerID != targetPeerId { continue }
+            if let fields = Self.btFields(from: object) {
+                session.sendFrame(fields)
+            }
+        }
+    }
+
+    static func pskMatches(_ token: String, groupKey: Data) -> Bool {
+        token == SyncProtocol.urlSafeBase64(groupKey)
+            || token == groupKey.base64EncodedString()
+            || SyncProtocol.decodeBase64(token) == groupKey
+    }
+
+    /// Canonical CBOR field order for frames mirrored onto the Bluetooth link.
+    static func btFields(from object: [String: Any]) -> [(String, BtValue)]? {
+        guard let type = object["type"] as? String else { return nil }
+        switch type {
+        case "clipboard":
+            return [("type", .text(type)), ("text", .text(object["text"] as? String ?? ""))]
+        case "openUrl":
+            guard let url = object["url"] as? String else { return nil }
+            return [("type", .text(type)), ("url", .text(url))]
+        case "ping", "pong":
+            return [("type", .text(type)), ("t", .uint(UInt64(object["t"] as? Int64 ?? 0)))]
+        case "unpair":
+            return [("type", .text(type))]
+        case "rename":
+            return [("type", .text(type)), ("id", .text(object["id"] as? String ?? "")), ("name", .text(object["name"] as? String ?? ""))]
+        default:
+            return nil
         }
     }
 
@@ -740,8 +777,135 @@ public final class WebSocketServer: @unchecked Sendable {
                 "t": Int64(now.timeIntervalSince1970 * 1000)
             ])
         }
+        for session in bluetoothConnector.authenticatedSessions where session.isAuthenticated {
+            if !SessionLiveness.isAlive(
+                boundLocal: nil,
+                currentLocals: [],
+                lastHeard: session.lastHeard,
+                now: now,
+                budget: session.livenessBudget
+            ) {
+                session.channel.close()
+                evicted = true
+                continue
+            }
+            session.sendFrame([
+                ("type", .text("ping")),
+                ("t", .uint(UInt64(Int64(now.timeIntervalSince1970 * 1000))))
+            ])
+        }
         if evicted {
             publishPresence()
+        }
+    }
+
+    // MARK: - Bluetooth frames
+
+    var hasNoLiveSessions: Bool {
+        queue.sync {
+            activeSessions.values.allSatisfy { !$0.isAuthenticated }
+        } && bluetoothConnector.authenticatedSessions.isEmpty
+    }
+
+    var hasPairedPeers: Bool { !rosterManager.peers.isEmpty }
+
+    /// Peer ids currently holding an authenticated session (WebSocket or Bluetooth).
+    /// Runs on the server queue only; the Bluetooth snapshot is lock-protected so it is safe to
+    /// read even from the connector's own serial queue without deadlocking.
+    var livePeerIDs: Set<String> {
+        var ids = Set(activeSessions.values.compactMap { $0.isAuthenticated ? $0.peerID : nil })
+        ids.formUnion(bluetoothConnector.authenticatedPeerIDSnapshot)
+        return ids
+    }
+
+    /// Runs on the server queue; the connector hops here from its own serial queue.
+    func handleBluetoothFrame(_ fields: [(String, BtValue)], session: BluetoothSession) {
+        queue.async { [weak self] in
+            self?.handleBluetoothFrameLocked(fields, session: session)
+        }
+    }
+
+    func bluetoothSessionClosed(_ session: BluetoothSession) {
+        queue.async { [weak self] in
+            guard let self, let peerID = session.peerID else { return }
+            if var peer = self.rosterManager.peers[peerID] {
+                peer.connected = false
+                _ = self.rosterManager.addOrUpdatePeer(peer)
+            }
+            self.publishPresence()
+            self.onLog?("Bluetooth session closed (\(peerID))")
+        }
+    }
+
+    private func handleBluetoothFrameLocked(_ fields: [(String, BtValue)], session: BluetoothSession) {
+        func text(_ key: String) -> String? {
+            fields.first(where: { $0.0 == key })?.1.valueAsText
+        }
+        func uint(_ key: String) -> UInt64? {
+            if case .uint(let number)? = fields.first(where: { $0.0 == key })?.1 { return number }
+            return nil
+        }
+        let type = text("type") ?? ""
+        switch type {
+        case "auth":
+            let token = text("psk") ?? ""
+            let clientID = text("deviceId") ?? ""
+            let clientName = text("deviceName") ?? "Android"
+            guard Self.pskMatches(token, groupKey: rosterManager.groupKey),
+                  rosterManager.shouldAcceptPeer(clientID, isPairingScan: false) else {
+                onLog?("Unauthorized Bluetooth connection rejected")
+                bluetoothConnector.dropSession(session)
+                return
+            }
+            session.isAuthenticated = true
+            session.peerID = clientID
+            session.peerName = clientName
+            session.livenessBudget = SyncProtocol.heartbeatBudget
+            session.cancelAuthDeadline()
+            self.bluetoothConnector.registerBluetoothMapping(btName: session.deviceName, peerID: clientID)
+
+            for other in activeSessions.values where PeerPresence.shouldCancelExtra(
+                isAuthenticated: other.isAuthenticated,
+                existingPeerID: other.peerID,
+                incomingPeerID: clientID
+            ) {
+                other.connection.cancel()
+            }
+
+            let peer = Peer(id: clientID, name: clientName, endpoint: DirectEndpoint(host: "bluetooth", port: 0), connected: true, platform: "Android")
+            _ = rosterManager.addOrUpdatePeer(peer)
+            publishPresence()
+
+            var okFields: [(String, BtValue)] = [
+                ("type", .text("auth_ok")),
+                ("deviceId", .text(localDeviceID)),
+                ("deviceName", .text(localDeviceName)),
+                ("version", .uint(UInt64(SyncProtocol.version))),
+                ("endpoints", .array(advertisedEndpointList())),
+            ]
+            _ = okFields.count
+            session.sendFrame(okFields)
+            onLog?("Connected to \(clientName) over Bluetooth")
+        case "clipboard":
+            guard session.isAuthenticated, let body = text("text") else { return }
+            session.lastHeard = Date()
+            let digest = SyncProtocol.sha256Hex(body)
+            guard digest != lastProcessedHash else { return }
+            lastProcessedHash = digest
+            DispatchQueue.main.async { [weak self] in
+                self?.onClipboard?(body)
+            }
+        case "openUrl":
+            guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
+            session.lastHeard = Date()
+            DispatchQueue.main.async { [weak self] in
+                self?.onOpenURL?(value)
+            }
+        case "power":
+            guard session.isAuthenticated else { return }
+            session.livenessBudget = text("state") == "sleep" ? SyncProtocol.heartbeatSleepBudget : SyncProtocol.heartbeatBudget
+        default:
+            break
         }
     }
 

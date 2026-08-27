@@ -177,6 +177,10 @@ class DeviceStore(context: Context) {
     fun isRootClipboardAutomationEnabled(): Boolean = prefs.getBoolean("root_clipboard_automation", false)
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
 
+    /** Bluetooth Classic fallback for text/links; on by default, engages only off-Wi-Fi. */
+    fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", true)
+    fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
+
     /** When true, suppress the transient toasts shown for automatic clipboard copy/receive/send. */
     fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", false)
     fun setSyncToastHidden(hidden: Boolean) { prefs.edit().putBoolean("hide_sync_toasts", hidden).apply() }

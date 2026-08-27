@@ -68,6 +68,8 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSLocalNetworkUsageDescription</key><string>BinderClip uses direct local-network or mesh-VPN connections to transfer clipboard text and images.</string>
   <key>NSAppleEventsUsageDescription</key><string>BinderClip reads the active tab URL from your web browser when sharing browser tabs.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>BinderClip syncs clipboard text over Bluetooth when Wi-Fi and mesh are unavailable.</string>
   <key>NSBonjourServices</key>
   <array>
     <string>_binderclip._tcp</string>

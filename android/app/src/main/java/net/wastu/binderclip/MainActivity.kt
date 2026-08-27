@@ -121,6 +121,8 @@ class MainActivity : AppCompatActivity() {
     }
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision += 1 }
+    private val requestBluetooth =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision += 1 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); DiagnosticLog.initialize(this); startService(BinderClipService.ACTION_START)
@@ -131,6 +133,7 @@ class MainActivity : AppCompatActivity() {
                 val revision = permissionRevision
                 val notificationsGranted =
                     Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                val bluetoothGranted = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
                 val power = getSystemService(PowerManager::class.java)
                 val batteryOptimizationIgnored =
                     Build.VERSION.SDK_INT < Build.VERSION_CODES.M || power.isIgnoringBatteryOptimizations(packageName)
@@ -147,6 +150,7 @@ class MainActivity : AppCompatActivity() {
                 BinderClipScreen(
                     state = state,
                     notificationsGranted = notificationsGranted,
+                    bluetoothGranted = bluetoothGranted,
                     batteryOptimizationIgnored = batteryOptimizationIgnored,
                     autoStartHelpNeeded = autoStartHelpNeeded,
                     permissionRevision = revision,
@@ -169,6 +173,15 @@ class MainActivity : AppCompatActivity() {
                             BinderClipService.ACTION_SET_SYNC_TOASTS,
                             hidden = hidden
                         )
+                    },
+                    onToggleBtFallback = { enabled ->
+                        startService(
+                            BinderClipService.ACTION_SET_BT_FALLBACK,
+                            enabled = enabled
+                        )
+                    },
+                    onRequestBluetooth = {
+                        if (Build.VERSION.SDK_INT >= 31) requestBluetooth.launch(Manifest.permission.BLUETOOTH_CONNECT)
                     },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
                     onRemove = { id -> startService(BinderClipService.ACTION_REMOVE_MEMBER, memberId = id) },
@@ -334,6 +347,7 @@ class MainActivity : AppCompatActivity() {
 private fun BinderClipScreen(
     state: AppState,
     notificationsGranted: Boolean,
+    bluetoothGranted: Boolean,
     batteryOptimizationIgnored: Boolean,
     autoStartHelpNeeded: Boolean,
     permissionRevision: Int,
@@ -347,6 +361,8 @@ private fun BinderClipScreen(
     onReconnect: () -> Unit,
     onToggleRoot: (Boolean) -> Unit,
     onToggleSyncToasts: (Boolean) -> Unit,
+    onToggleBtFallback: (Boolean) -> Unit,
+    onRequestBluetooth: () -> Unit,
     onDisableAccessibility: () -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
@@ -398,6 +414,14 @@ private fun BinderClipScreen(
                 "Enable Accessibility",
                 Icons.Outlined.AccessibilityNew,
                 onOpenAccessibility
+            )
+        )
+        if (state.btFallbackEnabled && !bluetoothGranted) add(
+            PermissionNeed(
+                "Bluetooth",
+                "Needed for offline fallback sync",
+                Icons.Outlined.Settings,
+                onRequestBluetooth
             )
         )
         if (!batteryOptimizationIgnored) add(
@@ -561,6 +585,15 @@ private fun BinderClipScreen(
                     summary = if (state.syncToastHidden) "Clipboard copy/receive toasts are hidden." else "Show a toast when clipboard text or images sync.",
                     checked = state.syncToastHidden,
                     onChanged = onToggleSyncToasts,
+                )
+            }
+            item {
+                PreferenceToggle(
+                    title = "Bluetooth fallback",
+                    summary = if (state.btFallbackEnabled) "Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable."
+                        else "Bluetooth fallback is off; sync requires Wi-Fi or mesh.",
+                    checked = state.btFallbackEnabled,
+                    onChanged = onToggleBtFallback,
                 )
             }
         }
