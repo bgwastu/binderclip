@@ -62,6 +62,7 @@ class WebSocketClient(
     @Volatile private var pairingScan = false
 
     fun isConnected(): Boolean = isConnected.get()
+    fun connectedEndpoint(): String? = activeEndpoint
     fun currentBackoffSeconds(): Long = policy.delaySeconds
     fun isConnecting(): Boolean = isConnecting.get()
 

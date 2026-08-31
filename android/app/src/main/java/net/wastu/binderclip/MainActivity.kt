@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision += 1 }
     private val requestBluetooth =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionRevision += 1 }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissionRevision += 1 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); DiagnosticLog.initialize(this); startService(BinderClipService.ACTION_START)
@@ -133,7 +133,13 @@ class MainActivity : AppCompatActivity() {
                 val revision = permissionRevision
                 val notificationsGranted =
                     Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                val bluetoothGranted = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                val bluetoothGranted = if (Build.VERSION.SDK_INT >= 31) {
+                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+                    checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+                } else {
+                    true
+                }
+                var showBluetoothGuide by remember { mutableStateOf(false) }
                 val power = getSystemService(PowerManager::class.java)
                 val batteryOptimizationIgnored =
                     Build.VERSION.SDK_INT < Build.VERSION_CODES.M || power.isIgnoringBatteryOptimizations(packageName)
@@ -181,7 +187,20 @@ class MainActivity : AppCompatActivity() {
                         )
                     },
                     onRequestBluetooth = {
-                        if (Build.VERSION.SDK_INT >= 31) requestBluetooth.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        if (Build.VERSION.SDK_INT >= 31) {
+                            val perms = arrayOf(
+                                Manifest.permission.BLUETOOTH_CONNECT,
+                                Manifest.permission.BLUETOOTH_SCAN
+                            )
+                            val anyRationale = perms.any { shouldShowRequestPermissionRationale(it) }
+                            if (anyRationale) {
+                                showBluetoothGuide = true
+                            } else {
+                                requestBluetooth.launch(perms)
+                            }
+                        } else {
+                            showBluetoothGuide = true
+                        }
                     },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
                     onRemove = { id -> startService(BinderClipService.ACTION_REMOVE_MEMBER, memberId = id) },
@@ -194,6 +213,37 @@ class MainActivity : AppCompatActivity() {
                     },
                     onRefresh = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
                 )
+                if (showBluetoothGuide) {
+                    AlertDialog(
+                        onDismissRequest = { showBluetoothGuide = false },
+                        title = { Text("Allow Bluetooth Permission") },
+                        text = {
+                            Text(
+                                "BinderClip uses Bluetooth Low Energy to sync your clipboard when Wi-Fi is unavailable.\n\n" +
+                                "To enable Bluetooth fallback:\n" +
+                                "1. Tap 'Open Settings' below.\n" +
+                                "2. Tap 'Permissions'.\n" +
+                                "3. Allow 'Nearby devices' or 'Bluetooth'."
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                showBluetoothGuide = false
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.fromParts("package", packageName, null)
+                                }
+                                startActivity(intent)
+                            }) {
+                                Text("Open Settings")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showBluetoothGuide = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -511,6 +561,7 @@ private fun BinderClipScreen(
                         device,
                         isCurrentDevice = device.deviceId == state.localDeviceId,
                         phase = state.connectionPhase,
+                        transportType = state.transportType,
                         onClick = { selectedDeviceId = device.deviceId })
                 }
                 if (devices.isNotEmpty()) item { Spacer(Modifier.height(12.dp)) }
@@ -654,12 +705,22 @@ private fun BinderClipScreen(
             title = { Text(target.name) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (target.connected) "Connected"
-                        else if (state.connectionPhase == ConnectionPhase.Connecting) "Connecting…"
-                        else "Reconnecting…"
-                    )
-                    Text("IP: ${target.host.takeIf { it.isNotBlank() } ?: "Unavailable"}")
+                    val statusText = if (target.connected) {
+                        when (state.transportType) {
+                            TransportType.BLUETOOTH -> "Connected via Bluetooth"
+                            TransportType.MESH -> "Connected via Mesh"
+                            TransportType.LAN -> "Connected via LAN"
+                            TransportType.NONE -> "Connected"
+                        }
+                    } else if (state.connectionPhase == ConnectionPhase.Connecting) "Connecting…"
+                    else "Reconnecting…"
+                    Text(statusText)
+                    val ipText = if (target.connected && state.transportType == TransportType.BLUETOOTH) {
+                        "Transport: Bluetooth BLE"
+                    } else {
+                        "IP: ${target.host.takeIf { it.isNotBlank() } ?: "Unavailable"}"
+                    }
+                    Text(ipText)
                 }
             },
             confirmButton = {
@@ -859,7 +920,13 @@ private fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp =
 )
 
 @Composable
-private fun DeviceRow(member: RememberedPeer, isCurrentDevice: Boolean, phase: ConnectionPhase, onClick: () -> Unit) {
+private fun DeviceRow(
+    member: RememberedPeer,
+    isCurrentDevice: Boolean,
+    phase: ConnectionPhase,
+    transportType: TransportType = TransportType.NONE,
+    onClick: () -> Unit
+) {
     val container = if (isCurrentDevice) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     Box(
         modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(MaterialTheme.shapes.medium).background(container)
@@ -889,11 +956,19 @@ private fun DeviceRow(member: RememberedPeer, isCurrentDevice: Boolean, phase: C
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusDot(member.connected, 7.dp); Spacer(Modifier.width(8.dp))
+                val statusText = when {
+                    isCurrentDevice -> "This device"
+                    member.connected -> when (transportType) {
+                        TransportType.BLUETOOTH -> "Connected via Bluetooth"
+                        TransportType.MESH -> "Connected via Mesh"
+                        TransportType.LAN -> "Connected via LAN"
+                        TransportType.NONE -> "Connected"
+                    }
+                    phase == ConnectionPhase.Connecting -> "Connecting…"
+                    else -> "Reconnecting…"
+                }
                 Text(
-                    if (isCurrentDevice) "This device"
-                    else if (member.connected) "Connected"
-                    else if (phase == ConnectionPhase.Connecting) "Connecting…"
-                    else "Reconnecting…",
+                    statusText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

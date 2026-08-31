@@ -38,6 +38,9 @@ public struct ImageMetadata: Codable, Sendable, Equatable {
 public enum SyncProtocol {
     public static let version = 2
     public static let btServiceUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a73"
+    public static let btPsmCharUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a74"
+    public static let btWriteCharUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a75"
+    public static let btNotifyCharUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a76"
     public static let defaultPort: UInt16 = 39_421
     public static let maximumTextBytes = 1_048_576
     public static let maximumImageBytes = 32 * 1024 * 1024

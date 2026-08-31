@@ -31,9 +31,17 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
+enum class TransportType {
+    LAN,
+    MESH,
+    BLUETOOTH,
+    NONE
+}
+
 data class AppState(
     val status: String = "Not paired",
     val connectionPhase: ConnectionPhase = ConnectionPhase.NotPaired,
+    val transportType: TransportType = TransportType.NONE,
     val peer: RememberedPeer? = null,
     val pendingText: Boolean = false,
     val pendingImage: Boolean = false,
@@ -285,7 +293,8 @@ class BinderClipService : Service() {
                                 if (client.isConnected()) client.sendOpenUrl(trimmed, targetDeviceId)
                                 else bluetoothLink?.takeIf { it.isConnected() }?.sendOpenUrl(trimmed)
                             } else {
-                                client.sendText(shared.value)
+                                if (client.isConnected()) client.sendText(shared.value)
+                                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(shared.value)
                             }
                         }
                         null -> reportFailure("Nothing to share")
@@ -479,7 +488,7 @@ class BinderClipService : Service() {
         when (val payload = ClipboardClassifier.read(this, clipboard)) {
             is LocalClipboardContent.Text -> {
                 val hash = SyncProtocol.sha256Hex(payload.value)
-                if (hash == lastSeenHash) return
+                if (hash == lastSeenHash && !userInitiated) return
                 lastSeenHash = hash
                 if (client.isConnected()) client.sendText(payload.value, hash)
                 else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(payload.value)
@@ -502,7 +511,8 @@ class BinderClipService : Service() {
                 val hash = SyncProtocol.sha256Hex(payload.value)
                 if (hash == lastSeenHash) return
                 lastSeenHash = hash
-                client.sendText(payload.value, hash)
+                if (client.isConnected()) client.sendText(payload.value, hash)
+                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(payload.value)
             }
             is AccessibilityClipboard.Image -> {
                 if (payload.value.sha256 == lastSeenHash) return
@@ -591,21 +601,31 @@ class BinderClipService : Service() {
             if (peer != null && member.deviceId == peer.deviceId) member.copy(connected = liveConnected)
             else member.copy(connected = false)
         }
+        val transportType = when {
+            client.isConnected() -> {
+                val ep = client.connectedEndpoint() ?: store.peer?.host ?: ""
+                val host = SyncProtocol.parseEndpoint(ep)?.first ?: ep
+                if (host.startsWith("100.")) TransportType.MESH else TransportType.LAN
+            }
+            bluetoothLink?.isConnected() == true -> TransportType.BLUETOOTH
+            else -> TransportType.NONE
+        }
         val statusText = when {
             pairingHint != null && phase != ConnectionPhase.Connected -> pairingHint!!
             phase == ConnectionPhase.Reconnecting && !lastError.isNullOrBlank() -> lastError!!
             else -> ConnectionStatus.label(phase, peer?.name)
         }
-        val statusWithTransport = if (bluetoothLink?.isConnected() == true && !client.isConnected() && phase == ConnectionPhase.Connected) {
-            "$statusText · Bluetooth"
-        } else {
-            statusText
+        val statusWithTransport = when (transportType) {
+            TransportType.BLUETOOTH -> "$statusText · Bluetooth"
+            TransportType.MESH -> "$statusText · Mesh"
+            else -> statusText
         }
         updateNotification(statusWithTransport)
 
         AppRuntime.state.value = AppState(
             status = statusText,
             connectionPhase = phase,
+            transportType = transportType,
             peer = peer,
             pendingText = store.pendingText != null,
             pendingImage = pendingImage != null,
@@ -841,16 +861,24 @@ class BinderClipService : Service() {
             return
         }
         val btConnected = link.isConnected()
-        when (BtPolicy.decide(
+        val decision = BtPolicy.decide(
             paired = true,
             fallbackEnabled = store.isBtFallbackEnabled(),
             wsConnected = client.isConnected(),
+            btConnected = btConnected,
             backoffSeconds = client.currentBackoffSeconds(),
             networkAvailable = networkAvailable,
             btAdapterOn = link.adapterEnabled(),
             permissionGranted = link.hasPermission(),
-        )) {
-            BtPolicy.Decision.LISTEN_BT -> link.startListening()
+        )
+        android.util.Log.d("BinderClipBLE", "evaluateBluetooth decision: $decision (btConnected=$btConnected, wsConn=${client.isConnected()}, backoff=${client.currentBackoffSeconds()})")
+        when (decision) {
+            BtPolicy.Decision.LISTEN_BT -> {
+                if (!btConnected && !link.isListening()) {
+                    android.util.Log.i("BinderClipBLE", "Triggering link.startListening()")
+                    link.startListening()
+                }
+            }
             BtPolicy.Decision.PROMPT_ENABLE_BT -> promptBtEnable()
             else -> Unit
         }

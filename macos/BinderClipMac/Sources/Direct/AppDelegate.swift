@@ -301,12 +301,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     private func renderPendingPermissions(into menu: NSMenu) {
         var hasPendingPermission = false
+        if transport.isBluetoothPermissionDenied {
+            let item = NSMenuItem(title: "Allow Bluetooth", action: #selector(openBluetoothPermissionGuide), keyEquivalent: "")
+            item.target = self; menu.addItem(item); hasPendingPermission = true
+        }
         if localNetworkPermissionRequired {
-            let item = NSMenuItem(title: "Allow Local Network", action: #selector(openPrivacySettings), keyEquivalent: "")
+            let item = NSMenuItem(title: "Allow Local Network", action: #selector(openLocalNetworkPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if clipboard.isAccessDenied {
-            let item = NSMenuItem(title: "Allow Clipboard Access", action: #selector(openPrivacySettings), keyEquivalent: "")
+            let item = NSMenuItem(title: "Allow Clipboard Access", action: #selector(openClipboardPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if automationPermissionRequired {
@@ -371,12 +375,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private func deviceMenu(for peer: Peer) -> NSMenu {
         let details = NSMenu()
         details.autoenablesItems = false
-        let status = NSMenuItem(title: peer.connected ? "Connected" : "Waiting for device", action: nil, keyEquivalent: "")
+        let transportType = transport.peerTransportType(peer.id)
+        let statusTitle: String
+        if !peer.connected || transportType == .none {
+            statusTitle = "Waiting for device"
+        } else {
+            switch transportType {
+            case .bluetooth:
+                statusTitle = "Connected via Bluetooth"
+            case .mesh:
+                statusTitle = "Connected via Mesh"
+            case .lan:
+                statusTitle = "Connected via LAN"
+            case .none:
+                statusTitle = "Waiting for device"
+            }
+        }
+        let status = NSMenuItem(title: statusTitle, action: nil, keyEquivalent: "")
         status.isEnabled = false
         details.addItem(status)
         let host = peer.endpoint.host.trimmingCharacters(in: .whitespacesAndNewlines)
         if !host.isEmpty, host != "unknown" {
-            let ip = NSMenuItem(title: host, action: nil, keyEquivalent: "")
+            let ipTitle = host == "bluetooth" ? "Transport: Bluetooth BLE" : host
+            let ip = NSMenuItem(title: ipTitle, action: nil, keyEquivalent: "")
             ip.isEnabled = false
             details.addItem(ip)
         }
@@ -578,6 +599,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             SMAppService.openSystemSettingsLoginItems()
         }
         renderMenu()
+    }
+
+    @objc private func openBluetoothPermissionGuide() {
+        let alert = NSAlert()
+        alert.messageText = "Allow Bluetooth for BinderClip"
+        alert.informativeText = """
+        BinderClip uses Bluetooth Low Energy as an automatic fallback when Wi-Fi is unreachable.
+
+        To enable Bluetooth:
+        1. Click “Open System Settings” below.
+        2. In Privacy & Security → Bluetooth, turn ON the toggle for BinderClip.
+        3. If prompted, restart BinderClip.
+        """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Done")
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") {
+                NSWorkspace.shared.open(url)
+            } else {
+                openPrivacySettings()
+            }
+        }
+    }
+
+    @objc private func openLocalNetworkPermissionGuide() {
+        let alert = NSAlert()
+        alert.messageText = "Allow Local Network for BinderClip"
+        alert.informativeText = """
+        BinderClip needs Local Network access to discover and sync with phones on your Wi-Fi network.
+
+        To enable Local Network:
+        1. Click “Open System Settings” below.
+        2. In Privacy & Security → Local Network, turn ON the toggle for BinderClip.
+        """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Done")
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork") {
+                NSWorkspace.shared.open(url)
+            } else {
+                openPrivacySettings()
+            }
+        }
+    }
+
+    @objc private func openClipboardPermissionGuide() {
+        let alert = NSAlert()
+        alert.messageText = "Allow Clipboard Access for BinderClip"
+        alert.informativeText = """
+        BinderClip needs Clipboard Access to sync copied text and images with your paired devices.
+
+        To enable Clipboard Access:
+        1. Click “Open System Settings” below.
+        2. In Privacy & Security, ensure BinderClip is allowed clipboard access.
+        """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Done")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openPrivacySettings()
+        }
     }
 
     @objc private func openPrivacySettings() {

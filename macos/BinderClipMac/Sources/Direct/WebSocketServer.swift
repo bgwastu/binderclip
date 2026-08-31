@@ -5,6 +5,13 @@ import Foundation
 import Network
 import SystemConfiguration
 
+public enum PeerTransportType: String, Sendable {
+    case lan = "LAN"
+    case mesh = "Mesh"
+    case bluetooth = "Bluetooth"
+    case none = "None"
+}
+
 public final class WebSocketServer: @unchecked Sendable {
     public var onClipboard: ((String) -> Void)?
     public var onOpenURL: ((URL) -> Void)?
@@ -13,6 +20,27 @@ public final class WebSocketServer: @unchecked Sendable {
     public var onPeersChanged: (([Peer]) -> Void)?
     public var onLog: ((String) -> Void)?
     public var onLocalNetworkPermissionRequired: ((Bool) -> Void)?
+
+    public var isBluetoothPermissionDenied: Bool {
+        bluetoothConnector.isBluetoothPermissionDenied
+    }
+
+    public func peerTransportType(_ peerID: String) -> PeerTransportType {
+        let isBt = bluetoothConnector.authenticatedPeerIDSnapshot.contains(peerID)
+        let isWs = queue.sync {
+            activeSessions.values.first { $0.isAuthenticated && $0.peerID == peerID }?.remoteHostString()
+        }
+        if let wsHost = isWs {
+            if wsHost.hasPrefix("100.") {
+                return .mesh
+            }
+            return .lan
+        }
+        if isBt {
+            return .bluetooth
+        }
+        return .none
+    }
 
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
     private let rosterManager = RosterManager()
@@ -165,7 +193,7 @@ public final class WebSocketServer: @unchecked Sendable {
     private func notifyUnpairAndDrop(_ sessions: [WebSocketSession]) {
         for session in bluetoothConnector.authenticatedSessions {
             session.sendFrame([("type", .text("unpair"))])
-            session.channel.close()
+            session.close()
         }
         for session in sessions {
             let id = ObjectIdentifier(session.connection)
@@ -217,7 +245,9 @@ public final class WebSocketServer: @unchecked Sendable {
                 payload["targetDeviceId"] = targetDeviceId
             }
             let authedCount = self.activeSessions.values.filter { $0.isAuthenticated }.count
-            print("[WebSocketServer] Broadcasting clipboard to \(authedCount) authenticated sessions: \(text.prefix(30))")
+            let btAuthedCount = self.bluetoothConnector.authenticatedSessions.count
+            print("[WebSocketServer] Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions: \(text.prefix(30))")
+            self.onLog?("Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions")
             self.broadcastText(payload, targetPeerId: targetDeviceId)
         }
     }
@@ -785,7 +815,7 @@ public final class WebSocketServer: @unchecked Sendable {
                 now: now,
                 budget: session.livenessBudget
             ) {
-                session.channel.close()
+                session.close()
                 evicted = true
                 continue
             }
@@ -890,6 +920,7 @@ public final class WebSocketServer: @unchecked Sendable {
             guard session.isAuthenticated, let body = text("text") else { return }
             session.lastHeard = Date()
             let digest = SyncProtocol.sha256Hex(body)
+            print("[WebSocketServer] BT received clipboard: \(body.prefix(30)), hash=\(digest)")
             guard digest != lastProcessedHash else { return }
             lastProcessedHash = digest
             DispatchQueue.main.async { [weak self] in
@@ -898,6 +929,7 @@ public final class WebSocketServer: @unchecked Sendable {
         case "openUrl":
             guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
             session.lastHeard = Date()
+            print("[WebSocketServer] BT received openUrl: \(url)")
             DispatchQueue.main.async { [weak self] in
                 self?.onOpenURL?(value)
             }

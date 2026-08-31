@@ -35,6 +35,9 @@ object SyncProtocol {
     const val AUTH_DEADLINE_MS = 2_000L
     const val CONNECT_TIMEOUT_SECONDS = 8L
     const val BT_SERVICE_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a73"
+    const val BT_PSM_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a74"
+    const val BT_WRITE_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a75"
+    const val BT_NOTIFY_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a76"
 
     fun orderedConnectEndpoints(
         lastGood: String?,
