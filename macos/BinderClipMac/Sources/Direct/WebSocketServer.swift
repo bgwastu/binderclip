@@ -412,7 +412,7 @@ public final class WebSocketServer: @unchecked Sendable {
     private func usableAuthenticatedPeerIDs() -> [String] {
         let now = Date()
         let locals = Self.localAddresses()
-        return activeSessions.values.compactMap { session in
+        var peerIDs = activeSessions.values.compactMap { session -> String? in
             guard session.isAuthenticated, let peerID = session.peerID else { return nil }
             guard SessionLiveness.isAlive(
                 boundLocal: session.boundLocalAddress,
@@ -424,6 +424,19 @@ public final class WebSocketServer: @unchecked Sendable {
             if case .ready = session.connection.state { return peerID }
             return nil
         }
+        for btSession in bluetoothConnector.authenticatedSessions where btSession.isAuthenticated {
+            guard let peerID = btSession.peerID else { continue }
+            if SessionLiveness.isAlive(
+                boundLocal: nil,
+                currentLocals: [],
+                lastHeard: btSession.lastHeard,
+                now: now,
+                budget: btSession.livenessBudget
+            ) {
+                peerIDs.append(peerID)
+            }
+        }
+        return peerIDs
     }
 
     private func publishPresence() {
@@ -906,14 +919,13 @@ public final class WebSocketServer: @unchecked Sendable {
             _ = rosterManager.addOrUpdatePeer(peer)
             publishPresence()
 
-            var okFields: [(String, BtValue)] = [
+            let okFields: [(String, BtValue)] = [
                 ("type", .text("auth_ok")),
                 ("deviceId", .text(localDeviceID)),
                 ("deviceName", .text(localDeviceName)),
                 ("version", .uint(UInt64(SyncProtocol.version))),
                 ("endpoints", .array(advertisedEndpointList())),
             ]
-            _ = okFields.count
             session.sendFrame(okFields)
             onLog?("Connected to \(clientName) over Bluetooth")
         case "clipboard":

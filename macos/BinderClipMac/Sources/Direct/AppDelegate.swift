@@ -376,8 +376,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let details = NSMenu()
         details.autoenablesItems = false
         let transportType = transport.peerTransportType(peer.id)
+        let isConnected = peer.connected || transportType != .none
         let statusTitle: String
-        if !peer.connected || transportType == .none {
+        if !isConnected || transportType == .none {
             statusTitle = "Waiting for device"
         } else {
             switch transportType {
