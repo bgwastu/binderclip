@@ -424,17 +424,10 @@ public final class WebSocketServer: @unchecked Sendable {
             if case .ready = session.connection.state { return peerID }
             return nil
         }
-        for btSession in bluetoothConnector.authenticatedSessions where btSession.isAuthenticated {
-            guard let peerID = btSession.peerID else { continue }
-            if SessionLiveness.isAlive(
-                boundLocal: nil,
-                currentLocals: [],
-                lastHeard: btSession.lastHeard,
-                now: now,
-                budget: btSession.livenessBudget
-            ) {
-                peerIDs.append(peerID)
-            }
+        // Include Bluetooth-authenticated peers using the lock-protected snapshot
+        // (avoids a cross-queue queue.sync that could deadlock with the BT connector queue).
+        for peerID in bluetoothConnector.authenticatedPeerIDSnapshot {
+            peerIDs.append(peerID)
         }
         return peerIDs
     }
@@ -917,6 +910,7 @@ public final class WebSocketServer: @unchecked Sendable {
 
             let peer = Peer(id: clientID, name: clientName, endpoint: DirectEndpoint(host: "bluetooth", port: 0), connected: true, platform: "Android")
             _ = rosterManager.addOrUpdatePeer(peer)
+            bluetoothConnector.noteAuthenticatedPeer(clientID)
             publishPresence()
 
             let okFields: [(String, BtValue)] = [
