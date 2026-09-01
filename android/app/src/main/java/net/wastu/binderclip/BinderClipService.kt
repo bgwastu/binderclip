@@ -52,6 +52,7 @@ data class AppState(
     val syncToastHidden: Boolean = false,
     val btFallbackEnabled: Boolean = false,
     val bluetoothActive: Boolean = false,
+    val bluetoothEnabled: Boolean = false,
     val accessibilityEnabled: Boolean = false,
     val localDeviceId: String = "",
     val localDeviceName: String = "",
@@ -203,11 +204,31 @@ class BinderClipService : Service() {
             override fun onAuthenticated(remoteId: String, remoteName: String) {
                 store.peer = (store.peer ?: RememberedPeer("Mac", "bluetooth", 0, remoteId, "macOS", false))
                     .copy(name = remoteName.ifBlank { store.peer?.name ?: "Mac" }, deviceId = remoteId, connected = true)
+                // Bluetooth is live; stop the WebSocket racer from fighting it while we probe for
+                // a better path.
+                client.setReconnectSuppressed(true)
                 publishState()
+            }
+
+            override fun onEndpoints(endpoints: List<String>) {
+                executor.execute {
+                    val merged = SyncProtocol.mergeAdvertisedEndpoints(store.peerCandidates, endpoints)
+                    if (merged != store.peerCandidates) {
+                        store.peerCandidates = merged
+                        DiagnosticLog.info("Mac endpoints from Bluetooth: ${merged.joinToString()}")
+                    }
+                    // BLE handed us the live mesh/LAN endpoints. Probe the faster WebSocket path
+                    // immediately (mesh-first). A forced reconnect bypasses the BT suppression so
+                    // the racer can promote to WS; Bluetooth stays as fallback if it can't connect.
+                    if (!client.isConnected()) {
+                        client.forceReconnect()
+                    }
+                }
             }
 
             override fun onLinkDown(reason: String) {
                 if (store.groupKey != null) DiagnosticLog.info("Bluetooth link down ($reason)")
+                client.setReconnectSuppressed(false)
                 refreshNsdDiscovery()
                 publishState()
             }
@@ -595,7 +616,10 @@ class BinderClipService : Service() {
     private fun publishState() {
         val paired = store.groupKey != null
         val liveConnected = client.isConnected() || bluetoothLink?.isConnected() == true
-        val phase = ConnectionStatus.phase(paired, liveConnected, client.isConnecting())
+        // If any transport is live, we are connected — never let a still-racing WebSocket
+        // downgrade the phase to "Connecting" when Bluetooth already carries the session.
+        val phase = if (liveConnected) ConnectionPhase.Connected
+        else ConnectionStatus.phase(paired, liveConnected, client.isConnecting())
         val peer = store.peer?.copy(connected = liveConnected)
         val members = store.members.map { member ->
             if (peer != null && member.deviceId == peer.deviceId) member.copy(connected = liveConnected)
@@ -636,6 +660,7 @@ class BinderClipService : Service() {
             syncToastHidden = store.isSyncToastHidden(),
             btFallbackEnabled = store.isBtFallbackEnabled(),
             bluetoothActive = bluetoothLink?.isConnected() == true,
+            bluetoothEnabled = bluetoothLink?.adapterEnabled() == true,
             accessibilityEnabled = AccessibilityClipboardBridge.isEnabled(this),
             localDeviceId = store.deviceId,
             localDeviceName = DeviceNames.android(this),
@@ -832,13 +857,19 @@ class BinderClipService : Service() {
             return
         }
         val endpoint = "$host:${info.port}"
+        val wasKnown = endpoint in store.peerCandidates
         val merged = SyncProtocol.mergeAdvertisedEndpoints(store.peerCandidates, listOf(endpoint))
         if (merged != store.peerCandidates) {
             store.peerCandidates = merged
             nsdLog("Discovered paired Mac at $endpoint")
         }
-        if (!client.isConnected()) {
-            client.requestConnectResettingBackoff()
+        if (!client.isConnected() && bluetoothLink?.isConnected() != true) {
+            // Only a *new* endpoint warrants resetting the backoff; repeated re-discoveries of an
+            // already-known Mac would keep backoff pinned at 1s and starve the Bluetooth fallback.
+            // Known endpoints are already handled by the racer's own reconnect schedule.
+            if (!wasKnown) {
+                client.requestConnectResettingBackoff()
+            }
         }
     }
 
@@ -870,18 +901,37 @@ class BinderClipService : Service() {
             networkAvailable = networkAvailable,
             btAdapterOn = link.adapterEnabled(),
             permissionGranted = link.hasPermission(),
+            nowMs = System.currentTimeMillis(),
+            lastWsConnectedMs = client.lastConnectedAtMs(),
         )
         android.util.Log.d("BinderClipBLE", "evaluateBluetooth decision: $decision (btConnected=$btConnected, wsConn=${client.isConnected()}, backoff=${client.currentBackoffSeconds()})")
         when (decision) {
             BtPolicy.Decision.LISTEN_BT -> {
                 if (!btConnected && !link.isListening()) {
                     android.util.Log.i("BinderClipBLE", "Triggering link.startListening()")
-                    link.startListening()
+                    val started = link.startListening()
+                    if (!started) {
+                        // startListening can fail (permission/adapter race); retry next cycle.
+                        android.util.Log.w("BinderClipBLE", "startListening() did not start, will retry")
+                    }
                 }
             }
-            BtPolicy.Decision.PROMPT_ENABLE_BT -> promptBtEnable()
+            BtPolicy.Decision.PROMPT_ENABLE_BT -> {
+                // The fallback is active (paired, off-network/unreachable) but the radio is off.
+                // Try to enable it silently first; fall back to a Settings shortcut notification.
+                if (link.adapterEnabled()) {
+                    // Nothing to do — adapter just came on.
+                } else if (link.requestEnable()) {
+                    android.util.Log.i("BinderClipBLE", "Requested Bluetooth radio enable for fallback")
+                } else {
+                    promptBtEnable()
+                }
+            }
             else -> Unit
         }
+        // While Bluetooth carries the session, quiet the WebSocket racer so it stops cycling
+        // through LAN/mesh and never fights the BT link. Un-suppress once BT drops.
+        client.setReconnectSuppressed(btConnected && !client.isConnected())
         if (client.isConnected() && (btConnected || link.isListening())) {
             link.stop()
         }
@@ -972,7 +1022,7 @@ class BinderClipService : Service() {
                     caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
             }
             evaluateBluetooth()
-            if (!client.isConnected()) {
+            if (!client.isConnected() && bluetoothLink?.isConnected() != true) {
                 requestConnectResettingBackoff(reason)
             }
         }, 2, TimeUnit.SECONDS)

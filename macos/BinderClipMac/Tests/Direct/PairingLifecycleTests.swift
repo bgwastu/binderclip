@@ -10,8 +10,9 @@ final class PairingLifecycleTests: XCTestCase {
         XCTAssertLessThanOrEqual(endpoints.count, SyncProtocol.maximumAdvertisedEndpoints)
         XCTAssertTrue(endpoints.contains("192.168.1.10:39421"))
         XCTAssertTrue(endpoints.contains("10.0.0.5:39421"))
+        // Mesh (100.x) is ranked first so the tunnel path wins over a VPN-captured LAN subnet.
         let firstHost = endpoints.first?.split(separator: ":").first.map(String.init)
-        XCTAssertTrue(firstHost == "192.168.1.10" || firstHost == "10.0.0.5" || firstHost == "172.16.0.2")
+        XCTAssertEqual(firstHost, "100.64.0.1")
         XCTAssertFalse(endpoints.contains { $0.hasPrefix("8.8.8.8") })
     }
 

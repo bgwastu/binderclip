@@ -44,16 +44,23 @@ object SyncProtocol {
         candidates: List<String>,
         remembered: String? = null,
     ): List<String> {
+        // Mesh (100.x) first: WARP/Tailscale hijack the LAN subnet, so the LAN endpoint often
+        // tunnels and flaps. Prefer the stable mesh path over last-good/LAN so the phone never
+        // gets wedged on a tunneled LAN route.
         val out = ArrayList<String>()
         fun add(raw: String?) {
             val value = raw?.trim()?.takeIf { it.isNotBlank() } ?: return
             if (value !in out) out.add(value)
         }
-        add(lastGood)
-        candidates.forEach(::add)
+        candidates.filter { endpointHost(it).startsWith("100.") }.forEach(::add)
+        // Keep last-good only if it isn't a mesh address already listed above.
+        add(lastGood?.takeUnless { endpointHost(it).startsWith("100.") })
+        candidates.filterNot { endpointHost(it).startsWith("100.") }.forEach(::add)
         add(remembered)
         return out
     }
+
+    private fun endpointHost(raw: String): String = parseEndpoint(raw)?.first ?: ""
 
     fun sha256Hex(bytes: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)

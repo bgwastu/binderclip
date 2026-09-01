@@ -57,14 +57,26 @@ class WebSocketClient(
     private val raceAuthClaimed = AtomicBoolean(false)
     private val policy = ReconnectPolicy()
     @Volatile private var lastHeardMs = 0L
+    // Epoch ms of the last time the WebSocket was actually connected (0 = never in this process).
+    // Used by the Bluetooth fallback to detect a stalled racer even when the backoff is small.
+    @Volatile private var lastConnectedMs = 0L
     private var heartbeatWatch: ScheduledFuture<*>? = null
     @Volatile private var interactive = true
     @Volatile private var pairingScan = false
+    @Volatile private var reconnectSuppressed = false
 
     fun isConnected(): Boolean = isConnected.get()
     fun connectedEndpoint(): String? = activeEndpoint
     fun currentBackoffSeconds(): Long = policy.delaySeconds
     fun isConnecting(): Boolean = isConnecting.get()
+    fun lastConnectedAtMs(): Long = lastConnectedMs
+
+    /// While Bluetooth is carrying the session, do not let background triggers re-race the
+    /// WebSocket (NSD rediscovery, network changes, UI visibility, etc.). User-initiated
+    /// reconnect (force) still works.
+    fun setReconnectSuppressed(suppressed: Boolean) {
+        reconnectSuppressed = suppressed
+    }
 
     fun setInteractive(value: Boolean) {
         if (interactive == value) return
@@ -119,6 +131,7 @@ class WebSocketClient(
 
     private fun requestConnect(force: Boolean, resetBackoff: Boolean) {
         executor.execute {
+            if (reconnectSuppressed && !force) return@execute
             val psk = store.groupKey ?: return@execute
             val endpoints = getEndpoints()
             if (endpoints.isEmpty()) {
@@ -238,6 +251,7 @@ class WebSocketClient(
 
     private fun reportConnectFailure(endpoints: List<String>) {
         if (!reportedFailure.compareAndSet(false, true)) return
+        if (reconnectSuppressed) return
         onStatus("Reconnecting…")
         if (openedWithoutAuth.get() > 0) {
             onFailure("Pairing key rejected. Scan a fresh QR from the Mac.")
@@ -264,6 +278,7 @@ class WebSocketClient(
                 }
                 activeSocket = webSocket
                 activeEndpoint = endpoint
+                lastConnectedMs = System.currentTimeMillis()
                 isConnecting.set(false)
                 policy.resetBackoff()
                 reportedFailure.set(true)
@@ -476,6 +491,7 @@ class WebSocketClient(
 
     private fun scheduleReconnectBackoff(reset: Boolean = false, immediate: Boolean = false) {
         if (store.groupKey == null) return
+        if (reconnectSuppressed) return
         cancelPendingReconnect()
         if (reset) policy.resetBackoff()
         val delay = if (immediate) 0L else policy.nextBackoffSeconds()

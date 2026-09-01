@@ -2,6 +2,7 @@ package net.wastu.binderclip
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -139,5 +140,27 @@ class BtCborTest {
         val header = byteArrayOf(0x00, 0x17, 0x00, 0x00) // 1_500_001
         assertThrows(IllegalArgumentException::class.java) { reader.feed(header) }
         assertThrows(IllegalArgumentException::class.java) { BtFrameIo.frame(ByteArray(BtFrameIo.MAXIMUM_FRAME_BYTES + 1)) }
+    }
+
+    @Test
+    fun endpointsFromFieldsExtractsMacEndpointList() {
+        val authOk = listOf(
+            "type" to "auth_ok",
+            "deviceId" to "A6642397-8317-4657-A41C-221C84ABBD3A",
+            "deviceName" to "Air",
+            "version" to 2L,
+            "endpoints" to listOf("192.168.50.168:39421", "100.96.0.7:39421"),
+        )
+        assertEquals(
+            listOf("192.168.50.168:39421", "100.96.0.7:39421"),
+            BluetoothLink.endpointsFromFields(authOk),
+        )
+    }
+
+    @Test
+    fun endpointsFromFieldsIgnoresMissingOrEmpty() {
+        assertNull(BluetoothLink.endpointsFromFields(listOf("type" to "auth_ok")))
+        assertNull(BluetoothLink.endpointsFromFields(listOf("type" to "auth_ok", "endpoints" to emptyList<String>())))
+        assertNull(BluetoothLink.endpointsFromFields(listOf("type" to "auth_ok", "endpoints" to "not-a-list")))
     }
 }

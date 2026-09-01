@@ -25,6 +25,17 @@ public final class WebSocketServer: @unchecked Sendable {
         bluetoothConnector.isBluetoothPermissionDenied
     }
 
+    /// Radio + permission reality for the status menu. Ad-hoc permission checks
+    /// are unreliable in distribution, but the powered-on state is exact.
+    public var isBluetoothPoweredOn: Bool {
+        bluetoothConnector.isBluetoothPoweredOn
+    }
+
+    /// Call after the user re-enables Bluetooth so the peripheral re-advertises.
+    public func bluetoothStateChanged() {
+        bluetoothConnector.bluetoothStateChanged()
+    }
+
     public func peerTransportType(_ peerID: String) -> PeerTransportType {
         let isBt = bluetoothConnector.authenticatedPeerIDSnapshot.contains(peerID)
         let isWs = queue.sync {
@@ -55,12 +66,14 @@ public final class WebSocketServer: @unchecked Sendable {
     private var addressSampler: DispatchSourceTimer?
     private var addressDebounce: DispatchWorkItem?
     private var heartbeatTimer: DispatchSourceTimer?
+    private var bluetoothRadioWatchTimer: DispatchSourceTimer?
     private var wantsListener = false
     private var listenBackoffSeconds: TimeInterval = 1
     private var listenRestart: DispatchWorkItem?
 
     private var activeSessions: [ObjectIdentifier: WebSocketSession] = [:]
     private var lastProcessedHash: String = ""
+    private var lastBluetoothPoweredOn: Bool?
 
     private let stateLock = NSLock()
     private var cachedDeviceName: String
@@ -124,6 +137,7 @@ public final class WebSocketServer: @unchecked Sendable {
             self.startPathMonitor()
             self.startAddressWatch()
             self.startHeartbeat()
+            self.startBluetoothRadioWatch()
             self.bluetoothConnector.start(server: self)
         }
     }
@@ -141,6 +155,7 @@ public final class WebSocketServer: @unchecked Sendable {
             self.stopAddressWatch()
             self.heartbeatTimer?.cancel()
             self.heartbeatTimer = nil
+            self.stopBluetoothRadioWatch()
             self.listener?.cancel()
             self.listener = nil
             self.bluetoothConnector.stop()
@@ -669,6 +684,44 @@ public final class WebSocketServer: @unchecked Sendable {
         }
     }
 
+    /// Watch the Bluetooth radio and re-arm the peripheral when the user toggles it.
+    /// CoreBluetooth only surfaces the state change on a *fresh* manager, so a disabled
+    /// radio at launch (or one turned off later) would otherwise never recover.
+    private func startBluetoothRadioWatch() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 2, repeating: 3)
+        timer.setEventHandler { [weak self] in
+            self?.tickBluetoothRadioWatch()
+        }
+        timer.resume()
+        bluetoothRadioWatchTimer = timer
+    }
+
+    private func stopBluetoothRadioWatch() {
+        bluetoothRadioWatchTimer?.cancel()
+        bluetoothRadioWatchTimer = nil
+    }
+
+    private func tickBluetoothRadioWatch() {
+        let on = bluetoothConnector.isBluetoothPoweredOn
+        if lastBluetoothPoweredOn == nil {
+            lastBluetoothPoweredOn = on
+            return
+        }
+        if on != lastBluetoothPoweredOn {
+            lastBluetoothPoweredOn = on
+            onLog?(on ? "Bluetooth enabled — BinderClip peripheral (re)advertising"
+                       : "Bluetooth disabled — Bluetooth fallback unavailable")
+            if on {
+                bluetoothConnector.bluetoothStateChanged()
+            }
+        } else if !on {
+            // Radio reads off: re-create the peripheral manager (throttled) so that when the user
+            // re-enables Bluetooth, a fresh manager observes `.poweredOn` and re-advertises.
+            bluetoothConnector.retryPeripheralIfOff()
+        }
+    }
+
     private func startPathMonitor() {
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
@@ -899,6 +952,9 @@ public final class WebSocketServer: @unchecked Sendable {
             session.livenessBudget = SyncProtocol.heartbeatBudget
             session.cancelAuthDeadline()
             self.bluetoothConnector.registerBluetoothMapping(btName: session.deviceName, peerID: clientID)
+            // Promote pending → active so the session is visible to broadcasts and heartbeats
+            // immediately instead of only after the phone's next frame.
+            self.bluetoothConnector.promoteSession(session)
 
             for other in activeSessions.values where PeerPresence.shouldCancelExtra(
                 isAuthenticated: other.isAuthenticated,
@@ -910,7 +966,6 @@ public final class WebSocketServer: @unchecked Sendable {
 
             let peer = Peer(id: clientID, name: clientName, endpoint: DirectEndpoint(host: "bluetooth", port: 0), connected: true, platform: "Android")
             _ = rosterManager.addOrUpdatePeer(peer)
-            bluetoothConnector.noteAuthenticatedPeer(clientID)
             publishPresence()
 
             let okFields: [(String, BtValue)] = [

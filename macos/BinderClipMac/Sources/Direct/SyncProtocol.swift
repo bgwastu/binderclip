@@ -104,8 +104,12 @@ public enum SyncProtocol {
     }
 
     private static func endpointRank(_ ip: String) -> Int {
-        if ip.hasPrefix("192.168.") || ip.hasPrefix("10.") || ip.hasPrefix("172.") { return 0 }
-        if ip.hasPrefix("100.") { return 1 }
+        // Mesh (Tailscale/WARP 100.x) is ranked first: when the phone is on the same tunnel the
+        // mesh path is stable, whereas a WARP/Tailscale VPN often hijacks the LAN subnet (captured
+        // routes) so "LAN" traffic actually tunnels and flaps. Only fall back to LAN when no mesh
+        // endpoint exists.
+        if ip.hasPrefix("100.") { return 0 }
+        if ip.hasPrefix("192.168.") || ip.hasPrefix("10.") || ip.hasPrefix("172.") { return 1 }
         return 2
     }
 

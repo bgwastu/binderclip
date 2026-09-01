@@ -195,11 +195,14 @@ class MainActivity : AppCompatActivity() {
                             val anyRationale = perms.any { shouldShowRequestPermissionRationale(it) }
                             if (anyRationale) {
                                 showBluetoothGuide = true
+                            } else if (bluetoothGranted) {
+                                // Permission already granted; radio is just off.
+                                startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                             } else {
                                 requestBluetooth.launch(perms)
                             }
                         } else {
-                            showBluetoothGuide = true
+                            startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                         }
                     },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
@@ -641,10 +644,20 @@ private fun BinderClipScreen(
             item {
                 PreferenceToggle(
                     title = "Bluetooth fallback",
-                    summary = if (state.btFallbackEnabled) "Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable."
-                        else "Bluetooth fallback is off; sync requires Wi-Fi or mesh.",
+                    summary = when {
+                        !state.btFallbackEnabled -> "Bluetooth fallback is off; sync requires Wi-Fi or mesh."
+                        !state.bluetoothEnabled -> "Bluetooth is off. BinderClip will try to enable it when Wi-Fi is unreachable."
+                        else -> "Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable."
+                    },
                     checked = state.btFallbackEnabled,
                     onChanged = onToggleBtFallback,
+                )
+            }
+            if (state.btFallbackEnabled && !state.bluetoothEnabled) item {
+                ListItem(
+                    headlineContent = { Text("Bluetooth is off") },
+                    supportingContent = { Text("BinderClip will request it when the fallback engages.") },
+                    trailingContent = { TextButton(onClick = onRequestBluetooth) { Text("Turn On") } },
                 )
             }
         }

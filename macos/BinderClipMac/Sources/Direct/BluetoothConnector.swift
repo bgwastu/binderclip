@@ -231,6 +231,45 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     private let peerStateLock = NSLock()
     private var authenticatedPeerSnapshot: Set<String> = []
     var logHandler: ((String) -> Void)?
+    private var radioPowerState: CBManagerState = .unknown
+    private var lastPeripheralReset: Date?
+
+    /// Exact radio state reported by the peripheral manager (unlike permission checks).
+    var isBluetoothPoweredOn: Bool {
+        queue.sync { radioPowerState == .poweredOn }
+    }
+
+    /// Re-arm the peripheral after the user re-enables Bluetooth in System Settings.
+    /// CoreBluetooth only reports the radio state transition on the *next* manager;
+    /// the current manager never recovers on its own once it settles on `.poweredOff`.
+    func bluetoothStateChanged() {
+        queue.async { [weak self] in
+            self?.resetPeripheralIfNeeded(force: true)
+        }
+    }
+
+    /// Re-create the peripheral manager while the radio reads as off, throttled. When the radio
+    /// comes back on, the fresh manager observes `.poweredOn` and re-advertises — a stuck manager
+    /// would otherwise never learn the radio state changed.
+    func retryPeripheralIfOff() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            guard self.radioPowerState != .poweredOn else { return }
+            let now = Date()
+            if let last = self.lastPeripheralReset, now.timeIntervalSince(last) < 10 { return }
+            self.resetPeripheralIfNeeded(force: true)
+            self.lastPeripheralReset = now
+        }
+    }
+
+    private func resetPeripheralIfNeeded(force: Bool) {
+        guard force else { return }
+        manager?.stopAdvertising()
+        manager = nil
+        manager = CBPeripheralManager(delegate: self, queue: queue, options: [
+            CBPeripheralManagerOptionShowPowerAlertKey: true
+        ])
+    }
 
     func start(server: WebSocketServer) {
         self.server = server
@@ -303,10 +342,12 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     // MARK: - CBPeripheralManagerDelegate
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+        radioPowerState = peripheral.state
         guard peripheral.state == .poweredOn else {
-            log("Bluetooth radio not powered on (\(peripheral.state.rawValue))")
+            log("Bluetooth radio not powered on (\(peripheral.state.rawValue)) — re-enable Bluetooth in System Settings to use the fallback")
             return
         }
+        log("Bluetooth radio powered on — (re)advertising BinderClip peripheral")
         setupServiceAndAdvertise()
     }
 
@@ -469,6 +510,19 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
         }
     }
 
+    /// Promote an authenticated session from pending → active. The auth frame is parsed on the
+    /// server queue (async), so `handleIncomingBytes`'s synchronous `isAuthenticated` check runs
+    /// too early and the session would otherwise sit in `pendingSessions` until the phone's next
+    /// frame — leaving it out of broadcasts/heartbeats for up to a heartbeat interval.
+    func promoteSession(_ session: BluetoothSession) {
+        queue.async { [weak self] in
+            guard let self, session.isAuthenticated,
+                  self.pendingSessions.removeValue(forKey: session.id) != nil else { return }
+            self.activeSessions[session.id] = session
+            if let pid = session.peerID { self.noteAuthenticatedPeer(pid) }
+        }
+    }
+
     private func handleIncomingBytes(_ bytes: [UInt8], session: BluetoothSession) {
         session.lastHeard = Date()
         let payloads: [[UInt8]]
@@ -481,10 +535,6 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
         for payload in payloads {
             guard let fields = try? BtCbor.decode(payload) else { continue }
             server?.handleBluetoothFrame(fields, session: session)
-        }
-        if session.isAuthenticated, pendingSessions.removeValue(forKey: session.id) != nil {
-            activeSessions[session.id] = session
-            if let pid = session.peerID { noteAuthenticatedPeer(pid) }
         }
     }
 

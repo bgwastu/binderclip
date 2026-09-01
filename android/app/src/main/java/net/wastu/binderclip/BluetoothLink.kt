@@ -39,6 +39,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 object BtPolicy {
     const val FALLBACK_THRESHOLD_SECONDS = 8L
 
+    /// Arm Bluetooth when the WebSocket has been down this long even if the backoff timer is still
+    /// small. NSD re-discovery, heartbeat deaths, and UI toggles all reset the racer's backoff to
+    /// 1s, so the backoff alone is an unreliable signal for "Wi-Fi is genuinely dead".
+    const val FALLBACK_AFTER_STALL_MS = 20_000L
+
     enum class Decision { IDLE, LISTEN_BT, KEEP_WIFI, PROMPT_ENABLE_BT, NEEDS_PERMISSION }
 
     fun decide(
@@ -50,11 +55,17 @@ object BtPolicy {
         networkAvailable: Boolean,
         btAdapterOn: Boolean,
         permissionGranted: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+        lastWsConnectedMs: Long = 0L,
     ): Decision = when {
         !paired || !fallbackEnabled || wsConnected || btConnected -> Decision.IDLE
         !permissionGranted -> Decision.NEEDS_PERMISSION
         !btAdapterOn -> Decision.PROMPT_ENABLE_BT
-        !networkAvailable || backoffSeconds >= FALLBACK_THRESHOLD_SECONDS -> Decision.LISTEN_BT
+        !networkAvailable -> Decision.LISTEN_BT
+        // Wi-Fi exists but the racer keeps failing (stalled or backoff exhausted): arm Bluetooth too
+        // so a usable (e.g. mesh-tailscale) path can still carry text instead of hanging forever.
+        backoffSeconds >= FALLBACK_THRESHOLD_SECONDS ||
+            nowMs - lastWsConnectedMs >= FALLBACK_AFTER_STALL_MS -> Decision.LISTEN_BT
         else -> Decision.IDLE
     }
 }
@@ -72,6 +83,9 @@ class BluetoothLink(
 ) {
     interface Callbacks {
         fun onAuthenticated(remoteId: String, remoteName: String)
+        /** The Mac echoed its live endpoints inside the BT auth_ok — use them to bootstrap a
+         *  faster WebSocket path (mesh/LAN) without scanning a QR. */
+        fun onEndpoints(endpoints: List<String>)
         fun onLinkDown(reason: String)
         fun onText(text: String)
         fun onOpenUrl(url: String)
@@ -120,6 +134,21 @@ class BluetoothLink(
 
     fun adapterEnabled(): Boolean = adapter()?.isEnabled == true
 
+    /** Try to switch the radio on when the fallback is active. Best effort; returns
+     *  false when permission is missing or the OEM blocks silent enable, so the
+     *  caller can fall back to guiding the user. */
+    @Suppress("DEPRECATION")
+    fun requestEnable(): Boolean {
+        val adapter = adapter() ?: return false
+        return try {
+            adapter.enable()
+        } catch (_: SecurityException) {
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun isConnected(): Boolean = connected.get()
 
     fun isListening(): Boolean = scanning.get() || connecting.get()
@@ -158,6 +187,16 @@ class BluetoothLink(
                 scanning.set(false)
             }
         }
+        // If no peripheral is found within a full scan window, release the scanning latch so the
+        // evaluator can retry with a fresh scan (some radios drop scans silently).
+        executor.schedule({
+            synchronized(this) {
+                if (scanning.get() && !connecting.get() && !connected.get()) {
+                    DiagnosticLog.warning("BLE scan found nothing; re-arming")
+                    stopScan()
+                }
+            }
+        }, 25, TimeUnit.SECONDS)
         return true
     }
 
@@ -207,6 +246,16 @@ class BluetoothLink(
                 connecting.set(false)
             }
         }
+        // If connectGatt never reports a state (some radios drop the callback), release the
+        // connecting latch so the evaluator can re-arm the scan instead of hanging forever.
+        executor.schedule({
+            synchronized(this) {
+                if (connecting.get() && !connected.get() && gatt == null) {
+                    DiagnosticLog.warning("BLE GATT connect stalled; re-arming scanner")
+                    connecting.set(false)
+                }
+            }
+        }, 15, TimeUnit.SECONDS)
     }
 
     private fun refreshDeviceCache(gattInstance: BluetoothGatt): Boolean = runCatching {
@@ -352,33 +401,38 @@ class BluetoothLink(
         }
     }
 
+    /** L2CAP connect() can block for a long time on some radios; run it off the serial
+     *  executor so pending scan/GATT work is never starved while the channel negotiates. */
     private fun connectL2cap(device: BluetoothDevice, psm: Int, gattInstance: BluetoothGatt) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             setupGattFallback(gattInstance)
             return
         }
-        try {
-            DiagnosticLog.info("Opening L2CAP channel (PSM $psm)...")
-            android.util.Log.i("BinderClipBLE", "Opening L2CAP channel PSM $psm")
-            val l2capSocket = device.createInsecureL2capChannel(psm)
-            l2capSocket.connect()
-            synchronized(this) {
-                socket = l2capSocket
-                input = l2capSocket.inputStream
-                output = l2capSocket.outputStream
-                isL2capActive = true
-            }
-            DiagnosticLog.info("L2CAP channel connected; sending auth frame")
-            android.util.Log.i("BinderClipBLE", "L2CAP connected! Sending auth")
-            sendAuthUnlocked()
-            Thread({
+        Thread({
+            runCatching {
+                DiagnosticLog.info("Opening L2CAP channel (PSM $psm)...")
+                android.util.Log.i("BinderClipBLE", "Opening L2CAP channel PSM $psm")
+                val l2capSocket = device.createInsecureL2capChannel(psm)
+                l2capSocket.connect()
+                synchronized(this) {
+                    socket = l2capSocket
+                    input = l2capSocket.inputStream
+                    output = l2capSocket.outputStream
+                    isL2capActive = true
+                }
+                DiagnosticLog.info("L2CAP channel connected; sending auth frame")
+                android.util.Log.i("BinderClipBLE", "L2CAP connected! Sending auth")
+                sendAuthUnlocked()
                 readL2capLoop()
-            }, "binderclip-ble-l2cap").apply { isDaemon = true }.start()
-        } catch (e: Exception) {
-            DiagnosticLog.warning("L2CAP connection failed (${e.message}), falling back to GATT stream")
-            android.util.Log.w("BinderClipBLE", "L2CAP failed, falling back to GATT", e)
-            setupGattFallback(gattInstance)
-        }
+            }.onFailure { e ->
+                DiagnosticLog.warning("L2CAP connection failed (${e.message}), falling back to GATT stream")
+                android.util.Log.w("BinderClipBLE", "L2CAP failed, falling back to GATT", e)
+                // GATT operations must run on the thread the GATT callbacks use (main).
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    setupGattFallback(gattInstance)
+                }
+            }
+        }, "binderclip-ble-l2cap-connect").apply { isDaemon = true }.start()
     }
 
     private fun setupGattFallback(gattInstance: BluetoothGatt) {
@@ -539,6 +593,15 @@ class BluetoothLink(
         return true
     }
 
+    companion object {
+        /** Extract the Mac's advertised endpoints from a decoded BT frame (list of "host:port" strings). */
+        fun endpointsFromFields(fields: List<Pair<String, Any>>): List<String>? {
+            val raw = fields.firstOrNull { it.first == "endpoints" }?.second
+            val list = (raw as? List<*>)?.filterIsInstance<String>()
+            return list?.takeIf { it.isNotEmpty() }
+        }
+    }
+
     private fun handleFrame(payload: ByteArray) {
         val fields = try {
             BtCbor.decode(payload)
@@ -555,6 +618,9 @@ class BluetoothLink(
                 connecting.set(false)
                 connected.set(true)
                 callbacks.onAuthenticated(id, name)
+                // Surface the Mac's live endpoints so the service can try the faster
+                // WebSocket path first (mesh beats LAN beats Bluetooth).
+                endpointsFromFields(fields)?.let { callbacks.onEndpoints(it) }
                 startHeartbeat(id)
             }
             "clipboard" -> text("text")?.let(callbacks::onText)

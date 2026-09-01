@@ -225,10 +225,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         } else {
             let ordered = peers.filter(\.connected) + peers.filter { !$0.connected }
             for peer in ordered {
-                let title = peer.connected ? peer.name : "\(peer.name) (waiting)"
+                let transport = transport.peerTransportType(peer.id)
+                let isLive = peer.connected || transport != .none
+                let title = isLive ? "\(peer.name) · Connected" : "\(peer.name) (waiting)"
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
-                if !peer.connected {
+                if !isLive {
                     let attributed = NSMutableAttributedString(string: title)
                     attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: attributed.length))
                     item.attributedTitle = attributed
@@ -301,7 +303,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     private func renderPendingPermissions(into menu: NSMenu) {
         var hasPendingPermission = false
-        if transport.isBluetoothPermissionDenied {
+        if !transport.isBluetoothPoweredOn {
+            let item = NSMenuItem(title: "Enable Bluetooth", action: #selector(openBluetoothSettings), keyEquivalent: "")
+            item.target = self; menu.addItem(item); hasPendingPermission = true
+        } else if transport.isBluetoothPermissionDenied {
             let item = NSMenuItem(title: "Allow Bluetooth", action: #selector(openBluetoothPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
@@ -600,6 +605,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             SMAppService.openSystemSettingsLoginItems()
         }
         renderMenu()
+    }
+
+    @objc private func openBluetoothSettings() {
+        let alert = NSAlert()
+        alert.messageText = "Enable Bluetooth"
+        alert.informativeText = """
+        BinderClip uses Bluetooth as an automatic fallback when Wi-Fi and mesh are unreachable.
+
+        To enable Bluetooth:
+        1. Click “Open System Settings” below.
+        2. In the Bluetooth pane, turn ON Bluetooth.
+        3. BinderClip will automatically resume advertising once Bluetooth is on.
+        """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Done")
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
+                NSWorkspace.shared.open(url)
+            } else {
+                openPrivacySettings()
+            }
+        }
     }
 
     @objc private func openBluetoothPermissionGuide() {

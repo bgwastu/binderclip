@@ -96,6 +96,25 @@ class SyncProtocolTest {
     }
 
     @Test
+    fun orderedConnectEndpointsPrefersMeshOverLanAndLastGood() {
+        val candidates = listOf(
+            "192.168.100.184:39421",
+            "100.96.0.7:39421",
+        )
+        val ordered = SyncProtocol.orderedConnectEndpoints("192.168.100.184:39421", candidates)
+        assertEquals("100.96.0.7:39421", ordered.first())
+        // Mesh appears once, LAN last-good still present but after mesh.
+        assertTrue(ordered.indexOf("100.96.0.7:39421") < ordered.indexOf("192.168.100.184:39421"))
+    }
+
+    @Test
+    fun orderedConnectEndpointsWithoutMeshKeepsLanOrder() {
+        val candidates = listOf("192.168.100.184:39421", "10.0.0.5:39421")
+        val ordered = SyncProtocol.orderedConnectEndpoints(null, candidates)
+        assertEquals(candidates, ordered)
+    }
+
+    @Test
     fun discoveredMacIdentityFiltering() {
         // Both ids known and equal -> accept.
         assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-1"))
