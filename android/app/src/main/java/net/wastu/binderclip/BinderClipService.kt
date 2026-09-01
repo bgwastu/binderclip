@@ -87,6 +87,9 @@ class BinderClipService : Service() {
         private const val CHANNEL = "binderclip_sync"
         private const val URL_CHANNEL = "binderclip_urls"
         private const val NOTIFICATION_ID = 101
+        /** Require the WebSocket to stay up this long before we tear down a working Bluetooth
+         *  session, so a flaky tunnel cannot cause endless BT reconnect flapping. */
+        private const val BT_TO_WS_GRACE_MS = 15_000L
 
         fun startFromBackground(context: Context) {
             DiagnosticLog.initialize(context)
@@ -121,6 +124,13 @@ class BinderClipService : Service() {
     private var networkAvailable = false
     private var lastBtEnablePromptMs = 0L
     private var lastDeferredImageHash: String? = null
+    /** Epoch ms when the WebSocket first became connected on top of an active Bluetooth session. */
+    private var wsStableSinceMs = 0L
+    /** True while a Bluetooth session is live, so the WS probe only runs once per BT session. */
+    private var wsProbedOnThisBtSession = false
+    /** Set when we tear down Bluetooth to hand off to a (stable) WebSocket. If that WebSocket
+     *  later drops, re-arm Bluetooth immediately instead of waiting for the 20s stall detector. */
+    private var btTornDownForWsAtMs = 0L
 
     @Volatile
     private var uiVisible = false
@@ -183,6 +193,16 @@ class BinderClipService : Service() {
             },
             onRosterChanged = { publishState() },
             onDisconnected = {
+                // If the WebSocket just dropped and we had handed the session to it after tearing
+                // down Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is
+                // the reliable fallback. Fastest re-arm wins over the 20s stall detector.
+                if (store.groupKey != null && btTornDownForWsAtMs > 0L) {
+                    btTornDownForWsAtMs = 0L
+                    executor.execute {
+                        // The tunnel we switched to just died; re-arm Bluetooth immediately.
+                        bluetoothLink?.takeIf { store.isBtFallbackEnabled() && !it.isConnected() && !it.isListening() }?.startListening()
+                    }
+                }
                 refreshNsdDiscovery()
                 publishState()
             },
@@ -205,7 +225,10 @@ class BinderClipService : Service() {
                 store.peer = (store.peer ?: RememberedPeer("Mac", "bluetooth", 0, remoteId, "macOS", false))
                     .copy(name = remoteName.ifBlank { store.peer?.name ?: "Mac" }, deviceId = remoteId, connected = true)
                 // Bluetooth is live; stop the WebSocket racer from fighting it while we probe for
-                // a better path.
+                // a better path. New BT session -> allow one WS probe.
+                wsStableSinceMs = 0L
+                wsProbedOnThisBtSession = false
+                btTornDownForWsAtMs = 0L
                 client.setReconnectSuppressed(true)
                 publishState()
             }
@@ -218,9 +241,10 @@ class BinderClipService : Service() {
                         DiagnosticLog.info("Mac endpoints from Bluetooth: ${merged.joinToString()}")
                     }
                     // BLE handed us the live mesh/LAN endpoints. Probe the faster WebSocket path
-                    // immediately (mesh-first). A forced reconnect bypasses the BT suppression so
-                    // the racer can promote to WS; Bluetooth stays as fallback if it can't connect.
-                    if (!client.isConnected()) {
+                    // once per BT session (mesh-first) so a flaky tunnel doesn't tear down and
+                    // re-establish Bluetooth in an endless loop. Bluetooth stays as fallback.
+                    if (!client.isConnected() && !wsProbedOnThisBtSession) {
+                        wsProbedOnThisBtSession = true
                         client.forceReconnect()
                     }
                 }
@@ -932,7 +956,25 @@ class BinderClipService : Service() {
         // While Bluetooth carries the session, quiet the WebSocket racer so it stops cycling
         // through LAN/mesh and never fights the BT link. Un-suppress once BT drops.
         client.setReconnectSuppressed(btConnected && !client.isConnected())
-        if (client.isConnected() && (btConnected || link.isListening())) {
+        // Promote to WebSocket only once it has been stable for a grace period. Without this, a
+        // flaky tunnel (café WARP) that connects then drops would tear BT down every cycle and
+        // flap forever.
+        val wsStable = client.isConnected()
+        if (wsStable && btConnected) {
+            if (wsStableSinceMs == 0L) wsStableSinceMs = System.currentTimeMillis()
+            val stableForMs = System.currentTimeMillis() - wsStableSinceMs
+            if (stableForMs >= BT_TO_WS_GRACE_MS) {
+                DiagnosticLog.info("WebSocket stable ${stableForMs / 1000}s; tearing down Bluetooth")
+                btTornDownForWsAtMs = System.currentTimeMillis()
+                link.stop()
+            }
+        } else {
+            wsStableSinceMs = 0L
+        }
+        // Only tear down a scanning Bluetooth link if we are not relying on it as the live
+        // transport (i.e. WS is connected AND the grace period elapsed). A mere WS probe that
+        // connects briefly must not kill the fallback.
+        if (client.isConnected() && !btConnected && link.isListening()) {
             link.stop()
         }
     }

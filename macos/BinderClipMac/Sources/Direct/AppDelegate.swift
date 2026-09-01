@@ -227,7 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             for peer in ordered {
                 let transport = transport.peerTransportType(peer.id)
                 let isLive = peer.connected || transport != .none
-                let title = isLive ? "\(peer.name) · Connected" : "\(peer.name) (waiting)"
+                let title = isLive ? peer.name : "\(peer.name) (waiting)"
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
                 if !isLive {
