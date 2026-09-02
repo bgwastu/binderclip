@@ -47,13 +47,13 @@ class BinderClipTileService : TileService() {
         val state = AppRuntime.state.value
         val isConnected = state.connectionPhase == ConnectionPhase.Connected
         tile.icon = Icon.createWithResource(this, R.drawable.ic_binder_clip)
-        tile.label = "Send Clipboard"
+        tile.label = getString(R.string.tile_send_clipboard)
         if (isConnected) {
             tile.state = Tile.STATE_ACTIVE
-            tile.subtitle = state.peer?.name?.takeIf { it.isNotBlank() } ?: "Connected"
+            tile.subtitle = state.peer?.name?.takeIf { it.isNotBlank() } ?: getString(R.string.status_connected)
         } else {
             tile.state = Tile.STATE_INACTIVE
-            tile.subtitle = if (state.peer != null) "Connecting…" else "Not paired"
+            tile.subtitle = if (state.peer != null) getString(R.string.status_connecting) else getString(R.string.tile_not_paired)
         }
         tile.updateTile()
     }

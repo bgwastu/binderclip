@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">Envia o texto copiado para seus dispositivos BinderClip quando a sincronização automática está ativada.</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">Enviar para o Mac</string>
+    <string name="tile_send_clipboard">Enviar Área de Transferência</string>
+    <string name="tile_not_paired">Não emparelhado</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">Sincronização da Área de Transferência</string>
+    <string name="channel_clipboard_sync_desc">Mantém uma conexão persistente com o Mac emparelhado</string>
+    <string name="channel_browser_links">Links do Navegador</string>
+    <string name="channel_browser_links_desc">Notificações ao receber links da web</string>
+    <string name="notif_copy_to_clipboard">Copiar para Área de Transferência</string>
+    <string name="notif_open_link">Abrir link</string>
+    <string name="notif_bluetooth_fallback_title">Contingência Bluetooth pronta</string>
+    <string name="notif_bluetooth_fallback_desc">Ative o Bluetooth para continuar sincronizando sem Wi-Fi</string>
+    <string name="notif_image_waiting_title">Imagem aguardando Wi-Fi</string>
+    <string name="notif_image_waiting_desc">Imagens (%1$s) precisam de Wi-Fi ou mesh; o texto ainda sincroniza via Bluetooth</string>
+    <string name="notif_received_text">Texto recebido</string>
+    <string name="notif_received_image">Imagem recebida (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">Mostrar registros</string>
+    <string name="paired_devices">Dispositivos emparelhados</string>
+    <string name="no_devices_paired">Nenhum dispositivo emparelhado ainda</string>
+    <string name="no_devices_paired_desc">Escaneie um código QR do seu Mac para emparelhar.</string>
+    <string name="reconnect">Reconectar</string>
+    <string name="scan_qr_to_pair">Escanear QR para emparelhar</string>
+    <string name="send_current_clipboard">Enviar área de transferência atual</string>
+    <string name="section_permissions">Permissões</string>
+    <string name="section_clipboard_automation">Automação da Área de Transferência</string>
+    <string name="section_settings">Configurações</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">Notificações</string>
+    <string name="perm_notifications_desc">Mostrar área de transferência recebida</string>
+    <string name="perm_bg_keepalive">Manter em Segundo Plano</string>
+    <string name="perm_bg_keepalive_desc">Ativar Acessibilidade</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Necessário para sincronização offline de contingência</string>
+    <string name="perm_battery_opt">Otimização de Bateria</string>
+    <string name="perm_battery_opt_desc">Permitir sincronização confiável em segundo plano</string>
+    <string name="perm_autostart">Início Automático</string>
+    <string name="perm_autostart_desc">Permitir início em segundo plano para sincronização estável</string>
+    <string name="allow">Permitir</string>
+    <string name="open">Abrir</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">Copiar</string>
+    <string name="image_ready_to_copy">Imagem pronta para copiar</string>
+    <string name="text_ready_to_copy">Texto pronto para copiar</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Automação com Root</string>
+    <string name="root_automation_granted">Acesso root concedido: texto e imagens sincronizam em tempo real.</string>
+    <string name="root_automation_prompt">Toque para conceder acesso root para sincronização automática em segundo plano.</string>
+    <string name="bg_sync_active_title">Sincronização Ativa em Segundo Plano</string>
+    <string name="bg_sync_active_desc">Acesso à área de transferência em segundo plano concedido. Texto e links sincronizam automaticamente.</string>
+    <string name="shizuku_enable_title">Ativar com Shizuku</string>
+    <string name="shizuku_enable_desc">Toque para aplicar a permissão automaticamente via Shizuku.</string>
+    <string name="shizuku_apply_btn">Aplicar</string>
+    <string name="shizuku_auth_title">Autorizar Shizuku</string>
+    <string name="shizuku_auth_desc">Autorize o BinderClip no Shizuku para sincronização automática sem root.</string>
+    <string name="shizuku_auth_btn">Autorizar</string>
+    <string name="shizuku_installed_title">Shizuku instalado</string>
+    <string name="shizuku_installed_desc">Inicie o Shizuku via depuração sem fio ou computador para sincronizar sem root.</string>
+    <string name="adb_setup_title">Configuração Sem Root / ADB</string>
+    <string name="adb_setup_desc">Execute pelo computador ou depuração sem fio:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">Acessibilidade Keep-Alive</string>
+    <string name="accessibility_keepalive_desc_on">O serviço de acessibilidade está ativo e mantém a sincronização após reiniciar.</string>
+    <string name="accessibility_keepalive_desc_off">Ative o serviço de Acessibilidade para evitar encerramento pelo sistema.</string>
+    <string name="quick_settings_hint">Configurações Rápidas: Adicione o bloco \'Enviar para o Mac\' ao painel de notificações para enviar com 1 toque de qualquer app.</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">Aplicar automaticamente conteúdo recebido</string>
+    <string name="auto_apply_incoming_desc_on">Textos e imagens recebidos do Mac são copiados para a área de transferência automaticamente.</string>
+    <string name="auto_apply_incoming_desc_off">Exibir notificação para copiar textos ou imagens recebidos manualmente.</string>
+    <string name="bt_fallback_title">Contingência Bluetooth</string>
+    <string name="bt_fallback_desc_off">A contingência Bluetooth está desativada; a sincronização requer Wi-Fi ou mesh.</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth desativado. O BinderClip solicitará ativação quando o Wi-Fi estiver indisponível.</string>
+    <string name="bt_fallback_desc_on">Textos e links sincronizam via Bluetooth quando Wi-Fi e mesh estiverem inacessíveis.</string>
+    <string name="bt_is_off_title">Bluetooth desativado</string>
+    <string name="bt_is_off_desc">O BinderClip solicitará sua ativação quando a contingência entrar em ação.</string>
+    <string name="turn_on">Ativar</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL enviada com sucesso</string>
+    <string name="image_sent_success">Imagem enviada com sucesso</string>
+    <string name="status_connected_bluetooth">Conectado via Bluetooth</string>
+    <string name="status_connected_mesh">Conectado via Mesh</string>
+    <string name="status_connected_lan">Conectado via LAN</string>
+    <string name="status_connected">Conectado</string>
+    <string name="status_connecting">Conectando…</string>
+    <string name="status_reconnecting">Reconectando…</string>
+    <string name="this_device">Este dispositivo</string>
+    <string name="transport_bt_label">Transporte: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">Indisponível</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">Renomear Dispositivo</string>
+    <string name="device_rename_prompt">Digite um novo nome para este dispositivo:</string>
+    <string name="save">Salvar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="close">Fechar</string>
+    <string name="rename">Renomear</string>
+    <string name="unpair_this_device">Desemparelhar este dispositivo</string>
+    <string name="unpair_device">Desemparelhar dispositivo</string>
+    <string name="logs_title">Registros (%1$d)</string>
+    <string name="logs_search_placeholder">Pesquisar registros…</string>
+    <string name="filter_all">Todos</string>
+    <string name="filter_info">Info</string>
+    <string name="filter_warning">Aviso</string>
+    <string name="filter_error">Erro</string>
+    <string name="no_events_yet">Nenhum evento ainda.</string>
+    <string name="no_matching_events">Nenhum evento correspondente.</string>
+    <string name="clear">Limpar</string>
+    <string name="bt_guide_dialog_title">Permitir Acesso Bluetooth</string>
+    <string name="bt_guide_dialog_text">O BinderClip usa Bluetooth Low Energy para sincronizar quando o Wi-Fi não estiver disponível.\n\nPara ativar:\n1. Toque em \'Abrir configurações\' abaixo.\n2. Toque em \'Permissões\'.\n3. Permita \'Dispositivos próximos\' ou \'Bluetooth\'.</string>
+    <string name="open_settings">Abrir configurações</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">Abrir Link no Dispositivo</string>
+    <string name="share_to_device_title">Compartilhar com Dispositivo</string>
+    <string name="share_all_devices">Todos os Dispositivos Conectados</string>
+    <string name="share_all_devices_url_sub">Abre no navegador de todos os dispositivos</string>
+    <string name="share_all_devices_sub">Envia para todos os dispositivos</string>
+    <string name="share_opens_browser_on">Abre o navegador em %1$s</string>
+    <string name="share_image_label">Imagem (%1$s)</string>
+    <string name="share_text_content">Conteúdo de texto</string>
+    <string name="share_error_unsupported">Não foi possível enviar este conteúdo</string>
+    <string name="share_sending_link">Enviando link…</string>
+    <string name="share_sending">Enviando…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">Enviado para o Mac</string>
+    <string name="toast_sent_image_to_mac">Imagem enviada para o Mac</string>
+    <string name="toast_nothing_to_send">Nada para enviar</string>
+</resources>

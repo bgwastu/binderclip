@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "正在监听";
+"connected_count_one" = "1 台已连接";
+"connected_count_many" = "%d 台已连接";
+"waiting_for_device_named" = "正在等待 %@";
+"waiting_for_devices" = "正在等待设备";
+"status_connected" = "已连接";
+"status_waiting_for_device" = "正在等待设备";
+"no_phones_yet" = "暂无手机";
+"device_waiting_suffix" = "%@ (等待中)";
+"add_device" = "添加设备";
+"send_browser_tab" = "发送当前浏览器标签页";
+"all_connected_devices" = "所有已连接设备";
+"more" = "更多";
+"quit_binderclip" = "退出 BinderClip";
+
+/* Permissions */
+"enable_bluetooth" = "开启蓝牙";
+"allow_bluetooth" = "允许蓝牙访问";
+"allow_local_network" = "允许本地网络";
+"allow_clipboard_access" = "允许剪贴板访问";
+"allow_browser_automation" = "允许浏览器自动化";
+"allow_launch_at_login" = "允许开机自启动";
+"enable_launch_at_login" = "开机自启动";
+
+/* More Menu & Actions */
+"rename_this_mac" = "重命名此 Mac…";
+"unpair_all_devices" = "取消配对所有设备…";
+"reset_pairing_key" = "重置配对密钥…";
+"show_logs" = "查看日志";
+"check_for_updates" = "检查更新…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "已通过蓝牙连接";
+"connected_via_mesh" = "已通过 Mesh 连接";
+"connected_via_lan" = "已通过局域网连接";
+"transport_bluetooth_ble" = "传输协议: 蓝牙 BLE";
+"send_clipboard_to_peer" = "发送剪贴板至 %@";
+"rename_device_menu" = "重命名设备…";
+"unpair_device_menu" = "取消配对设备…";
+
+/* Toasts & Notifications */
+"received_text" = "已接收文本";
+"opened_link_in_browser" = "已在浏览器中打开链接";
+"received_image_format" = "已接收图片 (%@)";
+"sent_url_to_peer" = "已发送 URL 至 %@";
+"sent_clipboard_to_peer" = "已发送剪贴板至 %@";
+"sent_image_to_peer" = "已发送图片至 %@";
+"nothing_to_send" = "没有可发送的内容";
+
+/* Pairing Window */
+"pairing_window_title" = "添加设备";
+"pairing_scan_detail" = "使用 BinderClip 扫码";
+"pairing_waiting" = "正在等待设备…";
+"pairing_success" = "设备已连接！";
+"pairing_no_address" = "无本地地址。请连接 Wi-Fi 或允许本地网络访问。";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "生成新的配对码？";
+"dialog_generate_pairing_message" = "这将生成新的配对码并清空已配对的手机。每台手机需要重新扫码连接。";
+"dialog_generate_button" = "生成";
+"dialog_cancel_button" = "取消";
+"dialog_rename_this_mac_title" = "重命名此 Mac";
+"dialog_rename_device_title" = "重命名设备";
+"dialog_rename_prompt" = "为此设备输入新名称：";
+"dialog_save_button" = "保存";
+"dialog_unpair_all_title" = "取消配对所有设备？";
+"dialog_unpair_all_message" = "此 Mac 将停止与所有已配对手机同步。您随时可以使用新二维码重新添加。";
+"dialog_unpair_button" = "取消配对";
+"dialog_unpair_single_title" = "取消配对 %@？";
+"dialog_unpair_single_message" = "此手机将不再与此 Mac 同步剪贴板文本或图片。";
+"dialog_open_system_settings" = "打开系统设置";
+"dialog_done_button" = "完成";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "开启蓝牙";
+"guide_bluetooth_message" = "BinderClip 在无法使用 Wi-Fi 和 Mesh 网络时，会自动使用蓝牙进行备用同步。\n\n开启蓝牙方法：\n1. 点击下方的“打开系统设置”。\n2. 在蓝牙面板中开启蓝牙。\n3. 蓝牙开启后 BinderClip 会自动恢复广播。";
+"guide_bluetooth_permission_title" = "允许 BinderClip 访问蓝牙";
+"guide_bluetooth_permission_message" = "BinderClip 使用低功耗蓝牙作为离线备用通道。\n\n开启方法：\n1. 点击下方的“打开系统设置”。\n2. 在“隐私与安全性”→“蓝牙”中开启 BinderClip。\n3. 如有提示，请重启 BinderClip。";
+"guide_local_network_title" = "允许 BinderClip 访问本地网络";
+"guide_local_network_message" = "BinderClip 需要本地网络权限来发现并同步同一 Wi-Fi 网络下的手机。\n\n开启方法：\n1. 点击下方的“打开系统设置”。\n2. 在“隐私与安全性”→“本地网络”中开启 BinderClip。";
+"guide_clipboard_title" = "允许 BinderClip 访问剪贴板";
+"guide_clipboard_message" = "BinderClip 需要剪贴板权限以同步复制的文本和图片。\n\n开启方法：\n1. 点击下方的“打开系统设置”。\n2. 在“隐私与安全性”中确认允许 BinderClip 访问剪贴板。";
+
+/* Log Window */
+"log_window_title" = "BinderClip 日志";
+"log_clear" = "清空";
+"log_copy" = "复制";
+"log_close" = "关闭";
+"log_no_events" = "$ 暂无事件日志。";

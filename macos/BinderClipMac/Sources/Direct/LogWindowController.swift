@@ -17,11 +17,11 @@ final class LogWindowController: NSWindowController {
         textView.textContainerInset = NSSize(width: 12, height: 12)
         scroll.documentView = textView
 
-        let clear = NSButton(title: "Clear", target: nil, action: nil)
+        let clear = NSButton(title: L10n.tr("log_clear"), target: nil, action: nil)
         clear.bezelStyle = .rounded
-        let copy = NSButton(title: "Copy", target: nil, action: nil)
+        let copy = NSButton(title: L10n.tr("log_copy"), target: nil, action: nil)
         copy.bezelStyle = .rounded
-        let close = NSButton(title: "Close", target: nil, action: nil)
+        let close = NSButton(title: L10n.tr("log_close"), target: nil, action: nil)
         close.bezelStyle = .rounded
         let controls = NSStackView(views: [clear, copy, close])
         controls.orientation = .horizontal
@@ -37,7 +37,7 @@ final class LogWindowController: NSWindowController {
         scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
 
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 430), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "BinderClip Logs"
+        window.title = L10n.tr("log_window_title")
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentView = content
@@ -80,7 +80,7 @@ final class LogWindowController: NSWindowController {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         let events = DiagnosticLog.shared.snapshot()
-        textView.string = events.isEmpty ? "$ No events yet." : events.map { "$ \(formatter.string(from: $0.date)) [\($0.level.rawValue.uppercased())] \($0.message)" }.joined(separator: "\n")
+        textView.string = events.isEmpty ? L10n.tr("log_no_events") : events.map { "$ \(formatter.string(from: $0.date)) [\($0.level.rawValue.uppercased())] \($0.message)" }.joined(separator: "\n")
         textView.scrollToEndOfDocument(nil)
     }
 }

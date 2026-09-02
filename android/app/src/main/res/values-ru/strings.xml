@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">Отправляет скопированный текст на ваши устройства BinderClip при включённой автосинхронизации.</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">Отправить на Mac</string>
+    <string name="tile_send_clipboard">Отправить буфер обмена</string>
+    <string name="tile_not_paired">Не сопряжено</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">Синхронизация буфера обмена</string>
+    <string name="channel_clipboard_sync_desc">Поддерживает постоянное соединение с сопряжённым Mac</string>
+    <string name="channel_browser_links">Ссылки браузера</string>
+    <string name="channel_browser_links_desc">Уведомления при получении веб-ссылок</string>
+    <string name="notif_copy_to_clipboard">Копировать в буфер обмена</string>
+    <string name="notif_open_link">Открыть ссылку</string>
+    <string name="notif_bluetooth_fallback_title">Резервный Bluetooth готов</string>
+    <string name="notif_bluetooth_fallback_desc">Включите Bluetooth для синхронизации без Wi-Fi</string>
+    <string name="notif_image_waiting_title">Изображение ожидает Wi-Fi</string>
+    <string name="notif_image_waiting_desc">Изображениям (%1$s) требуется Wi-Fi или mesh; текст синхронизируется по Bluetooth</string>
+    <string name="notif_received_text">Текст получен</string>
+    <string name="notif_received_image">Изображение получено (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">Показать логи</string>
+    <string name="paired_devices">Сопряжённые устройства</string>
+    <string name="no_devices_paired">Нет сопряжённых устройств</string>
+    <string name="no_devices_paired_desc">Отсканируйте QR-код с экрана Mac для сопряжения.</string>
+    <string name="reconnect">Переподключить</string>
+    <string name="scan_qr_to_pair">Сканировать QR для сопряжения</string>
+    <string name="send_current_clipboard">Отправить текущий буфер обмена</string>
+    <string name="section_permissions">Разрешения</string>
+    <string name="section_clipboard_automation">Автоматизация буфера обмена</string>
+    <string name="section_settings">Настройки</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">Уведомления</string>
+    <string name="perm_notifications_desc">Показывать полученный буфер обмена</string>
+    <string name="perm_bg_keepalive">Работа в фоне</string>
+    <string name="perm_bg_keepalive_desc">Включить Спец. возможности</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Требуется для офлайн-синхронизации</string>
+    <string name="perm_battery_opt">Оптимизация батареи</string>
+    <string name="perm_battery_opt_desc">Разрешить стабильную работу в фоне</string>
+    <string name="perm_autostart">Автозапуск</string>
+    <string name="perm_autostart_desc">Разрешить запуск в фоне для надёжной синхронизации</string>
+    <string name="allow">Разрешить</string>
+    <string name="open">Открыть</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">Копировать</string>
+    <string name="image_ready_to_copy">Изображение готово к копированию</string>
+    <string name="text_ready_to_copy">Текст готов к копированию</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Автоматизация через Root</string>
+    <string name="root_automation_granted">Root-доступ предоставлен: текст и изображения синхронизируются в реальном времени.</string>
+    <string name="root_automation_prompt">Нажмите для предоставления Root-доступа для фоновой автосинхронизации.</string>
+    <string name="bg_sync_active_title">Фоновая синхронизация активна</string>
+    <string name="bg_sync_active_desc">Фоновый доступ к буферу обмена Android предоставлен. Текст и ссылки синхронизируются автоматически.</string>
+    <string name="shizuku_enable_title">Включить через Shizuku</string>
+    <string name="shizuku_enable_desc">Нажмите для применения прав к буферу обмена через Shizuku.</string>
+    <string name="shizuku_apply_btn">Применить</string>
+    <string name="shizuku_auth_title">Авторизовать Shizuku</string>
+    <string name="shizuku_auth_desc">Авторизуйте BinderClip в Shizuku для автосинхронизации без Root.</string>
+    <string name="shizuku_auth_btn">Авторизовать</string>
+    <string name="shizuku_installed_title">Shizuku установлен</string>
+    <string name="shizuku_installed_desc">Запустите Shizuku через беспроводную отладку или ПК для синхронизации без Root.</string>
+    <string name="adb_setup_title">Настройка без Root / через ADB</string>
+    <string name="adb_setup_desc">Выполните через ПК или беспроводную отладку:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">Спец. возможности (Keep-Alive)</string>
+    <string name="accessibility_keepalive_desc_on">Служба активна и возобновляет синхронизацию после перезагрузки.</string>
+    <string name="accessibility_keepalive_desc_off">Включите спец. возможности, чтобы система не закрывала приложение в фоне.</string>
+    <string name="quick_settings_hint">Быстрые настройки: добавьте плитку «Отправить на Mac» в панель уведомлений для отправки в 1 касание.</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">Автоматически вставлять входящее</string>
+    <string name="auto_apply_incoming_desc_on">Текст и изображения с Mac автоматически копируются в буфер обмена.</string>
+    <string name="auto_apply_incoming_desc_off">Показывать уведомление для ручного копирования полученных данных.</string>
+    <string name="bt_fallback_title">Резервный Bluetooth</string>
+    <string name="bt_fallback_desc_off">Резервный Bluetooth выключен; требуется Wi-Fi или mesh.</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth выключен. BinderClip запросит включение при отсутствии Wi-Fi.</string>
+    <string name="bt_fallback_desc_on">Текст и ссылки передаются по Bluetooth при отсутствии Wi-Fi и mesh.</string>
+    <string name="bt_is_off_title">Bluetooth выключен</string>
+    <string name="bt_is_off_desc">BinderClip запросит включение при переходе в резервный режим.</string>
+    <string name="turn_on">Включить</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL успешно отправлен</string>
+    <string name="image_sent_success">Изображение успешно отправлено</string>
+    <string name="status_connected_bluetooth">Подключено по Bluetooth</string>
+    <string name="status_connected_mesh">Подключено по Mesh</string>
+    <string name="status_connected_lan">Подключено по LAN</string>
+    <string name="status_connected">Подключено</string>
+    <string name="status_connecting">Подключение…</string>
+    <string name="status_reconnecting">Переподключение…</string>
+    <string name="this_device">Это устройство</string>
+    <string name="transport_bt_label">Протокол: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">Недоступно</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">Переименовать устройство</string>
+    <string name="device_rename_prompt">Введите новое имя для этого устройства:</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    <string name="close">Закрыть</string>
+    <string name="rename">Переименовать</string>
+    <string name="unpair_this_device">Разорвать пару с этим устройством</string>
+    <string name="unpair_device">Разорвать пару</string>
+    <string name="logs_title">Логи (%1$d)</string>
+    <string name="logs_search_placeholder">Поиск по логам…</string>
+    <string name="filter_all">Все</string>
+    <string name="filter_info">Информация</string>
+    <string name="filter_warning">Предупреждения</string>
+    <string name="filter_error">Ошибки</string>
+    <string name="no_events_yet">Событий пока нет.</string>
+    <string name="no_matching_events">Нет подходящих событий.</string>
+    <string name="clear">Очистить</string>
+    <string name="bt_guide_dialog_title">Разрешить доступ к Bluetooth</string>
+    <string name="bt_guide_dialog_text">BinderClip использует Bluetooth Low Energy для синхронизации при отсутствии Wi-Fi.\n\nКак включить:\n1. Нажмите «Открыть настройки» ниже.\n2. Нажмите «Разрешения».\n3. Разрешите «Устройства поблизости» или «Bluetooth».</string>
+    <string name="open_settings">Открыть настройки</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">Открыть ссылку на устройстве</string>
+    <string name="share_to_device_title">Поделиться с устройством</string>
+    <string name="share_all_devices">Все подключённые устройства</string>
+    <string name="share_all_devices_url_sub">Открывает в браузере на всех устройствах</string>
+    <string name="share_all_devices_sub">Отправляет на все устройства</string>
+    <string name="share_opens_browser_on">Открывает браузер на %1$s</string>
+    <string name="share_image_label">Изображение (%1$s)</string>
+    <string name="share_text_content">Текстовое содержимое</string>
+    <string name="share_error_unsupported">Не удалось отправить этот контент</string>
+    <string name="share_sending_link">Отправка ссылки…</string>
+    <string name="share_sending">Отправка…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">Отправлено на Mac</string>
+    <string name="toast_sent_image_to_mac">Изображение отправлено на Mac</string>
+    <string name="toast_nothing_to_send">Нечего отправлять</string>
+</resources>

@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">开启自动同步后，将剪贴板复制的文本发送至您的 BinderClip 设备。</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">发送至 Mac</string>
+    <string name="tile_send_clipboard">发送剪贴板</string>
+    <string name="tile_not_paired">未配对</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">剪贴板同步</string>
+    <string name="channel_clipboard_sync_desc">与已配对的 Mac 保持长连接</string>
+    <string name="channel_browser_links">浏览器链接</string>
+    <string name="channel_browser_links_desc">接收到网页链接时的通知</string>
+    <string name="notif_copy_to_clipboard">复制到剪贴板</string>
+    <string name="notif_open_link">打开链接</string>
+    <string name="notif_bluetooth_fallback_title">蓝牙备用同步就绪</string>
+    <string name="notif_bluetooth_fallback_desc">开启蓝牙以在无 Wi-Fi 时继续同步</string>
+    <string name="notif_image_waiting_title">图片等待 Wi-Fi 中</string>
+    <string name="notif_image_waiting_desc">图片 (%1$s) 需要 Wi-Fi 或 Mesh 网络；文本仍通过蓝牙同步</string>
+    <string name="notif_received_text">已接收文本</string>
+    <string name="notif_received_image">已接收图片 (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">查看日志</string>
+    <string name="paired_devices">已配对设备</string>
+    <string name="no_devices_paired">暂无配对设备</string>
+    <string name="no_devices_paired_desc">扫描 Mac 上的二维码进行配对。</string>
+    <string name="reconnect">重新连接</string>
+    <string name="scan_qr_to_pair">扫码配对</string>
+    <string name="send_current_clipboard">发送当前剪贴板</string>
+    <string name="section_permissions">系统权限</string>
+    <string name="section_clipboard_automation">剪贴板自动化</string>
+    <string name="section_settings">设置</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">通知权限</string>
+    <string name="perm_notifications_desc">显示接收到的剪贴板内容</string>
+    <string name="perm_bg_keepalive">后台常驻保活</string>
+    <string name="perm_bg_keepalive_desc">开启无障碍服务</string>
+    <string name="perm_bluetooth">蓝牙权限</string>
+    <string name="perm_bluetooth_desc">用于离线备用同步通道</string>
+    <string name="perm_battery_opt">电池优化白名单</string>
+    <string name="perm_battery_opt_desc">允许可靠的后台同步</string>
+    <string name="perm_autostart">自启动管理</string>
+    <string name="perm_autostart_desc">允许后台自启动以确保稳定同步</string>
+    <string name="allow">允许</string>
+    <string name="open">打开</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">复制</string>
+    <string name="image_ready_to_copy">图片已就绪</string>
+    <string name="text_ready_to_copy">文本已就绪</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Root 权限自动化</string>
+    <string name="root_automation_granted">已授予 Root 权限：文本与图片实时自动同步。</string>
+    <string name="root_automation_prompt">点击授予 Root 权限以实现自动后台同步。</string>
+    <string name="bg_sync_active_title">后台同步已激活</string>
+    <string name="bg_sync_active_desc">已获得 Android 后台剪贴板权限，文本和链接将自动同步。</string>
+    <string name="shizuku_enable_title">使用 Shizuku 激活</string>
+    <string name="shizuku_enable_desc">点击通过 Shizuku 自动应用后台剪贴板权限。</string>
+    <string name="shizuku_apply_btn">应用</string>
+    <string name="shizuku_auth_title">授权 Shizuku</string>
+    <string name="shizuku_auth_desc">在 Shizuku 中授权 BinderClip，无需 Root 即可自动化后台同步。</string>
+    <string name="shizuku_auth_btn">授权</string>
+    <string name="shizuku_installed_title">Shizuku 已安装</string>
+    <string name="shizuku_installed_desc">请通过无线调试或电脑启动 Shizuku 以开启无 Root 后台同步。</string>
+    <string name="adb_setup_title">免 Root / ADB 命令配置</string>
+    <string name="adb_setup_desc">通过电脑或无线调试运行：\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">无障碍服务保活</string>
+    <string name="accessibility_keepalive_desc_on">无障碍服务已激活，开机后自动拉起同步。</string>
+    <string name="accessibility_keepalive_desc_off">启用无障碍服务以防止被系统杀后台。</string>
+    <string name="quick_settings_hint">快捷设置：将“发送至 Mac”磁贴添加至下拉快捷控制中心，任何应用一键发送剪贴板。</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">自动写入接收的剪贴板</string>
+    <string name="auto_apply_incoming_desc_on">从 Mac 接收的文本和图片将自动复制到手机剪贴板。</string>
+    <string name="auto_apply_incoming_desc_off">接收到内容时弹出通知，需手动点击复制。</string>
+    <string name="bt_fallback_title">蓝牙备用同步通道</string>
+    <string name="bt_fallback_desc_off">蓝牙备用已关闭；同步需要 Wi-Fi 或 Mesh 网络。</string>
+    <string name="bt_fallback_desc_disabled">蓝牙已关闭。当 Wi-Fi 断开时 BinderClip 会请求开启蓝牙。</string>
+    <string name="bt_fallback_desc_on">当 Wi-Fi 或 Mesh 断开时，文本和链接将通过蓝牙自动同步。</string>
+    <string name="bt_is_off_title">蓝牙已关闭</string>
+    <string name="bt_is_off_desc">进入离线备用模式时 BinderClip 将请求开启蓝牙。</string>
+    <string name="turn_on">开启</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL 发送成功</string>
+    <string name="image_sent_success">图片发送成功</string>
+    <string name="status_connected_bluetooth">已通过蓝牙连接</string>
+    <string name="status_connected_mesh">已通过 Mesh 连接</string>
+    <string name="status_connected_lan">已通过局域网连接</string>
+    <string name="status_connected">已连接</string>
+    <string name="status_connecting">正在连接…</string>
+    <string name="status_reconnecting">正在重新连接…</string>
+    <string name="this_device">当前设备</string>
+    <string name="transport_bt_label">传输协议: 蓝牙 BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">不可用</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">重命名设备</string>
+    <string name="device_rename_prompt">为此设备输入新名称：</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="close">关闭</string>
+    <string name="rename">重命名</string>
+    <string name="unpair_this_device">解除此设备配对</string>
+    <string name="unpair_device">解除配对</string>
+    <string name="logs_title">日志 (%1$d)</string>
+    <string name="logs_search_placeholder">搜索日志…</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_info">信息</string>
+    <string name="filter_warning">警告</string>
+    <string name="filter_error">错误</string>
+    <string name="no_events_yet">暂无事件。</string>
+    <string name="no_matching_events">无匹配事件。</string>
+    <string name="clear">清空</string>
+    <string name="bt_guide_dialog_title">需要蓝牙权限</string>
+    <string name="bt_guide_dialog_text">BinderClip 在 Wi-Fi 不可用时通过低功耗蓝牙进行剪贴板同步。\n\n开启方法：\n1. 点击下方“打开设置”。\n2. 点击“权限”。\n3. 允许“附近设备”或“蓝牙”。</string>
+    <string name="open_settings">打开设置</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">在设备上打开链接</string>
+    <string name="share_to_device_title">分享至设备</string>
+    <string name="share_all_devices">所有已连接设备</string>
+    <string name="share_all_devices_url_sub">在所有设备浏览器中打开</string>
+    <string name="share_all_devices_sub">发送至所有设备</string>
+    <string name="share_opens_browser_on">在 %1$s 浏览器中打开</string>
+    <string name="share_image_label">图片 (%1$s)</string>
+    <string name="share_text_content">文本内容</string>
+    <string name="share_error_unsupported">无法发送此内容</string>
+    <string name="share_sending_link">正在发送链接…</string>
+    <string name="share_sending">正在发送…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">已发送至 Mac</string>
+    <string name="toast_sent_image_to_mac">已将图片发送至 Mac</string>
+    <string name="toast_nothing_to_send">没有可发送的内容</string>
+</resources>

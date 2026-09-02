@@ -801,14 +801,14 @@ class BinderClipService : Service() {
 
     private fun createChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val syncChannel = NotificationChannel(CHANNEL, "Clipboard Sync", NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Maintains persistent connection with paired Mac"
+        val syncChannel = NotificationChannel(CHANNEL, getString(R.string.channel_clipboard_sync), NotificationManager.IMPORTANCE_LOW).apply {
+            description = getString(R.string.channel_clipboard_sync_desc)
             setShowBadge(false)
         }
         manager.createNotificationChannel(syncChannel)
 
-        val urlChannel = NotificationChannel(URL_CHANNEL, "Browser Links", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "Notifications when web links are received"
+        val urlChannel = NotificationChannel(URL_CHANNEL, getString(R.string.channel_browser_links), NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = getString(R.string.channel_browser_links_desc)
         }
         manager.createNotificationChannel(urlChannel)
     }
@@ -841,7 +841,7 @@ class BinderClipService : Service() {
             .setSmallIcon(R.drawable.ic_binder_clip)
             .setContentTitle(title)
             .setContentText(body)
-            .addAction(R.drawable.ic_binder_clip, "Copy to Clipboard", copyPending)
+            .addAction(R.drawable.ic_binder_clip, getString(R.string.notif_copy_to_clipboard), copyPending)
             .setAutoCancel(true)
             .build()
 
@@ -862,7 +862,7 @@ class BinderClipService : Service() {
         )
         val notif = NotificationCompat.Builder(this, URL_CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle("Open link")
+            .setContentTitle(getString(R.string.notif_open_link))
             .setContentText(url)
             .setStyle(NotificationCompat.BigTextStyle().bigText(url))
             .setContentIntent(openPending)
@@ -1068,8 +1068,8 @@ class BinderClipService : Service() {
         val pending = PendingIntent.getActivity(this, 104, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notif = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle("Bluetooth fallback ready")
-            .setContentText("Enable Bluetooth to keep syncing without Wi-Fi")
+            .setContentTitle(getString(R.string.notif_bluetooth_fallback_title))
+            .setContentText(getString(R.string.notif_bluetooth_fallback_desc))
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
@@ -1079,8 +1079,8 @@ class BinderClipService : Service() {
     private fun notifyDeferredImage(mimeType: String) {
         val notif = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle("Image waiting for Wi-Fi")
-            .setContentText("Images ($mimeType) need Wi-Fi or mesh; text still syncs over Bluetooth")
+            .setContentTitle(getString(R.string.notif_image_waiting_title))
+            .setContentText(getString(R.string.notif_image_waiting_desc, mimeType))
             .setAutoCancel(true)
             .build()
         getSystemService(NotificationManager::class.java).notify(106, notif)

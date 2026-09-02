@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">Mengirim teks papan klip yang disalin ke perangkat BinderClip Anda saat sinkronisasi otomatis aktif.</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">Kirim ke Mac</string>
+    <string name="tile_send_clipboard">Kirim Papan Klip</string>
+    <string name="tile_not_paired">Belum dipasangkan</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">Sinkronisasi Papan Klip</string>
+    <string name="channel_clipboard_sync_desc">Menjaga koneksi tetap terhubung dengan Mac yang dipasangkan</string>
+    <string name="channel_browser_links">Tautan Peramban</string>
+    <string name="channel_browser_links_desc">Pemberitahuan saat tautan web diterima</string>
+    <string name="notif_copy_to_clipboard">Salin ke Papan Klip</string>
+    <string name="notif_open_link">Buka tautan</string>
+    <string name="notif_bluetooth_fallback_title">Cadangan Bluetooth siap</string>
+    <string name="notif_bluetooth_fallback_desc">Aktifkan Bluetooth untuk tetap menyinkronkan tanpa Wi-Fi</string>
+    <string name="notif_image_waiting_title">Gambar menunggu Wi-Fi</string>
+    <string name="notif_image_waiting_desc">Gambar (%1$s) memerlukan Wi-Fi atau mesh; teks tetap tersinkronisasi melalui Bluetooth</string>
+    <string name="notif_received_text">Teks diterima</string>
+    <string name="notif_received_image">Gambar diterima (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">Tampilkan log</string>
+    <string name="paired_devices">Perangkat terpasang</string>
+    <string name="no_devices_paired">Belum ada perangkat terpasang</string>
+    <string name="no_devices_paired_desc">Pindai kode QR dari Mac Anda untuk memasangkan.</string>
+    <string name="reconnect">Hubungkan Ulang</string>
+    <string name="scan_qr_to_pair">Pindai QR untuk Memasangkan</string>
+    <string name="send_current_clipboard">Kirim papan klip saat ini</string>
+    <string name="section_permissions">Izin</string>
+    <string name="section_clipboard_automation">Otomatisasi Papan Klip</string>
+    <string name="section_settings">Pengaturan</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">Pemberitahuan</string>
+    <string name="perm_notifications_desc">Tampilkan papan klip yang diterima</string>
+    <string name="perm_bg_keepalive">Pertahankan di Latar Belakang</string>
+    <string name="perm_bg_keepalive_desc">Aktifkan Aksesibilitas</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Diperlukan untuk sinkronisasi cadangan offline</string>
+    <string name="perm_battery_opt">Optimalisasi Baterai</string>
+    <string name="perm_battery_opt_desc">Izinkan sinkronisasi latar belakang yang andal</string>
+    <string name="perm_autostart">Mulai Otomatis</string>
+    <string name="perm_autostart_desc">Izinkan mulai latar belakang untuk sinkronisasi andal</string>
+    <string name="allow">Izinkan</string>
+    <string name="open">Buka</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">Salin</string>
+    <string name="image_ready_to_copy">Gambar siap disalin</string>
+    <string name="text_ready_to_copy">Teks siap disalin</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Otomatisasi Papan Klip Root</string>
+    <string name="root_automation_granted">Akses root diberikan: teks dan gambar disinkronkan secara real-time.</string>
+    <string name="root_automation_prompt">Ketuk untuk memberikan akses root untuk sinkronisasi otomatis.</string>
+    <string name="bg_sync_active_title">Sinkronisasi Latar Belakang Aktif</string>
+    <string name="bg_sync_active_desc">Akses papan klip latar belakang Android telah diberikan. Teks dan tautan disinkronkan secara otomatis.</string>
+    <string name="shizuku_enable_title">Aktifkan dengan Shizuku</string>
+    <string name="shizuku_enable_desc">Ketuk untuk menerapkan izin papan klip latar belakang secara otomatis via Shizuku.</string>
+    <string name="shizuku_apply_btn">Terapkan</string>
+    <string name="shizuku_auth_title">Otorisasi Shizuku</string>
+    <string name="shizuku_auth_desc">Otorisasi BinderClip di Shizuku untuk sinkronisasi latar belakang otomatis tanpa root.</string>
+    <string name="shizuku_auth_btn">Otorisasi</string>
+    <string name="shizuku_installed_title">Shizuku Terpasang</string>
+    <string name="shizuku_installed_desc">Mulai Shizuku via Wireless Debugging atau komputer untuk mengaktifkan sinkronisasi latar belakang tanpa root.</string>
+    <string name="adb_setup_title">Pengaturan Non-Root / ADB</string>
+    <string name="adb_setup_desc">Jalankan via komputer atau Wireless Debugging:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">Aksesibilitas Keep-Alive</string>
+    <string name="accessibility_keepalive_desc_on">Layanan aksesibilitas aktif dan menjaga sinkronisasi tetap berjalan setelah boot.</string>
+    <string name="accessibility_keepalive_desc_off">Aktifkan layanan Aksesibilitas untuk mencegah penutupan latar belakang oleh sistem.</string>
+    <string name="quick_settings_hint">Pengaturan Cepat: Tambahkan ubin \'Kirim ke Mac\' ke panel notifikasi Anda untuk mengirim papan klip 1 ketukan instan dari aplikasi apa pun.</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">Terapkan otomatis papan klip masuk</string>
+    <string name="auto_apply_incoming_desc_on">Teks dan gambar yang diterima dari Mac disalin ke papan klip secara otomatis.</string>
+    <string name="auto_apply_incoming_desc_off">Tampilkan pemberitahuan untuk menyalin teks atau gambar yang diterima secara manual.</string>
+    <string name="bt_fallback_title">Cadangan Bluetooth</string>
+    <string name="bt_fallback_desc_off">Cadangan Bluetooth nonaktif; sinkronisasi memerlukan Wi-Fi atau mesh.</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth nonaktif. BinderClip akan mencoba mengaktifkannya saat Wi-Fi tidak terjangkau.</string>
+    <string name="bt_fallback_desc_on">Teks dan tautan disinkronkan melalui Bluetooth saat Wi-Fi dan mesh tidak terjangkau.</string>
+    <string name="bt_is_off_title">Bluetooth nonaktif</string>
+    <string name="bt_is_off_desc">BinderClip akan memintanya saat mode cadangan aktif.</string>
+    <string name="turn_on">Nyalakan</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL berhasil dikirim</string>
+    <string name="image_sent_success">Gambar berhasil dikirim</string>
+    <string name="status_connected_bluetooth">Terhubung via Bluetooth</string>
+    <string name="status_connected_mesh">Terhubung via Mesh</string>
+    <string name="status_connected_lan">Terhubung via LAN</string>
+    <string name="status_connected">Terhubung</string>
+    <string name="status_connecting">Menghubungkan…</string>
+    <string name="status_reconnecting">Menghubungkan ulang…</string>
+    <string name="this_device">Perangkat ini</string>
+    <string name="transport_bt_label">Transport: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">Tidak tersedia</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">Ubah Nama Perangkat</string>
+    <string name="device_rename_prompt">Masukkan nama baru untuk perangkat ini:</string>
+    <string name="save">Simpan</string>
+    <string name="cancel">Batal</string>
+    <string name="close">Tutup</string>
+    <string name="rename">Ubah Nama</string>
+    <string name="unpair_this_device">Putuskan Perangkat Ini</string>
+    <string name="unpair_device">Putuskan Perangkat</string>
+    <string name="logs_title">Log (%1$d)</string>
+    <string name="logs_search_placeholder">Cari log…</string>
+    <string name="filter_all">Semua</string>
+    <string name="filter_info">Info</string>
+    <string name="filter_warning">Peringatan</string>
+    <string name="filter_error">Kesalahan</string>
+    <string name="no_events_yet">Belum ada peristiwa.</string>
+    <string name="no_matching_events">Tidak ada peristiwa yang cocok.</string>
+    <string name="clear">Bersihkan</string>
+    <string name="bt_guide_dialog_title">Izinkan Akses Bluetooth</string>
+    <string name="bt_guide_dialog_text">BinderClip menggunakan Bluetooth Hemat Energi untuk menyinkronkan papan klip saat Wi-Fi tidak tersedia.\n\nUntuk mengaktifkan cadangan Bluetooth:\n1. Ketuk \'Buka Pengaturan\' di bawah.\n2. Ketuk \'Izin\'.\n3. Izinkan \'Perangkat di sekitar\' atau \'Bluetooth\'.</string>
+    <string name="open_settings">Buka Pengaturan</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">Buka Tautan di Perangkat</string>
+    <string name="share_to_device_title">Bagikan ke Perangkat</string>
+    <string name="share_all_devices">Semua Perangkat Terhubung</string>
+    <string name="share_all_devices_url_sub">Buka di peramban di semua perangkat</string>
+    <string name="share_all_devices_sub">Kirim ke semua perangkat</string>
+    <string name="share_opens_browser_on">Buka peramban di %1$s</string>
+    <string name="share_image_label">Gambar (%1$s)</string>
+    <string name="share_text_content">Konten teks</string>
+    <string name="share_error_unsupported">Tidak dapat mengirim konten ini</string>
+    <string name="share_sending_link">Mengirim tautan…</string>
+    <string name="share_sending">Mengirim…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">Terkirim ke Mac</string>
+    <string name="toast_sent_image_to_mac">Gambar terkirim ke Mac</string>
+    <string name="toast_nothing_to_send">Tidak ada yang dapat dikirim</string>
+</resources>

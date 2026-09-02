@@ -82,6 +82,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -220,15 +221,9 @@ class MainActivity : AppCompatActivity() {
                 if (showBluetoothGuide) {
                     AlertDialog(
                         onDismissRequest = { showBluetoothGuide = false },
-                        title = { Text("Allow Bluetooth Permission") },
+                        title = { Text(stringResource(R.string.bt_guide_dialog_title)) },
                         text = {
-                            Text(
-                                "BinderClip uses Bluetooth Low Energy to sync your clipboard when Wi-Fi is unavailable.\n\n" +
-                                "To enable Bluetooth fallback:\n" +
-                                "1. Tap 'Open Settings' below.\n" +
-                                "2. Tap 'Permissions'.\n" +
-                                "3. Allow 'Nearby devices' or 'Bluetooth'."
-                            )
+                            Text(stringResource(R.string.bt_guide_dialog_text))
                         },
                         confirmButton = {
                             Button(onClick = {
@@ -238,12 +233,12 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 startActivity(intent)
                             }) {
-                                Text("Open Settings")
+                                Text(stringResource(R.string.open_settings))
                             }
                         },
                         dismissButton = {
                             TextButton(onClick = { showBluetoothGuide = false }) {
-                                Text("Cancel")
+                                Text(stringResource(R.string.cancel))
                             }
                         }
                     )
@@ -458,43 +453,43 @@ private fun BinderClipScreen(
     val missingPermissions = buildList {
         if (!notificationsGranted) add(
             PermissionNeed(
-                "Notifications",
-                "Show received clipboard",
+                context.getString(R.string.perm_notifications),
+                context.getString(R.string.perm_notifications_desc),
                 Icons.Outlined.Notifications,
                 onRequestNotifications
             )
         )
         if (!state.rootAvailable && !state.backgroundAccessGranted && !state.accessibilityEnabled) add(
             PermissionNeed(
-                "Background Keep-Alive",
-                "Enable Accessibility",
+                context.getString(R.string.perm_bg_keepalive),
+                context.getString(R.string.perm_bg_keepalive_desc),
                 Icons.Outlined.AccessibilityNew,
                 onOpenAccessibility
             )
         )
         if (state.btFallbackEnabled && !bluetoothGranted) add(
             PermissionNeed(
-                "Bluetooth",
-                "Needed for offline fallback sync",
+                context.getString(R.string.perm_bluetooth),
+                context.getString(R.string.perm_bluetooth_desc),
                 Icons.Outlined.Settings,
                 onRequestBluetooth
             )
         )
         if (!batteryOptimizationIgnored) add(
             PermissionNeed(
-                "Battery Optimization",
-                "Allow reliable background sync",
+                context.getString(R.string.perm_battery_opt),
+                context.getString(R.string.perm_battery_opt_desc),
                 Icons.Outlined.BatteryChargingFull,
                 onRequestBatteryOptimization
             )
         )
         if (autoStartHelpNeeded) add(
             PermissionNeed(
-                "Auto Start",
-                "Allow background start for reliable sync",
+                context.getString(R.string.perm_autostart),
+                context.getString(R.string.perm_autostart_desc),
                 Icons.Outlined.Settings,
                 onOpenAppDetails,
-                "Open"
+                context.getString(R.string.open)
             )
         )
     }
@@ -506,7 +501,7 @@ private fun BinderClipScreen(
             sentOverlayMessage = state.status
             sentOverlayIsSuccess = false
         } else if (state.status == "Sent URL to peer" || state.status == "Image sent" || state.status.startsWith("Received") || state.status.startsWith("Opened URL")) {
-            sentOverlayMessage = if (state.status == "Sent URL to peer") "URL sent successfully" else if (state.status == "Image sent") "Image sent successfully" else state.status
+            sentOverlayMessage = if (state.status == "Sent URL to peer") context.getString(R.string.url_sent_success) else if (state.status == "Image sent") context.getString(R.string.image_sent_success) else state.status
             sentOverlayIsSuccess = true
             kotlinx.coroutines.delay(2200)
             sentOverlayMessage = null
@@ -529,7 +524,7 @@ private fun BinderClipScreen(
             },
             actions = {
                 IconButton(onClick = { showLogs = true }) {
-                    Icon(Icons.Outlined.Description, contentDescription = "Show logs")
+                    Icon(Icons.Outlined.Description, contentDescription = stringResource(R.string.show_logs))
                 }
             },
         )
@@ -579,7 +574,7 @@ private fun BinderClipScreen(
                     Icon(
                         Icons.Outlined.QrCodeScanner,
                         contentDescription = null
-                    ); Spacer(Modifier.width(10.dp)); Text("Scan QR to Pair")
+                    ); Spacer(Modifier.width(10.dp)); Text(stringResource(R.string.scan_qr_to_pair))
                 }
             }
             item {
@@ -597,11 +592,11 @@ private fun BinderClipScreen(
                     Icon(
                         Icons.AutoMirrored.Outlined.Send,
                         contentDescription = null
-                    ); Spacer(Modifier.width(10.dp)); Text("Send current clipboard")
+                    ); Spacer(Modifier.width(10.dp)); Text(stringResource(R.string.send_current_clipboard))
                 }
             }
             if (missingPermissions.isNotEmpty()) {
-                item { SectionTitle("Permissions", topPadding = 16.dp) }
+                item { SectionTitle(stringResource(R.string.section_permissions), topPadding = 16.dp) }
                 items(missingPermissions.size, key = { missingPermissions[it].title }) { index ->
                     PermissionRow(missingPermissions[index])
                     if (index != missingPermissions.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
@@ -609,15 +604,15 @@ private fun BinderClipScreen(
             }
             if (state.pendingText || state.pendingImage) item {
                 ListItem(
-                    headlineContent = { Text(if (state.pendingImage) "Image ready to copy" else "Text ready to copy") },
-                    trailingContent = { TextButton(onClick = onCopy) { Text("Copy") } })
+                    headlineContent = { Text(if (state.pendingImage) stringResource(R.string.image_ready_to_copy) else stringResource(R.string.text_ready_to_copy)) },
+                    trailingContent = { TextButton(onClick = onCopy) { Text(stringResource(R.string.copy)) } })
             }
-            item { SectionTitle("Clipboard Automation", topPadding = 16.dp) }
+            item { SectionTitle(stringResource(R.string.section_clipboard_automation), topPadding = 16.dp) }
             if (state.rootAvailable) {
                 item {
                     PreferenceToggle(
-                        title = "Root Clipboard Automation",
-                        summary = if (state.automaticClipboardEnabled) "Root access granted: text and images sync in real-time." else "Tap to grant root access for automatic background sync.",
+                        title = stringResource(R.string.root_automation_title),
+                        summary = if (state.automaticClipboardEnabled) stringResource(R.string.root_automation_granted) else stringResource(R.string.root_automation_prompt),
                         checked = state.automaticClipboardEnabled,
                         onChanged = onToggleRoot,
                     )
@@ -625,8 +620,8 @@ private fun BinderClipScreen(
             } else if (state.backgroundAccessGranted) {
                 item {
                     ListItem(
-                        headlineContent = { Text("Background Sync Active") },
-                        supportingContent = { Text("Android background clipboard access is granted. Text and links sync automatically.") },
+                        headlineContent = { Text(stringResource(R.string.bg_sync_active_title)) },
+                        supportingContent = { Text(stringResource(R.string.bg_sync_active_desc)) },
                         leadingContent = {
                             Icon(
                                 Icons.Outlined.CheckCircle,
@@ -641,20 +636,20 @@ private fun BinderClipScreen(
                     if (state.shizukuAuthorized) {
                         item {
                             ListItem(
-                                headlineContent = { Text("Enable with Shizuku") },
-                                supportingContent = { Text("Tap to apply background clipboard permission automatically via Shizuku.") },
+                                headlineContent = { Text(stringResource(R.string.shizuku_enable_title)) },
+                                supportingContent = { Text(stringResource(R.string.shizuku_enable_desc)) },
                                 trailingContent = {
-                                    Button(onClick = onEnableShizuku) { Text("Apply") }
+                                    Button(onClick = onEnableShizuku) { Text(stringResource(R.string.shizuku_apply_btn)) }
                                 }
                             )
                         }
                     } else {
                         item {
                             ListItem(
-                                headlineContent = { Text("Authorize Shizuku") },
-                                supportingContent = { Text("Authorize BinderClip in Shizuku for automated background sync without root.") },
+                                headlineContent = { Text(stringResource(R.string.shizuku_auth_title)) },
+                                supportingContent = { Text(stringResource(R.string.shizuku_auth_desc)) },
                                 trailingContent = {
-                                    Button(onClick = onRequestShizuku) { Text("Authorize") }
+                                    Button(onClick = onRequestShizuku) { Text(stringResource(R.string.shizuku_auth_btn)) }
                                 }
                             )
                         }
@@ -662,52 +657,52 @@ private fun BinderClipScreen(
                 } else if (state.shizukuInstalled) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Shizuku Installed") },
-                            supportingContent = { Text("Start Shizuku via Wireless Debugging or computer to enable background sync without root.") }
+                            headlineContent = { Text(stringResource(R.string.shizuku_installed_title)) },
+                            supportingContent = { Text(stringResource(R.string.shizuku_installed_desc)) }
                         )
                     }
                 }
                 item {
                     ListItem(
-                        headlineContent = { Text("Non-Root / ADB Setup") },
+                        headlineContent = { Text(stringResource(R.string.adb_setup_title)) },
                         supportingContent = {
-                            Text("Run via computer or Wireless Debugging:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow")
+                            Text(stringResource(R.string.adb_setup_desc))
                         }
                     )
                 }
             }
             item {
                 PreferenceToggle(
-                    title = "Accessibility Keep-Alive",
-                    summary = if (state.accessibilityEnabled) "Accessibility service is active and keeps sync running after boot." else "Enable Accessibility service to prevent OEM background kills.",
+                    title = stringResource(R.string.accessibility_keepalive_title),
+                    summary = if (state.accessibilityEnabled) stringResource(R.string.accessibility_keepalive_desc_on) else stringResource(R.string.accessibility_keepalive_desc_off),
                     checked = state.accessibilityEnabled,
                     onChanged = { enabled -> if (enabled) onOpenAccessibility() else onDisableAccessibility() },
                 )
             }
             item {
                 Text(
-                    "Quick Settings: Add the 'Send to Mac' tile to your notification panel for instant 1-tap clipboard send from any app.",
+                    stringResource(R.string.quick_settings_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
-            item { SectionTitle("Settings", topPadding = 16.dp) }
+            item { SectionTitle(stringResource(R.string.section_settings), topPadding = 16.dp) }
             item {
                 PreferenceToggle(
-                    title = "Auto-apply incoming clipboard",
-                    summary = if (state.autoApplyIncoming) "Text and images received from Mac are copied to clipboard automatically." else "Show a notification to copy received text or images manually.",
+                    title = stringResource(R.string.auto_apply_incoming_title),
+                    summary = if (state.autoApplyIncoming) stringResource(R.string.auto_apply_incoming_desc_on) else stringResource(R.string.auto_apply_incoming_desc_off),
                     checked = state.autoApplyIncoming,
                     onChanged = onToggleAutoApplyIncoming,
                 )
             }
             item {
                 PreferenceToggle(
-                    title = "Bluetooth fallback",
+                    title = stringResource(R.string.bt_fallback_title),
                     summary = when {
-                        !state.btFallbackEnabled -> "Bluetooth fallback is off; sync requires Wi-Fi or mesh."
-                        !state.bluetoothEnabled -> "Bluetooth is off. BinderClip will try to enable it when Wi-Fi is unreachable."
-                        else -> "Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable."
+                        !state.btFallbackEnabled -> stringResource(R.string.bt_fallback_desc_off)
+                        !state.bluetoothEnabled -> stringResource(R.string.bt_fallback_desc_disabled)
+                        else -> stringResource(R.string.bt_fallback_desc_on)
                     },
                     checked = state.btFallbackEnabled,
                     onChanged = onToggleBtFallback,
@@ -715,9 +710,9 @@ private fun BinderClipScreen(
             }
             if (state.btFallbackEnabled && !state.bluetoothEnabled) item {
                 ListItem(
-                    headlineContent = { Text("Bluetooth is off") },
-                    supportingContent = { Text("BinderClip will request it when the fallback engages.") },
-                    trailingContent = { TextButton(onClick = onRequestBluetooth) { Text("Turn On") } },
+                    headlineContent = { Text(stringResource(R.string.bt_is_off_title)) },
+                    supportingContent = { Text(stringResource(R.string.bt_is_off_desc)) },
+                    trailingContent = { TextButton(onClick = onRequestBluetooth) { Text(stringResource(R.string.turn_on)) } },
                 )
             }
         }
@@ -780,18 +775,18 @@ private fun BinderClipScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val statusText = if (target.connected) {
                         when (state.transportType) {
-                            TransportType.BLUETOOTH -> "Connected via Bluetooth"
-                            TransportType.MESH -> "Connected via Mesh"
-                            TransportType.LAN -> "Connected via LAN"
-                            TransportType.NONE -> "Connected"
+                            TransportType.BLUETOOTH -> stringResource(R.string.status_connected_bluetooth)
+                            TransportType.MESH -> stringResource(R.string.status_connected_mesh)
+                            TransportType.LAN -> stringResource(R.string.status_connected_lan)
+                            TransportType.NONE -> stringResource(R.string.status_connected)
                         }
-                    } else if (state.connectionPhase == ConnectionPhase.Connecting) "Connecting…"
-                    else "Reconnecting…"
+                    } else if (state.connectionPhase == ConnectionPhase.Connecting) stringResource(R.string.status_connecting)
+                    else stringResource(R.string.status_reconnecting)
                     Text(statusText)
                     val ipText = if (target.connected && state.transportType == TransportType.BLUETOOTH) {
-                        "Transport: Bluetooth BLE"
+                        stringResource(R.string.transport_bt_label)
                     } else {
-                        "IP: ${target.host.takeIf { it.isNotBlank() } ?: "Unavailable"}"
+                        stringResource(R.string.ip_label, target.host.takeIf { it.isNotBlank() } ?: stringResource(R.string.ip_unavailable))
                     }
                     Text(ipText)
                 }
@@ -802,22 +797,22 @@ private fun BinderClipScreen(
                         renameInput = target.name
                         deviceToRename = target
                         selectedDeviceId = null
-                    }) { Text("Rename") }
+                    }) { Text(stringResource(R.string.rename)) }
                     TextButton(onClick = {
                         onRemove(target.deviceId); selectedDeviceId = null
-                    }) { Text(if (isCurrentDevice) "Unpair This Device" else "Unpair Device") }
+                    }) { Text(if (isCurrentDevice) stringResource(R.string.unpair_this_device) else stringResource(R.string.unpair_device)) }
                 }
             },
-            dismissButton = { TextButton(onClick = { selectedDeviceId = null }) { Text("Close") } },
+            dismissButton = { TextButton(onClick = { selectedDeviceId = null }) { Text(stringResource(R.string.close)) } },
         )
     }
     deviceToRename?.let { target ->
         AlertDialog(
             onDismissRequest = { deviceToRename = null },
-            title = { Text("Rename Device") },
+            title = { Text(stringResource(R.string.device_rename_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter a new name for this device:")
+                    Text(stringResource(R.string.device_rename_prompt))
                     androidx.compose.material3.OutlinedTextField(
                         value = renameInput,
                         onValueChange = { renameInput = it },
@@ -836,9 +831,9 @@ private fun BinderClipScreen(
                         deviceToRename = null
                     },
                     enabled = renameInput.isNotBlank()
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.save)) }
             },
-            dismissButton = { TextButton(onClick = { deviceToRename = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { deviceToRename = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
     if (showLogs) {
@@ -852,14 +847,14 @@ private fun BinderClipScreen(
         }
         AlertDialog(
             onDismissRequest = { showLogs = false },
-            title = { Text("Logs (${filteredEvents.size})") },
+            title = { Text(stringResource(R.string.logs_title, filteredEvents.size)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     androidx.compose.material3.OutlinedTextField(
                         value = logQuery,
                         onValueChange = { logQuery = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search logs…", style = MaterialTheme.typography.bodyMedium) },
+                        placeholder = { Text(stringResource(R.string.logs_search_placeholder), style = MaterialTheme.typography.bodyMedium) },
                         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Search") },
                         trailingIcon = {
                             if (logQuery.isNotEmpty()) {
@@ -877,7 +872,7 @@ private fun BinderClipScreen(
                         androidx.compose.material3.FilterChip(
                             selected = selectedFilter == null,
                             onClick = { selectedFilter = null },
-                            label = { Text("All") }
+                            label = { Text(stringResource(R.string.filter_all)) }
                         )
                         androidx.compose.material3.FilterChip(
                             selected = selectedFilter == DiagnosticLevel.Info,
@@ -885,7 +880,7 @@ private fun BinderClipScreen(
                                 selectedFilter =
                                     if (selectedFilter == DiagnosticLevel.Info) null else DiagnosticLevel.Info
                             },
-                            label = { Text("Info") }
+                            label = { Text(stringResource(R.string.filter_info)) }
                         )
                         androidx.compose.material3.FilterChip(
                             selected = selectedFilter == DiagnosticLevel.Warning,
@@ -893,7 +888,7 @@ private fun BinderClipScreen(
                                 selectedFilter =
                                     if (selectedFilter == DiagnosticLevel.Warning) null else DiagnosticLevel.Warning
                             },
-                            label = { Text("Warning") }
+                            label = { Text(stringResource(R.string.filter_warning)) }
                         )
                         androidx.compose.material3.FilterChip(
                             selected = selectedFilter == DiagnosticLevel.Error,
@@ -901,7 +896,7 @@ private fun BinderClipScreen(
                                 selectedFilter =
                                     if (selectedFilter == DiagnosticLevel.Error) null else DiagnosticLevel.Error
                             },
-                            label = { Text("Error") }
+                            label = { Text(stringResource(R.string.filter_error)) }
                         )
                     }
                     if (filteredEvents.isEmpty()) {
@@ -910,7 +905,7 @@ private fun BinderClipScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                if (logQuery.isBlank()) "No events yet." else "No matching events.",
+                                if (logQuery.isBlank()) stringResource(R.string.no_events_yet) else stringResource(R.string.no_matching_events),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -937,8 +932,8 @@ private fun BinderClipScreen(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showLogs = false }) { Text("Close") } },
-            dismissButton = { TextButton(onClick = { DiagnosticLog.clear() }) { Text("Clear") } },
+            confirmButton = { TextButton(onClick = { showLogs = false }) { Text(stringResource(R.string.close)) } },
+            dismissButton = { TextButton(onClick = { DiagnosticLog.clear() }) { Text(stringResource(R.string.clear)) } },
         )
     }
 }
@@ -961,7 +956,7 @@ private fun PermissionRow(need: PermissionNeed) = ListItem(
 
 @Composable
 private fun EmptyPairedDevices() =
-    ListItem(headlineContent = { Text("No devices paired yet") }, supportingContent = { Text("Scan a QR code from your Mac to pair.") })
+    ListItem(headlineContent = { Text(stringResource(R.string.no_devices_paired)) }, supportingContent = { Text(stringResource(R.string.no_devices_paired_desc)) })
 
 @Composable
 private fun PairedDevicesHeader(phase: ConnectionPhase, onReconnect: () -> Unit) = Row(
@@ -969,13 +964,13 @@ private fun PairedDevicesHeader(phase: ConnectionPhase, onReconnect: () -> Unit)
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.SpaceBetween
 ) {
-    Text("Paired devices", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    Text(stringResource(R.string.paired_devices), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (phase == ConnectionPhase.Connecting || phase == ConnectionPhase.Reconnecting) {
             IconButton(onClick = onReconnect, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Icons.Outlined.Refresh,
-                    contentDescription = "Reconnect",
+                    contentDescription = stringResource(R.string.reconnect),
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -1030,15 +1025,15 @@ private fun DeviceRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusDot(member.connected, 7.dp); Spacer(Modifier.width(8.dp))
                 val statusText = when {
-                    isCurrentDevice -> "This device"
+                    isCurrentDevice -> stringResource(R.string.this_device)
                     member.connected -> when (transportType) {
-                        TransportType.BLUETOOTH -> "Connected via Bluetooth"
-                        TransportType.MESH -> "Connected via Mesh"
-                        TransportType.LAN -> "Connected via LAN"
-                        TransportType.NONE -> "Connected"
+                        TransportType.BLUETOOTH -> stringResource(R.string.status_connected_bluetooth)
+                        TransportType.MESH -> stringResource(R.string.status_connected_mesh)
+                        TransportType.LAN -> stringResource(R.string.status_connected_lan)
+                        TransportType.NONE -> stringResource(R.string.status_connected)
                     }
-                    phase == ConnectionPhase.Connecting -> "Connecting…"
-                    else -> "Reconnecting…"
+                    phase == ConnectionPhase.Connecting -> stringResource(R.string.status_connecting)
+                    else -> stringResource(R.string.status_reconnecting)
                 }
                 Text(
                     statusText,

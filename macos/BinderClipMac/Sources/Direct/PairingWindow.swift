@@ -11,7 +11,7 @@ final class PairingWindow: NSObject, NSWindowDelegate {
     private var expiresAt = Date()
     private var timer: Timer?
 
-    func show(statusText: String = "Scan with BinderClip", invitationProvider: @escaping () -> URL?) {
+    func show(statusText: String = L10n.tr("pairing_scan_detail"), invitationProvider: @escaping () -> URL?) {
         if !Thread.isMainThread {
             DispatchQueue.main.async { [weak self] in self?.show(statusText: statusText, invitationProvider: invitationProvider) }
             return
@@ -31,7 +31,7 @@ final class PairingWindow: NSObject, NSWindowDelegate {
     }
 
     func closeWithSuccess() {
-        statusLabel?.stringValue = "Device connected!"
+        statusLabel?.stringValue = L10n.tr("pairing_success")
         statusLabel?.textColor = .systemGreen
         stopTimer()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
@@ -45,10 +45,10 @@ final class PairingWindow: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { stopTimer() }
 
     private func buildWindow() {
-        let title = NSTextField(labelWithString: "Add Device")
+        let title = NSTextField(labelWithString: L10n.tr("pairing_window_title"))
         title.font = .systemFont(ofSize: 20, weight: .semibold)
         title.alignment = .center
-        let detail = NSTextField(labelWithString: "Scan with BinderClip")
+        let detail = NSTextField(labelWithString: L10n.tr("pairing_scan_detail"))
         detail.textColor = .secondaryLabelColor
         detail.alignment = .center
         statusLabel = detail
@@ -105,7 +105,7 @@ final class PairingWindow: NSObject, NSWindowDelegate {
 
     private func refreshInvite() {
         guard let url = invitationProvider?() else {
-            statusLabel?.stringValue = "No local address. Join Wi-Fi or allow Local Network."
+            statusLabel?.stringValue = L10n.tr("pairing_no_address")
             imageView?.image = nil
             endpointsLabel?.stringValue = ""
             return

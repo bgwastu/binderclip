@@ -50,12 +50,26 @@ fi
 ditto "$SPARKLE_FRAMEWORK" "$APP_PATH/Contents/Frameworks/Sparkle.framework"
 cp "$PACKAGE_DIR/Resources/AppIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
 cp "$PACKAGE_DIR/Resources/BinderClipMenuIcon.svg" "$APP_PATH/Contents/Resources/BinderClipMenuIcon.svg"
+cp -R "$PACKAGE_DIR"/Resources/*.lproj "$APP_PATH/Contents/Resources/"
 chmod 755 "$APP_PATH/Contents/MacOS/BinderClip"
 
 cat > "$APP_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>id</string>
+    <string>es</string>
+    <string>zh-Hans</string>
+    <string>ja</string>
+    <string>de</string>
+    <string>fr</string>
+    <string>pt-BR</string>
+    <string>ru</string>
+  </array>
   <key>CFBundleDisplayName</key><string>BinderClip</string>
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>

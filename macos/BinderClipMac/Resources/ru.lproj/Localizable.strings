@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "Ожидание";
+"connected_count_one" = "1 подключено";
+"connected_count_many" = "%d подключено";
+"waiting_for_device_named" = "Ожидание %@";
+"waiting_for_devices" = "Ожидание устройств";
+"status_connected" = "Подключено";
+"status_waiting_for_device" = "Ожидание устройства";
+"no_phones_yet" = "Устройства ещё не добавлены";
+"device_waiting_suffix" = "%@ (ожидание)";
+"add_device" = "Добавить устройство";
+"send_browser_tab" = "Отправить открытую вкладку браузера";
+"all_connected_devices" = "Все подключённые устройства";
+"more" = "Ещё";
+"quit_binderclip" = "Завершить BinderClip";
+
+/* Permissions */
+"enable_bluetooth" = "Включить Bluetooth";
+"allow_bluetooth" = "Разрешить доступ к Bluetooth";
+"allow_local_network" = "Разрешить локальную сеть";
+"allow_clipboard_access" = "Разрешить доступ к буферу обмена";
+"allow_browser_automation" = "Разрешить автоматизацию браузера";
+"allow_launch_at_login" = "Разрешить запуск при входе";
+"enable_launch_at_login" = "Запуск при входе";
+
+/* More Menu & Actions */
+"rename_this_mac" = "Переименовать этот Mac…";
+"unpair_all_devices" = "Разорвать пару со всеми устройствами…";
+"reset_pairing_key" = "Сбросить ключ сопряжения…";
+"show_logs" = "Показать логи";
+"check_for_updates" = "Проверить обновления…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "Подключено по Bluetooth";
+"connected_via_mesh" = "Подключено по Mesh";
+"connected_via_lan" = "Подключено по LAN";
+"transport_bluetooth_ble" = "Протокол: Bluetooth BLE";
+"send_clipboard_to_peer" = "Отправить буфер обмена на %@";
+"rename_device_menu" = "Переименовать устройство…";
+"unpair_device_menu" = "Разорвать пару с устройством…";
+
+/* Toasts & Notifications */
+"received_text" = "Текст получен";
+"opened_link_in_browser" = "Ссылка открыта в браузере";
+"received_image_format" = "Изображение получено (%@)";
+"sent_url_to_peer" = "URL отправлен на %@";
+"sent_clipboard_to_peer" = "Буфер обмена отправлен на %@";
+"sent_image_to_peer" = "Изображение отправлено на %@";
+"nothing_to_send" = "Нечего отправлять";
+
+/* Pairing Window */
+"pairing_window_title" = "Добавить устройство";
+"pairing_scan_detail" = "Отсканируйте в BinderClip";
+"pairing_waiting" = "Ожидание устройства…";
+"pairing_success" = "Устройство подключено!";
+"pairing_no_address" = "Нет локального адреса. Подключитесь к Wi-Fi или разрешите доступ к локальной сети.";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "Создать новый код сопряжения?";
+"dialog_generate_pairing_message" = "Будет создан новый код, а текущие сопряжённые телефоны будут отключены. Потребуется повторно отсканировать QR-код.";
+"dialog_generate_button" = "Создать";
+"dialog_cancel_button" = "Отмена";
+"dialog_rename_this_mac_title" = "Переименовать этот Mac";
+"dialog_rename_device_title" = "Переименовать устройство";
+"dialog_rename_prompt" = "Введите новое имя устройства:";
+"dialog_save_button" = "Сохранить";
+"dialog_unpair_all_title" = "Разорвать пару со всеми устройствами?";
+"dialog_unpair_all_message" = "Этот Mac прекратит синхронизацию со всеми подключёнными телефонами. Вы сможете добавить их снова по новому QR-коду.";
+"dialog_unpair_button" = "Разорвать пару";
+"dialog_unpair_single_title" = "Разорвать пару с %@?";
+"dialog_unpair_single_message" = "Этот телефон больше не будет синхронизировать буфер обмена с этим Mac.";
+"dialog_open_system_settings" = "Открыть системные настройки";
+"dialog_done_button" = "Готово";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "Включить Bluetooth";
+"guide_bluetooth_message" = "BinderClip использует Bluetooth как резервный канал при отсутствии Wi-Fi или mesh-сети.\n\nКак включить Bluetooth:\n1. Нажмите «Открыть системные настройки» ниже.\n2. В разделе Bluetooth включите Bluetooth.\n3. BinderClip автоматически возобновит работу.";
+"guide_bluetooth_permission_title" = "Разрешить Bluetooth для BinderClip";
+"guide_bluetooth_permission_message" = "BinderClip использует Bluetooth Low Energy как резервный канал связи.\n\nКак разрешить доступ:\n1. Нажмите «Открыть системные настройки» ниже.\n2. В разделе «Конфиденциальность и безопасность» → Bluetooth включите BinderClip.\n3. При необходимости перезапустите BinderClip.";
+"guide_local_network_title" = "Разрешить доступ к локальной сети для BinderClip";
+"guide_local_network_message" = "BinderClip требуется доступ к локальной сети для обнаружения телефонов в одной сети Wi-Fi.\n\nКак разрешить доступ:\n1. Нажмите «Открыть системные настройки» ниже.\n2. В разделе «Конфиденциальность и безопасность» → «Локальная сеть» включите BinderClip.";
+"guide_clipboard_title" = "Разрешить доступ к буферу обмена для BinderClip";
+"guide_clipboard_message" = "BinderClip требуется доступ к буферу обмена для синхронизации скопированного текста и изображений.\n\nКак разрешить доступ:\n1. Нажмите «Открыть системные настройки» ниже.\n2. В разделе «Конфиденциальность и безопасность» убедитесь, что доступ к буферу обмена разрешён.";
+
+/* Log Window */
+"log_window_title" = "Логи BinderClip";
+"log_clear" = "Очистить";
+"log_copy" = "Копировать";
+"log_close" = "Закрыть";
+"log_no_events" = "$ Событий пока нет.";

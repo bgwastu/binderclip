@@ -1,4 +1,141 @@
 <resources>
     <string name="app_name">BinderClip</string>
     <string name="clipboard_accessibility_description">Sends copied clipboard text to your BinderClip devices when automatic sync is enabled.</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">Send to Mac</string>
+    <string name="tile_send_clipboard">Send Clipboard</string>
+    <string name="tile_not_paired">Not paired</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">Clipboard Sync</string>
+    <string name="channel_clipboard_sync_desc">Maintains persistent connection with paired Mac</string>
+    <string name="channel_browser_links">Browser Links</string>
+    <string name="channel_browser_links_desc">Notifications when web links are received</string>
+    <string name="notif_copy_to_clipboard">Copy to Clipboard</string>
+    <string name="notif_open_link">Open link</string>
+    <string name="notif_bluetooth_fallback_title">Bluetooth fallback ready</string>
+    <string name="notif_bluetooth_fallback_desc">Enable Bluetooth to keep syncing without Wi-Fi</string>
+    <string name="notif_image_waiting_title">Image waiting for Wi-Fi</string>
+    <string name="notif_image_waiting_desc">Images (%1$s) need Wi-Fi or mesh; text still syncs over Bluetooth</string>
+    <string name="notif_received_text">Received text</string>
+    <string name="notif_received_image">Received image (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">Show logs</string>
+    <string name="paired_devices">Paired devices</string>
+    <string name="no_devices_paired">No devices paired yet</string>
+    <string name="no_devices_paired_desc">Scan a QR code from your Mac to pair.</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="scan_qr_to_pair">Scan QR to Pair</string>
+    <string name="send_current_clipboard">Send current clipboard</string>
+    <string name="section_permissions">Permissions</string>
+    <string name="section_clipboard_automation">Clipboard Automation</string>
+    <string name="section_settings">Settings</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">Notifications</string>
+    <string name="perm_notifications_desc">Show received clipboard</string>
+    <string name="perm_bg_keepalive">Background Keep-Alive</string>
+    <string name="perm_bg_keepalive_desc">Enable Accessibility</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Needed for offline fallback sync</string>
+    <string name="perm_battery_opt">Battery Optimization</string>
+    <string name="perm_battery_opt_desc">Allow reliable background sync</string>
+    <string name="perm_autostart">Auto Start</string>
+    <string name="perm_autostart_desc">Allow background start for reliable sync</string>
+    <string name="allow">Allow</string>
+    <string name="open">Open</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">Copy</string>
+    <string name="image_ready_to_copy">Image ready to copy</string>
+    <string name="text_ready_to_copy">Text ready to copy</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Root Clipboard Automation</string>
+    <string name="root_automation_granted">Root access granted: text and images sync in real-time.</string>
+    <string name="root_automation_prompt">Tap to grant root access for automatic background sync.</string>
+    <string name="bg_sync_active_title">Background Sync Active</string>
+    <string name="bg_sync_active_desc">Android background clipboard access is granted. Text and links sync automatically.</string>
+    <string name="shizuku_enable_title">Enable with Shizuku</string>
+    <string name="shizuku_enable_desc">Tap to apply background clipboard permission automatically via Shizuku.</string>
+    <string name="shizuku_apply_btn">Apply</string>
+    <string name="shizuku_auth_title">Authorize Shizuku</string>
+    <string name="shizuku_auth_desc">Authorize BinderClip in Shizuku for automated background sync without root.</string>
+    <string name="shizuku_auth_btn">Authorize</string>
+    <string name="shizuku_installed_title">Shizuku Installed</string>
+    <string name="shizuku_installed_desc">Start Shizuku via Wireless Debugging or computer to enable background sync without root.</string>
+    <string name="adb_setup_title">Non-Root / ADB Setup</string>
+    <string name="adb_setup_desc">Run via computer or Wireless Debugging:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">Accessibility Keep-Alive</string>
+    <string name="accessibility_keepalive_desc_on">Accessibility service is active and keeps sync running after boot.</string>
+    <string name="accessibility_keepalive_desc_off">Enable Accessibility service to prevent OEM background kills.</string>
+    <string name="quick_settings_hint">Quick Settings: Add the \'Send to Mac\' tile to your notification panel for instant 1-tap clipboard send from any app.</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">Auto-apply incoming clipboard</string>
+    <string name="auto_apply_incoming_desc_on">Text and images received from Mac are copied to clipboard automatically.</string>
+    <string name="auto_apply_incoming_desc_off">Show a notification to copy received text or images manually.</string>
+    <string name="bt_fallback_title">Bluetooth fallback</string>
+    <string name="bt_fallback_desc_off">Bluetooth fallback is off; sync requires Wi-Fi or mesh.</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth is off. BinderClip will try to enable it when Wi-Fi is unreachable.</string>
+    <string name="bt_fallback_desc_on">Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable.</string>
+    <string name="bt_is_off_title">Bluetooth is off</string>
+    <string name="bt_is_off_desc">BinderClip will request it when the fallback engages.</string>
+    <string name="turn_on">Turn On</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL sent successfully</string>
+    <string name="image_sent_success">Image sent successfully</string>
+    <string name="status_connected_bluetooth">Connected via Bluetooth</string>
+    <string name="status_connected_mesh">Connected via Mesh</string>
+    <string name="status_connected_lan">Connected via LAN</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_reconnecting">Reconnecting…</string>
+    <string name="this_device">This device</string>
+    <string name="transport_bt_label">Transport: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">Unavailable</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">Rename Device</string>
+    <string name="device_rename_prompt">Enter a new name for this device:</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="rename">Rename</string>
+    <string name="unpair_this_device">Unpair This Device</string>
+    <string name="unpair_device">Unpair Device</string>
+    <string name="logs_title">Logs (%1$d)</string>
+    <string name="logs_search_placeholder">Search logs…</string>
+    <string name="filter_all">All</string>
+    <string name="filter_info">Info</string>
+    <string name="filter_warning">Warning</string>
+    <string name="filter_error">Error</string>
+    <string name="no_events_yet">No events yet.</string>
+    <string name="no_matching_events">No matching events.</string>
+    <string name="clear">Clear</string>
+    <string name="bt_guide_dialog_title">Allow Bluetooth Permission</string>
+    <string name="bt_guide_dialog_text">BinderClip uses Bluetooth Low Energy to sync your clipboard when Wi-Fi is unavailable.\n\nTo enable Bluetooth fallback:\n1. Tap \'Open Settings\' below.\n2. Tap \'Permissions\'.\n3. Allow \'Nearby devices\' or \'Bluetooth\'.</string>
+    <string name="open_settings">Open Settings</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">Open Link on Device</string>
+    <string name="share_to_device_title">Share to Device</string>
+    <string name="share_all_devices">All Connected Devices</string>
+    <string name="share_all_devices_url_sub">Opens in browser on all devices</string>
+    <string name="share_all_devices_sub">Sends to all devices</string>
+    <string name="share_opens_browser_on">Opens browser on %1$s</string>
+    <string name="share_image_label">Image (%1$s)</string>
+    <string name="share_text_content">Text content</string>
+    <string name="share_error_unsupported">Couldn’t send this content</string>
+    <string name="share_sending_link">Sending link…</string>
+    <string name="share_sending">Sending…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">Sent to Mac</string>
+    <string name="toast_sent_image_to_mac">Sent image to Mac</string>
+    <string name="toast_nothing_to_send">Nothing to send</string>
 </resources>

@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "Mendengarkan";
+"connected_count_one" = "1 terhubung";
+"connected_count_many" = "%d terhubung";
+"waiting_for_device_named" = "Menunggu %@";
+"waiting_for_devices" = "Menunggu perangkat";
+"status_connected" = "Terhubung";
+"status_waiting_for_device" = "Menunggu perangkat";
+"no_phones_yet" = "Belum ada ponsel";
+"device_waiting_suffix" = "%@ (menunggu)";
+"add_device" = "Tambah Perangkat";
+"send_browser_tab" = "Kirim Tab Peramban Saat Ini";
+"all_connected_devices" = "Semua Perangkat Terhubung";
+"more" = "Lainnya";
+"quit_binderclip" = "Keluar dari BinderClip";
+
+/* Permissions */
+"enable_bluetooth" = "Aktifkan Bluetooth";
+"allow_bluetooth" = "Izinkan Bluetooth";
+"allow_local_network" = "Izinkan Jaringan Lokal";
+"allow_clipboard_access" = "Izinkan Akses Papan Klip";
+"allow_browser_automation" = "Izinkan Otomatisasi Peramban";
+"allow_launch_at_login" = "Izinkan Buka Saat Masuk";
+"enable_launch_at_login" = "Aktifkan Buka Saat Masuk";
+
+/* More Menu & Actions */
+"rename_this_mac" = "Ubah Nama Mac Ini…";
+"unpair_all_devices" = "Putuskan Semua Perangkat…";
+"reset_pairing_key" = "Atur Ulang Kunci Penyandingan…";
+"show_logs" = "Tampilkan Log";
+"check_for_updates" = "Periksa Pembaruan…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "Terhubung via Bluetooth";
+"connected_via_mesh" = "Terhubung via Mesh";
+"connected_via_lan" = "Terhubung via LAN";
+"transport_bluetooth_ble" = "Transport: Bluetooth BLE";
+"send_clipboard_to_peer" = "Kirim Papan Klip ke %@";
+"rename_device_menu" = "Ubah Nama Perangkat…";
+"unpair_device_menu" = "Putuskan Perangkat…";
+
+/* Toasts & Notifications */
+"received_text" = "Teks diterima";
+"opened_link_in_browser" = "Tautan dibuka di peramban";
+"received_image_format" = "Gambar diterima (%@)";
+"sent_url_to_peer" = "URL dikirim ke %@";
+"sent_clipboard_to_peer" = "Papan klip dikirim ke %@";
+"sent_image_to_peer" = "Gambar dikirim ke %@";
+"nothing_to_send" = "Tidak ada yang dapat dikirim";
+
+/* Pairing Window */
+"pairing_window_title" = "Tambah Perangkat";
+"pairing_scan_detail" = "Pindai dengan BinderClip";
+"pairing_waiting" = "Menunggu perangkat…";
+"pairing_success" = "Perangkat terhubung!";
+"pairing_no_address" = "Tidak ada alamat lokal. Hubungkan ke Wi-Fi atau izinkan Jaringan Lokal.";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "Buat Kode Penyandingan Baru?";
+"dialog_generate_pairing_message" = "Ini akan membuat kode penyandingan baru dan menghapus ponsel yang telah dipasangkan. Setiap ponsel harus memindai kode QR lagi.";
+"dialog_generate_button" = "Buat";
+"dialog_cancel_button" = "Batal";
+"dialog_rename_this_mac_title" = "Ubah Nama Mac Ini";
+"dialog_rename_device_title" = "Ubah Nama Perangkat";
+"dialog_rename_prompt" = "Masukkan nama baru untuk perangkat ini:";
+"dialog_save_button" = "Simpan";
+"dialog_unpair_all_title" = "Putuskan Semua Perangkat?";
+"dialog_unpair_all_message" = "Mac ini akan berhenti menyinkronkan dengan semua ponsel yang dipasangkan. Anda dapat menambahkannya lagi kapan saja.";
+"dialog_unpair_button" = "Putuskan";
+"dialog_unpair_single_title" = "Putuskan %@?";
+"dialog_unpair_single_message" = "Ponsel ini tidak akan lagi menyinkronkan teks atau gambar papan klip dengan Mac ini.";
+"dialog_open_system_settings" = "Buka Pengaturan Sistem";
+"dialog_done_button" = "Selesai";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "Aktifkan Bluetooth";
+"guide_bluetooth_message" = "BinderClip menggunakan Bluetooth sebagai cadangan otomatis saat Wi-Fi dan mesh tidak terjangkau.\n\nUntuk mengaktifkan Bluetooth:\n1. Klik “Buka Pengaturan Sistem” di bawah.\n2. Pada panel Bluetooth, aktifkan Bluetooth.\n3. BinderClip akan otomatis melanjutkan siaran setelah Bluetooth aktif.";
+"guide_bluetooth_permission_title" = "Izinkan Bluetooth untuk BinderClip";
+"guide_bluetooth_permission_message" = "BinderClip menggunakan Bluetooth Hemat Energi sebagai cadangan otomatis saat Wi-Fi tidak terjangkau.\n\nUntuk mengaktifkan Bluetooth:\n1. Klik “Buka Pengaturan Sistem” di bawah.\n2. Di Privasi & Keamanan → Bluetooth, aktifkan sakelar untuk BinderClip.\n3. Jika diminta, mulai ulang BinderClip.";
+"guide_local_network_title" = "Izinkan Jaringan Lokal untuk BinderClip";
+"guide_local_network_message" = "BinderClip memerlukan akses Jaringan Lokal untuk menemukan dan menyinkronkan dengan ponsel di jaringan Wi-Fi Anda.\n\nUntuk mengaktifkan Jaringan Lokal:\n1. Klik “Buka Pengaturan Sistem” di bawah.\n2. Di Privasi & Keamanan → Jaringan Lokal, aktifkan sakelar untuk BinderClip.";
+"guide_clipboard_title" = "Izinkan Akses Papan Klip untuk BinderClip";
+"guide_clipboard_message" = "BinderClip memerlukan Akses Papan Klip untuk menyinkronkan teks dan gambar yang disalin dengan perangkat Anda yang dipasangkan.\n\nUntuk mengaktifkan Akses Papan Klip:\n1. Klik “Buka Pengaturan Sistem” di bawah.\n2. Di Privasi & Keamanan, pastikan BinderClip diizinkan mengakses papan klip.";
+
+/* Log Window */
+"log_window_title" = "Log BinderClip";
+"log_clear" = "Bersihkan";
+"log_copy" = "Salin";
+"log_close" = "Tutup";
+"log_no_events" = "$ Belum ada log peristiwa.";

@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "Listening";
+"connected_count_one" = "1 connected";
+"connected_count_many" = "%d connected";
+"waiting_for_device_named" = "Waiting for %@";
+"waiting_for_devices" = "Waiting for devices";
+"status_connected" = "Connected";
+"status_waiting_for_device" = "Waiting for device";
+"no_phones_yet" = "No phones yet";
+"device_waiting_suffix" = "%@ (waiting)";
+"add_device" = "Add Device";
+"send_browser_tab" = "Send Current Browser Tab";
+"all_connected_devices" = "All Connected Devices";
+"more" = "More";
+"quit_binderclip" = "Quit BinderClip";
+
+/* Permissions */
+"enable_bluetooth" = "Enable Bluetooth";
+"allow_bluetooth" = "Allow Bluetooth";
+"allow_local_network" = "Allow Local Network";
+"allow_clipboard_access" = "Allow Clipboard Access";
+"allow_browser_automation" = "Allow Browser Automation";
+"allow_launch_at_login" = "Allow Launch At Login";
+"enable_launch_at_login" = "Enable Launch At Login";
+
+/* More Menu & Actions */
+"rename_this_mac" = "Rename This Mac…";
+"unpair_all_devices" = "Unpair All Devices…";
+"reset_pairing_key" = "Reset Pairing Key…";
+"show_logs" = "Show Logs";
+"check_for_updates" = "Check for Updates…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "Connected via Bluetooth";
+"connected_via_mesh" = "Connected via Mesh";
+"connected_via_lan" = "Connected via LAN";
+"transport_bluetooth_ble" = "Transport: Bluetooth BLE";
+"send_clipboard_to_peer" = "Send Clipboard to %@";
+"rename_device_menu" = "Rename Device…";
+"unpair_device_menu" = "Unpair Device…";
+
+/* Toasts & Notifications */
+"received_text" = "Received text";
+"opened_link_in_browser" = "Opened link in browser";
+"received_image_format" = "Received image (%@)";
+"sent_url_to_peer" = "Sent URL to %@";
+"sent_clipboard_to_peer" = "Sent clipboard to %@";
+"sent_image_to_peer" = "Sent image to %@";
+"nothing_to_send" = "Nothing to send";
+
+/* Pairing Window */
+"pairing_window_title" = "Add Device";
+"pairing_scan_detail" = "Scan with BinderClip";
+"pairing_waiting" = "Waiting for device…";
+"pairing_success" = "Device connected!";
+"pairing_no_address" = "No local address. Join Wi-Fi or allow Local Network.";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "Generate a New Pairing Code?";
+"dialog_generate_pairing_message" = "This creates a new pairing code and clears paired phones. Every phone must scan the QR again.";
+"dialog_generate_button" = "Generate";
+"dialog_cancel_button" = "Cancel";
+"dialog_rename_this_mac_title" = "Rename This Mac";
+"dialog_rename_device_title" = "Rename Device";
+"dialog_rename_prompt" = "Enter a new name for this device:";
+"dialog_save_button" = "Save";
+"dialog_unpair_all_title" = "Unpair All Devices?";
+"dialog_unpair_all_message" = "This Mac will stop syncing with every paired phone. You can add them again with a new QR at any time.";
+"dialog_unpair_button" = "Unpair";
+"dialog_unpair_single_title" = "Unpair %@?";
+"dialog_unpair_single_message" = "This phone will no longer sync clipboard text or images with this Mac.";
+"dialog_open_system_settings" = "Open System Settings";
+"dialog_done_button" = "Done";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "Enable Bluetooth";
+"guide_bluetooth_message" = "BinderClip uses Bluetooth as an automatic fallback when Wi-Fi and mesh are unreachable.\n\nTo enable Bluetooth:\n1. Click “Open System Settings” below.\n2. In the Bluetooth pane, turn ON Bluetooth.\n3. BinderClip will automatically resume advertising once Bluetooth is on.";
+"guide_bluetooth_permission_title" = "Allow Bluetooth for BinderClip";
+"guide_bluetooth_permission_message" = "BinderClip uses Bluetooth Low Energy as an automatic fallback when Wi-Fi is unreachable.\n\nTo enable Bluetooth:\n1. Click “Open System Settings” below.\n2. In Privacy & Security → Bluetooth, turn ON the toggle for BinderClip.\n3. If prompted, restart BinderClip.";
+"guide_local_network_title" = "Allow Local Network for BinderClip";
+"guide_local_network_message" = "BinderClip needs Local Network access to discover and sync with phones on your Wi-Fi network.\n\nTo enable Local Network:\n1. Click “Open System Settings” below.\n2. In Privacy & Security → Local Network, turn ON the toggle for BinderClip.";
+"guide_clipboard_title" = "Allow Clipboard Access for BinderClip";
+"guide_clipboard_message" = "BinderClip needs Clipboard Access to sync copied text and images with your paired devices.\n\nTo enable Clipboard Access:\n1. Click “Open System Settings” below.\n2. In Privacy & Security, ensure BinderClip is allowed clipboard access.";
+
+/* Log Window */
+"log_window_title" = "BinderClip Logs";
+"log_clear" = "Clear";
+"log_copy" = "Copy";
+"log_close" = "Close";
+"log_no_events" = "$ No events yet.";

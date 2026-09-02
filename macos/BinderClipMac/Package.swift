@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "binderclip-mac",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     products: [
         .executable(name: "BinderClip", targets: ["BinderClip"])
@@ -18,7 +19,7 @@ let package = Package(
             ],
             path: ".",
             exclude: ["Tests"],
-            resources: [.copy("Resources")]
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "BinderClipTests",

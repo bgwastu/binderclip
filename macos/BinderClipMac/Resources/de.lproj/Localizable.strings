@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "Bereit";
+"connected_count_one" = "1 verbunden";
+"connected_count_many" = "%d verbunden";
+"waiting_for_device_named" = "Warten auf %@";
+"waiting_for_devices" = "Warten auf Geräte";
+"status_connected" = "Verbunden";
+"status_waiting_for_device" = "Warten auf Gerät";
+"no_phones_yet" = "Noch keine Telefone";
+"device_waiting_suffix" = "%@ (wartend)";
+"add_device" = "Gerät hinzufügen";
+"send_browser_tab" = "Aktuellen Browser-Tab senden";
+"all_connected_devices" = "Alle verbundenen Geräte";
+"more" = "Mehr";
+"quit_binderclip" = "BinderClip beenden";
+
+/* Permissions */
+"enable_bluetooth" = "Bluetooth aktivieren";
+"allow_bluetooth" = "Bluetooth erlauben";
+"allow_local_network" = "Lokales Netzwerk erlauben";
+"allow_clipboard_access" = "Zugriff auf Zwischenablage erlauben";
+"allow_browser_automation" = "Browser-Automatisierung erlauben";
+"allow_launch_at_login" = "Öffnen bei der Anmeldung erlauben";
+"enable_launch_at_login" = "Bei der Anmeldung öffnen";
+
+/* More Menu & Actions */
+"rename_this_mac" = "Diesen Mac umbenennen…";
+"unpair_all_devices" = "Alle Geräte trennen…";
+"reset_pairing_key" = "Kopplungsschlüssel zurücksetzen…";
+"show_logs" = "Protokolle anzeigen";
+"check_for_updates" = "Nach Updates suchen…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "Über Bluetooth verbunden";
+"connected_via_mesh" = "Über Mesh verbunden";
+"connected_via_lan" = "Über LAN verbunden";
+"transport_bluetooth_ble" = "Übertragung: Bluetooth BLE";
+"send_clipboard_to_peer" = "Zwischenablage an %@ senden";
+"rename_device_menu" = "Gerät umbenennen…";
+"unpair_device_menu" = "Gerät trennen…";
+
+/* Toasts & Notifications */
+"received_text" = "Text empfangen";
+"opened_link_in_browser" = "Link im Browser geöffnet";
+"received_image_format" = "Bild empfangen (%@)";
+"sent_url_to_peer" = "URL an %@ gesendet";
+"sent_clipboard_to_peer" = "Zwischenablage an %@ gesendet";
+"sent_image_to_peer" = "Bild an %@ gesendet";
+"nothing_to_send" = "Nichts zu senden";
+
+/* Pairing Window */
+"pairing_window_title" = "Gerät hinzufügen";
+"pairing_scan_detail" = "Mit BinderClip scannen";
+"pairing_waiting" = "Warten auf Gerät…";
+"pairing_success" = "Gerät verbunden!";
+"pairing_no_address" = "Keine lokale Adresse. Verbinden Sie sich mit dem WLAN oder erlauben Sie das lokale Netzwerk.";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "Neuen Kopplungscode erstellen?";
+"dialog_generate_pairing_message" = "Dies erstellt einen neuen Code und trennt gekoppelte Telefone. Jedes Telefon muss den QR-Code erneut scannen.";
+"dialog_generate_button" = "Erstellen";
+"dialog_cancel_button" = "Abbrechen";
+"dialog_rename_this_mac_title" = "Diesen Mac umbenennen";
+"dialog_rename_device_title" = "Gerät umbenennen";
+"dialog_rename_prompt" = "Geben Sie einen neuen Namen für dieses Gerät ein:";
+"dialog_save_button" = "Speichern";
+"dialog_unpair_all_title" = "Alle Geräte trennen?";
+"dialog_unpair_all_message" = "Dieser Mac synchronisiert nicht mehr mit gekoppelten Telefonen. Sie können sie jederzeit mit einem neuen QR-Code hinzufügen.";
+"dialog_unpair_button" = "Trennen";
+"dialog_unpair_single_title" = "%@ trennen?";
+"dialog_unpair_single_message" = "Dieses Telefon synchronisiert keine Zwischenablagedaten mehr mit diesem Mac.";
+"dialog_open_system_settings" = "Systemeinstellungen öffnen";
+"dialog_done_button" = "Fertig";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "Bluetooth aktivieren";
+"guide_bluetooth_message" = "BinderClip verwendet Bluetooth als automatischen Ausweichmodus, wenn WLAN oder Mesh nicht erreichbar sind.\n\nSo aktivieren Sie Bluetooth:\n1. Klicken Sie unten auf „Systemeinstellungen öffnen“.\n2. Schalten Sie Bluetooth ein.\n3. BinderClip nimmt die Verbindung automatisch wieder auf.";
+"guide_bluetooth_permission_title" = "Bluetooth für BinderClip erlauben";
+"guide_bluetooth_permission_message" = "BinderClip verwendet Bluetooth Low Energy als Ausweichkanal.\n\nSo erlauben Sie den Zugriff:\n1. Klicken Sie unten auf „Systemeinstellungen öffnen“.\n2. Aktivieren Sie unter Datenschutz & Sicherheit → Bluetooth den Schalter für BinderClip.\n3. Starten Sie BinderClip bei Aufforderung neu.";
+"guide_local_network_title" = "Lokales Netzwerk für BinderClip erlauben";
+"guide_local_network_message" = "BinderClip benötigt Zugriff auf das lokale Netzwerk, um Telefone im WLAN zu finden und zu synchronisieren.\n\nSo erlauben Sie den Zugriff:\n1. Klicken Sie unten auf „Systemeinstellungen öffnen“.\n2. Aktivieren Sie unter Datenschutz & Sicherheit → Lokales Netzwerk den Schalter für BinderClip.";
+"guide_clipboard_title" = "Zugriff auf die Zwischenablage für BinderClip erlauben";
+"guide_clipboard_message" = "BinderClip benötigt Zugriff auf die Zwischenablage, um kopierten Text und Bilder zu synchronisieren.\n\nSo erlauben Sie den Zugriff:\n1. Klicken Sie unten auf „Systemeinstellungen öffnen“.\n2. Stellen Sie unter Datenschutz & Sicherheit sicher, dass BinderClip Zugriff hat.";
+
+/* Log Window */
+"log_window_title" = "BinderClip Protokolle";
+"log_clear" = "Löschen";
+"log_copy" = "Kopieren";
+"log_close" = "Schließen";
+"log_no_events" = "$ Noch keine Ereignisse.";

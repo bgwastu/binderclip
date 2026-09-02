@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,7 +110,7 @@ class ShareReceiverActivity : ComponentActivity() {
         if (payload == null) {
             Log.w("BinderClip", "Share sheet did not provide supported content")
             DiagnosticLog.error("Could not read shared content")
-            Toast.makeText(this, "Couldn’t send this content", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.share_error_unsupported), Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -162,7 +163,7 @@ class ShareReceiverActivity : ComponentActivity() {
         ContextCompat.startForegroundService(this, serviceIntent)
         Toast.makeText(
             this,
-            if (payload is SharedPayload.Text && (payload.value.startsWith("http://") || payload.value.startsWith("https://"))) "Sending link…" else "Sending…",
+            if (payload is SharedPayload.Text && (payload.value.startsWith("http://") || payload.value.startsWith("https://"))) getString(R.string.share_sending_link) else getString(R.string.share_sending),
             Toast.LENGTH_SHORT
         ).show()
         finish()
@@ -207,15 +208,15 @@ private fun ShareDevicePickerScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = if (isUrl) "Open Link on Device" else "Share to Device",
+                                text = if (isUrl) stringResource(R.string.share_open_link_title) else stringResource(R.string.share_to_device_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             val subtitle = when (payload) {
                                 is SharedPayload.Text -> payload.value.trim().lines().firstOrNull()?.take(40)
-                                    ?: "Text content"
+                                    ?: stringResource(R.string.share_text_content)
 
-                                is SharedPayload.Image -> "Image (${payload.value.mimeType})"
+                                is SharedPayload.Image -> stringResource(R.string.share_image_label, payload.value.mimeType)
                             }
                             Text(
                                 text = subtitle,
@@ -237,8 +238,8 @@ private fun ShareDevicePickerScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { onSelectDevice(null) },
-                                headlineContent = { Text("All Connected Devices", fontWeight = FontWeight.Medium) },
-                                supportingContent = { Text(if (isUrl) "Opens in browser on all devices" else "Sends to all devices") },
+                                headlineContent = { Text(stringResource(R.string.share_all_devices), fontWeight = FontWeight.Medium) },
+                                supportingContent = { Text(if (isUrl) stringResource(R.string.share_all_devices_url_sub) else stringResource(R.string.share_all_devices_sub)) },
                                 leadingContent = {
                                     Icon(
                                         imageVector = Icons.Outlined.DeviceHub,
@@ -262,8 +263,8 @@ private fun ShareDevicePickerScreen(
                                 headlineContent = { Text(device.name, fontWeight = FontWeight.Medium) },
                                 supportingContent = {
                                     Text(
-                                        if (isUrl) "Opens browser on ${device.name}"
-                                        else if (device.connected) "Connected" else "Reconnecting…"
+                                        if (isUrl) stringResource(R.string.share_opens_browser_on, device.name)
+                                        else if (device.connected) stringResource(R.string.status_connected) else stringResource(R.string.status_reconnecting)
                                     )
                                 },
                                 leadingContent = {
@@ -291,7 +292,7 @@ private fun ShareDevicePickerScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.cancel))
                         }
                     }
                 }

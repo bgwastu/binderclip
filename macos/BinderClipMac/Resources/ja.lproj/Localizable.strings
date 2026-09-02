@@ -1,0 +1,91 @@
+/* General & Status */
+"app_name" = "BinderClip";
+"listening" = "待機中";
+"connected_count_one" = "1台接続中";
+"connected_count_many" = "%d台接続中";
+"waiting_for_device_named" = "%@ を待機中";
+"waiting_for_devices" = "デバイスを待機中";
+"status_connected" = "接続済み";
+"status_waiting_for_device" = "デバイスを待機中";
+"no_phones_yet" = "接続された端末はありません";
+"device_waiting_suffix" = "%@（待機中）";
+"add_device" = "デバイスを追加";
+"send_browser_tab" = "現在のブラウザタブを送信";
+"all_connected_devices" = "すべての接続済みデバイス";
+"more" = "その他";
+"quit_binderclip" = "BinderClip を終了";
+
+/* Permissions */
+"enable_bluetooth" = "Bluetooth をオンにする";
+"allow_bluetooth" = "Bluetooth を許可";
+"allow_local_network" = "ローカルネットワークを許可";
+"allow_clipboard_access" = "クリップボードへのアクセスを許可";
+"allow_browser_automation" = "ブラウザの自動操作を許可";
+"allow_launch_at_login" = "ログイン時の自動起動を許可";
+"enable_launch_at_login" = "ログイン時に起動";
+
+/* More Menu & Actions */
+"rename_this_mac" = "この Mac の名前を変更…";
+"unpair_all_devices" = "すべてのデバイスのペアリングを解除…";
+"reset_pairing_key" = "ペアリングキーをリセット…";
+"show_logs" = "ログを表示";
+"check_for_updates" = "アップデートを確認…";
+
+/* Device Submenu */
+"connected_via_bluetooth" = "Bluetooth 経由で接続中";
+"connected_via_mesh" = "Mesh 経由で接続中";
+"connected_via_lan" = "LAN 経由で接続中";
+"transport_bluetooth_ble" = "通信規格: Bluetooth BLE";
+"send_clipboard_to_peer" = "クリップボードを %@ に送信";
+"rename_device_menu" = "デバイスの名前を変更…";
+"unpair_device_menu" = "デバイスのペアリングを解除…";
+
+/* Toasts & Notifications */
+"received_text" = "テキストを受信しました";
+"opened_link_in_browser" = "ブラウザでリンクを開きました";
+"received_image_format" = "画像を受信しました (%@)";
+"sent_url_to_peer" = "%@ に URL を送信しました";
+"sent_clipboard_to_peer" = "%@ にクリップボードを送信しました";
+"sent_image_to_peer" = "%@ に画像を送信しました";
+"nothing_to_send" = "送信するコンテンツがありません";
+
+/* Pairing Window */
+"pairing_window_title" = "デバイスを追加";
+"pairing_scan_detail" = "BinderClip でスキャン";
+"pairing_waiting" = "デバイスを待機中…";
+"pairing_success" = "デバイスが接続されました！";
+"pairing_no_address" = "ローカルアドレスがありません。Wi-Fi に接続するかローカルネットワークを許可してください。";
+
+/* Dialogs & Alerts */
+"dialog_generate_pairing_title" = "新しいペアリングコードを生成しますか？";
+"dialog_generate_pairing_message" = "新しいコードを生成すると、既存のペアリングはすべてクリアされます。各端末で QR コードを再度スキャンする必要があります。";
+"dialog_generate_button" = "生成";
+"dialog_cancel_button" = "キャンセル";
+"dialog_rename_this_mac_title" = "この Mac の名前を変更";
+"dialog_rename_device_title" = "デバイスの名前を変更";
+"dialog_rename_prompt" = "このデバイスの新しい名前を入力してください:";
+"dialog_save_button" = "保存";
+"dialog_unpair_all_title" = "すべてのデバイスのペアリングを解除しますか？";
+"dialog_unpair_all_message" = "この Mac はすべてのペアリング済み端末との同期を停止します。新しい QR コードでいつでも再登録できます。";
+"dialog_unpair_button" = "解除";
+"dialog_unpair_single_title" = "%@ のペアリングを解除しますか？";
+"dialog_unpair_single_message" = "この端末は、この Mac とのクリップボードテキストおよび画像の同期を停止します。";
+"dialog_open_system_settings" = "システム設定を開く";
+"dialog_done_button" = "完了";
+
+/* Guide Alerts */
+"guide_bluetooth_title" = "Bluetooth をオンにする";
+"guide_bluetooth_message" = "BinderClip は、Wi-Fi やメッシュネットワークが届かない場合に Bluetooth を自動フォールバックとして使用します。\n\nBluetooth をオンにする手順:\n1. 下の「システム設定を開く」をクリックします。\n2. Bluetooth 設定で Bluetooth をオンにします。\n3. Bluetooth がオンになると自動的に再開します。";
+"guide_bluetooth_permission_title" = "BinderClip に Bluetooth を許可";
+"guide_bluetooth_permission_message" = "BinderClip は、Wi-Fi が届かない場合のフォールバックとして Bluetooth Low Energy を使用します。\n\n許可する手順:\n1. 下の「システム設定を開く」をクリックします。\n2. 「プライバシーとセキュリティ」→「Bluetooth」で BinderClip をオンにします。\n3. 必要に応じて BinderClip を再起動します。";
+"guide_local_network_title" = "BinderClip にローカルネットワークを許可";
+"guide_local_network_message" = "BinderClip は Wi-Fi ネットワーク上の端末を検出・同期するためにローカルネットワークへのアクセスが必要です。\n\n許可する手順:\n1. 下の「システム設定を開く」をクリックします。\n2. 「プライバシーとセキュリティ」→「ローカルネットワーク」で BinderClip をオンにします。";
+"guide_clipboard_title" = "BinderClip にクリップボードへのアクセスを許可";
+"guide_clipboard_message" = "BinderClip はコピーしたテキストや画像を同期するためにクリップボードアクセスが必要です。\n\n許可する手順:\n1. 下の「システム設定を開く」をクリックします。\n2. 「プライバシーとセキュリティ」で BinderClip のアクセスが許可されていることを確認します。";
+
+/* Log Window */
+"log_window_title" = "BinderClip ログ";
+"log_clear" = "消去";
+"log_copy" = "コピー";
+"log_close" = "閉じる";
+"log_no_events" = "$ イベントログはありません。";

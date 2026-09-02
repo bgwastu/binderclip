@@ -57,7 +57,7 @@ class SendClipboardActivity : Activity() {
                     this,
                     Intent(this, BinderClipService::class.java).setAction(BinderClipService.ACTION_SEND_SHARED),
                 )
-                Toast.makeText(this, "Sent to Mac", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_sent_to_mac), Toast.LENGTH_SHORT).show()
             }
             is LocalClipboardContent.Image -> {
                 android.util.Log.i("BinderClipSend", "SendClipboardActivity read image: ${content.value.mimeType} (${content.value.data.size} bytes)")
@@ -66,11 +66,11 @@ class SendClipboardActivity : Activity() {
                     this,
                     Intent(this, BinderClipService::class.java).setAction(BinderClipService.ACTION_SEND_SHARED),
                 )
-                Toast.makeText(this, "Sent image to Mac", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_sent_image_to_mac), Toast.LENGTH_SHORT).show()
             }
             is LocalClipboardContent.Unsupported -> {
                 android.util.Log.w("BinderClipSend", "SendClipboardActivity clip unsupported or empty")
-                Toast.makeText(this, "Clipboard is empty or unsupported", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_nothing_to_send), Toast.LENGTH_SHORT).show()
             }
         }
         finish()

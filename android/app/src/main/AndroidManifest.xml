@@ -120,7 +120,7 @@
 
         <service
             android:name=".BinderClipTileService"
-            android:label="Send to Mac"
+            android:label="@string/tile_send_to_mac"
             android:icon="@drawable/ic_binder_clip"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">

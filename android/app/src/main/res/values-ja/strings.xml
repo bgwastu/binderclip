@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">自動同期が有効な場合、コピーしたテキストを BinderClip デバイスに送信します。</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">Mac に送信</string>
+    <string name="tile_send_clipboard">クリップボードを送信</string>
+    <string name="tile_not_paired">未ペアリング</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">クリップボードの同期</string>
+    <string name="channel_clipboard_sync_desc">ペアリングされた Mac との常時接続を維持します</string>
+    <string name="channel_browser_links">ブラウザリンク</string>
+    <string name="channel_browser_links_desc">Web リンクを受信したときの通知</string>
+    <string name="notif_copy_to_clipboard">クリップボードにコピー</string>
+    <string name="notif_open_link">リンクを開く</string>
+    <string name="notif_bluetooth_fallback_title">Bluetooth フォールバック準備完了</string>
+    <string name="notif_bluetooth_fallback_desc">Wi-Fi なしでも同期を継続できるよう Bluetooth を有効にしてください</string>
+    <string name="notif_image_waiting_title">画像の Wi-Fi 接続待機中</string>
+    <string name="notif_image_waiting_desc">画像 (%1$s) には Wi-Fi または Mesh が必要です。テキストは Bluetooth で同期されます</string>
+    <string name="notif_received_text">テキストを受信しました</string>
+    <string name="notif_received_image">画像を受信しました (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">ログを表示</string>
+    <string name="paired_devices">ペアリング済みデバイス</string>
+    <string name="no_devices_paired">ペアリングされたデバイスはありません</string>
+    <string name="no_devices_paired_desc">Mac の QR コードをスキャンしてペアリングしてください。</string>
+    <string name="reconnect">再接続</string>
+    <string name="scan_qr_to_pair">QR コードをスキャンしてペアリング</string>
+    <string name="send_current_clipboard">現在のクリップボードを送信</string>
+    <string name="section_permissions">権限設定</string>
+    <string name="section_clipboard_automation">クリップボード自動化</string>
+    <string name="section_settings">設定</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">通知</string>
+    <string name="perm_notifications_desc">受信したクリップボードを表示</string>
+    <string name="perm_bg_keepalive">バックグラウンド常駐</string>
+    <string name="perm_bg_keepalive_desc">ユーザー補助を有効にする</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">オフライン代替同期に必要です</string>
+    <string name="perm_battery_opt">バッテリーの最適化</string>
+    <string name="perm_battery_opt_desc">安定したバックグラウンド同期を許可</string>
+    <string name="perm_autostart">自動起動</string>
+    <string name="perm_autostart_desc">安定した同期のためバックグラウンド起動を許可</string>
+    <string name="allow">許可</string>
+    <string name="open">開く</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">コピー</string>
+    <string name="image_ready_to_copy">コピー準備完了の画像</string>
+    <string name="text_ready_to_copy">コピー準備完了のテキスト</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Root クリップボード自動化</string>
+    <string name="root_automation_granted">Root 権限取得済み: テキストと画像がリアルタイムで自動同期されます。</string>
+    <string name="root_automation_prompt">タップして Root 権限を許可し、自動同期を有効にします。</string>
+    <string name="bg_sync_active_title">バックグラウンド同期が有効</string>
+    <string name="bg_sync_active_desc">Android バックグラウンドアクセスが許可されています。テキストとリンクが自動で同期されます。</string>
+    <string name="shizuku_enable_title">Shizuku で有効化</string>
+    <string name="shizuku_enable_desc">タップして Shizuku 経由でバックグラウンドクリップボード権限を自動付与します。</string>
+    <string name="shizuku_apply_btn">適用</string>
+    <string name="shizuku_auth_title">Shizuku を承認</string>
+    <string name="shizuku_auth_desc">Root なしでの自動同期のため Shizuku で BinderClip を承認してください。</string>
+    <string name="shizuku_auth_btn">承認</string>
+    <string name="shizuku_installed_title">Shizuku がインストールされています</string>
+    <string name="shizuku_installed_desc">ワイヤレスデバッグまたは PC から Shizuku を起動して Root なし同期を有効にします。</string>
+    <string name="adb_setup_title">非 Root / ADB セットアップ</string>
+    <string name="adb_setup_desc">PC またはワイヤレスデバッグ経由で実行:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">ユーザー補助常駐</string>
+    <string name="accessibility_keepalive_desc_on">ユーザー補助サービスが有効で、起動後も同期を維持します。</string>
+    <string name="accessibility_keepalive_desc_off">タスクキルを防ぐためにユーザー補助サービスを有効にしてください。</string>
+    <string name="quick_settings_hint">クイック設定: 通知パネルに「Mac に送信」タイルを追加すると、アプリから1タップで送信できます。</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">受信クリップボードの自動書き込み</string>
+    <string name="auto_apply_incoming_desc_on">Mac から受信したテキストと画像を自動で端末のクリップボードにコピーします。</string>
+    <string name="auto_apply_incoming_desc_off">受信時に通知を表示し、手動でコピーできるようにします。</string>
+    <string name="bt_fallback_title">Bluetooth フォールバック</string>
+    <string name="bt_fallback_desc_off">Bluetooth 代替同期はオフです。Wi-Fi または Mesh が必要です。</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth がオフです。Wi-Fi 未接続時に有効化をリクエストします。</string>
+    <string name="bt_fallback_desc_on">Wi-Fi や Mesh が届かない場合、テキストとリンクは Bluetooth で同期されます。</string>
+    <string name="bt_is_off_title">Bluetooth がオフです</string>
+    <string name="bt_is_off_desc">フォールバック作動時に BinderClip が有効化を求めます。</string>
+    <string name="turn_on">オンにする</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL を正常に送信しました</string>
+    <string name="image_sent_success">画像を正常に送信しました</string>
+    <string name="status_connected_bluetooth">Bluetooth 経由で接続中</string>
+    <string name="status_connected_mesh">Mesh 経由で接続中</string>
+    <string name="status_connected_lan">LAN 経由で接続中</string>
+    <string name="status_connected">接続済み</string>
+    <string name="status_connecting">接続中…</string>
+    <string name="status_reconnecting">再接続中…</string>
+    <string name="this_device">このデバイス</string>
+    <string name="transport_bt_label">通信規格: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">利用不可</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">デバイスの名前を変更</string>
+    <string name="device_rename_prompt">このデバイスの新しい名前を入力してください:</string>
+    <string name="save">保存</string>
+    <string name="cancel">キャンセル</string>
+    <string name="close">閉じる</string>
+    <string name="rename">名前を変更</string>
+    <string name="unpair_this_device">このデバイスのペアリングを解除</string>
+    <string name="unpair_device">ペアリングを解除</string>
+    <string name="logs_title">ログ (%1$d)</string>
+    <string name="logs_search_placeholder">ログを検索…</string>
+    <string name="filter_all">すべて</string>
+    <string name="filter_info">情報</string>
+    <string name="filter_warning">警告</string>
+    <string name="filter_error">エラー</string>
+    <string name="no_events_yet">イベントログはありません。</string>
+    <string name="no_matching_events">該当するイベントはありません。</string>
+    <string name="clear">消去</string>
+    <string name="bt_guide_dialog_title">Bluetooth 権限の許可</string>
+    <string name="bt_guide_dialog_text">BinderClip は、Wi-Fi が利用できない場合に Bluetooth Low Energy を使用してクリップボードを同期します。\n\n有効化の手順:\n1. 下の「設定を開く」をタップします。\n2. 「権限」をタップします。\n3. 「付近のデバイス」または「Bluetooth」を許可してください。</string>
+    <string name="open_settings">設定を開く</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">デバイスでリンクを開く</string>
+    <string name="share_to_device_title">デバイスに共有</string>
+    <string name="share_all_devices">すべての接続済みデバイス</string>
+    <string name="share_all_devices_url_sub">すべてのデバイスのブラウザで開く</string>
+    <string name="share_all_devices_sub">すべてのデバイスに送信</string>
+    <string name="share_opens_browser_on">%1$s のブラウザで開く</string>
+    <string name="share_image_label">画像 (%1$s)</string>
+    <string name="share_text_content">テキストコンテンツ</string>
+    <string name="share_error_unsupported">このコンテンツは送信できませんでした</string>
+    <string name="share_sending_link">リンクを送信中…</string>
+    <string name="share_sending">送信中…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">Mac に送信しました</string>
+    <string name="toast_sent_image_to_mac">画像を Mac に送信しました</string>
+    <string name="toast_nothing_to_send">送信するコンテンツがありません</string>
+</resources>

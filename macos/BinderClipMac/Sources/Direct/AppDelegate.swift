@@ -62,18 +62,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
         transport.onClipboard = { [weak self] text in
             self?.clipboard.applyRemote(text)
-            self?.notifyIncoming(title: "BinderClip", body: "Received text")
-            ToastHUD.shared.show(message: "Received text", icon: "doc.on.clipboard.fill")
+            let msg = L10n.tr("received_text")
+            self?.notifyIncoming(title: "BinderClip", body: msg)
+            ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
         }
         transport.onOpenURL = { [weak self] url in
             NSWorkspace.shared.open(url)
-            self?.notifyIncoming(title: "BinderClip", body: "Opened link in browser")
-            ToastHUD.shared.show(message: "Opened link in browser", icon: "safari.fill")
+            let msg = L10n.tr("opened_link_in_browser")
+            self?.notifyIncoming(title: "BinderClip", body: msg)
+            ToastHUD.shared.show(message: msg, icon: "safari.fill")
         }
         transport.onImage = { [weak self] image in
             self?.clipboard.applyRemote(image)
-            self?.notifyIncoming(title: "BinderClip", body: "Received image (\(image.mimeType))")
-            ToastHUD.shared.show(message: "Received image (\(image.mimeType))", icon: "photo.fill")
+            let msg = L10n.tr("received_image_format", image.mimeType)
+            self?.notifyIncoming(title: "BinderClip", body: msg)
+            ToastHUD.shared.show(message: msg, icon: "photo.fill")
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
@@ -170,22 +173,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if isTransferring {
             button.toolTip = "BinderClip: \(status)"
         } else if hasConnectedPeers {
-            button.toolTip = "BinderClip: Connected"
+            button.toolTip = "BinderClip: \(L10n.tr("status_connected"))"
         } else if peers.isEmpty {
-            button.toolTip = "BinderClip: Listening"
+            button.toolTip = "BinderClip: \(L10n.tr("listening"))"
         } else {
-            button.toolTip = "BinderClip: Waiting for device"
+            button.toolTip = "BinderClip: \(L10n.tr("status_waiting_for_device"))"
         }
     }
 
     private func hostCaption() -> String {
         let connected = peers.filter(\.connected)
         if !connected.isEmpty {
-            return connected.count == 1 ? "1 connected" : "\(connected.count) connected"
+            return connected.count == 1 ? L10n.tr("connected_count_one") : L10n.tr("connected_count_many", connected.count)
         }
-        if peers.isEmpty { return "Listening" }
-        if peers.count == 1 { return "Waiting for \(peers[0].name)" }
-        return "Waiting for devices"
+        if peers.isEmpty { return L10n.tr("listening") }
+        if peers.count == 1 { return L10n.tr("waiting_for_device_named", peers[0].name) }
+        return L10n.tr("waiting_for_devices")
     }
 
     private func addSectionHeader(_ title: String, to menu: NSMenu) {
@@ -219,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         addSectionHeader(hostCaption(), to: menu)
 
         if peers.isEmpty {
-            let empty = NSMenuItem(title: "No phones yet", action: nil, keyEquivalent: "")
+            let empty = NSMenuItem(title: L10n.tr("no_phones_yet"), action: nil, keyEquivalent: "")
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
@@ -227,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             for peer in ordered {
                 let transport = transport.peerTransportType(peer.id)
                 let isLive = peer.connected || transport != .none
-                let title = isLive ? peer.name : "\(peer.name) (waiting)"
+                let title = isLive ? peer.name : L10n.tr("device_waiting_suffix", peer.name)
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
                 if !isLive {
@@ -242,12 +245,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
         menu.addItem(.separator())
 
-        let pair = NSMenuItem(title: "Add Device", action: #selector(showPairing), keyEquivalent: "n")
+        let pair = NSMenuItem(title: L10n.tr("add_device"), action: #selector(showPairing), keyEquivalent: "n")
         pair.target = self
         menu.addItem(pair)
 
         if let browserTab = cachedActiveTab {
-            let sendURLItem = NSMenuItem(title: "Send Current Browser Tab", action: nil, keyEquivalent: "u")
+            let sendURLItem = NSMenuItem(title: L10n.tr("send_browser_tab"), action: nil, keyEquivalent: "u")
             let urlSubmenu = NSMenu()
             urlSubmenu.autoenablesItems = false
 
@@ -257,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             urlSubmenu.addItem(urlHeader)
             urlSubmenu.addItem(.separator())
 
-            let allItem = NSMenuItem(title: "All Connected Devices", action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
+            let allItem = NSMenuItem(title: L10n.tr("all_connected_devices"), action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
             allItem.target = self
             allItem.representedObject = ["url": browserTab.url, "peerId": nil as String? as Any]
             allItem.isEnabled = peers.contains(where: \.connected)
@@ -280,12 +283,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
         menu.addItem(.separator())
 
-        let more = NSMenuItem(title: "More", action: nil, keyEquivalent: "")
+        let more = NSMenuItem(title: L10n.tr("more"), action: nil, keyEquivalent: "")
         more.submenu = moreMenu()
         menu.addItem(more)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit BinderClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: L10n.tr("quit_binderclip"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     private func binderClipStatusIcon() -> NSImage? {
@@ -304,22 +307,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private func renderPendingPermissions(into menu: NSMenu) {
         var hasPendingPermission = false
         if !transport.isBluetoothPoweredOn {
-            let item = NSMenuItem(title: "Enable Bluetooth", action: #selector(openBluetoothSettings), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.tr("enable_bluetooth"), action: #selector(openBluetoothSettings), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         } else if transport.isBluetoothPermissionDenied {
-            let item = NSMenuItem(title: "Allow Bluetooth", action: #selector(openBluetoothPermissionGuide), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.tr("allow_bluetooth"), action: #selector(openBluetoothPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if localNetworkPermissionRequired {
-            let item = NSMenuItem(title: "Allow Local Network", action: #selector(openLocalNetworkPermissionGuide), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.tr("allow_local_network"), action: #selector(openLocalNetworkPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if clipboard.isAccessDenied {
-            let item = NSMenuItem(title: "Allow Clipboard Access", action: #selector(openClipboardPermissionGuide), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.tr("allow_clipboard_access"), action: #selector(openClipboardPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if automationPermissionRequired {
-            let item = NSMenuItem(title: "Allow Browser Automation", action: #selector(openAutomationPrivacySettings), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.tr("allow_browser_automation"), action: #selector(openAutomationPrivacySettings), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
         if hasPendingPermission { menu.addItem(.separator()) }
@@ -333,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if loginStatus != .enabled {
             let needsApproval = loginStatus == .requiresApproval
             let login = NSMenuItem(
-                title: needsApproval ? "Allow Launch At Login" : "Enable Launch At Login",
+                title: needsApproval ? L10n.tr("allow_launch_at_login") : L10n.tr("enable_launch_at_login"),
                 action: #selector(enableLaunchAtLogin),
                 keyEquivalent: ""
             )
@@ -342,24 +345,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             more.addItem(.separator())
         }
 
-        let rename = NSMenuItem(title: "Rename This Mac…", action: #selector(renameDevice(_:)), keyEquivalent: "")
+        let rename = NSMenuItem(title: L10n.tr("rename_this_mac"), action: #selector(renameDevice(_:)), keyEquivalent: "")
         rename.target = self
         rename.representedObject = transport.localDeviceID
         more.addItem(rename)
 
         if !peers.isEmpty {
-            let unpairAll = NSMenuItem(title: "Unpair All Devices…", action: #selector(unpairAllDevices), keyEquivalent: "")
+            let unpairAll = NSMenuItem(title: L10n.tr("unpair_all_devices"), action: #selector(unpairAllDevices), keyEquivalent: "")
             unpairAll.target = self
             more.addItem(unpairAll)
         }
 
-        let resetKey = NSMenuItem(title: "Reset Pairing Key…", action: #selector(resetPairingKey), keyEquivalent: "")
+        let resetKey = NSMenuItem(title: L10n.tr("reset_pairing_key"), action: #selector(resetPairingKey), keyEquivalent: "")
         resetKey.target = self
         more.addItem(resetKey)
 
         more.addItem(.separator())
 
-        let logs = NSMenuItem(title: "Show Logs", action: #selector(showLogs), keyEquivalent: "l")
+        let logs = NSMenuItem(title: L10n.tr("show_logs"), action: #selector(showLogs), keyEquivalent: "l")
         logs.target = self
         more.addItem(logs)
 
@@ -369,7 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let updatesTitle = "BinderClip Debug\tv\(versionString)"
         #else
         let versionString = rawVersion
-        let updatesTitle = versionString.map { "Check for Updates…\tv\($0)" } ?? "Check for Updates…"
+        let updatesTitle = versionString.map { "\(L10n.tr("check_for_updates"))\tv\($0)" } ?? L10n.tr("check_for_updates")
         #endif
         let updates = NSMenuItem(title: updatesTitle, action: #selector(checkForUpdates), keyEquivalent: "")
         updates.target = self
@@ -384,17 +387,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let isConnected = peer.connected || transportType != .none
         let statusTitle: String
         if !isConnected || transportType == .none {
-            statusTitle = "Waiting for device"
+            statusTitle = L10n.tr("status_waiting_for_device")
         } else {
             switch transportType {
             case .bluetooth:
-                statusTitle = "Connected via Bluetooth"
+                statusTitle = L10n.tr("connected_via_bluetooth")
             case .mesh:
-                statusTitle = "Connected via Mesh"
+                statusTitle = L10n.tr("connected_via_mesh")
             case .lan:
-                statusTitle = "Connected via LAN"
+                statusTitle = L10n.tr("connected_via_lan")
             case .none:
-                statusTitle = "Waiting for device"
+                statusTitle = L10n.tr("status_waiting_for_device")
             }
         }
         let status = NSMenuItem(title: statusTitle, action: nil, keyEquivalent: "")
@@ -402,24 +405,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         details.addItem(status)
         let host = peer.endpoint.host.trimmingCharacters(in: .whitespacesAndNewlines)
         if !host.isEmpty, host != "unknown" {
-            let ipTitle = host == "bluetooth" ? "Transport: Bluetooth BLE" : host
+            let ipTitle = host == "bluetooth" ? L10n.tr("transport_bluetooth_ble") : host
             let ip = NSMenuItem(title: ipTitle, action: nil, keyEquivalent: "")
             ip.isEnabled = false
             details.addItem(ip)
         }
 
         details.addItem(.separator())
-        let sendToDevice = NSMenuItem(title: "Send Clipboard to \(peer.name)", action: #selector(sendClipboardToPeer(_:)), keyEquivalent: "")
+        let sendToDevice = NSMenuItem(title: L10n.tr("send_clipboard_to_peer", peer.name), action: #selector(sendClipboardToPeer(_:)), keyEquivalent: "")
         sendToDevice.target = self
         sendToDevice.representedObject = peer.id
         sendToDevice.isEnabled = peer.connected
         details.addItem(sendToDevice)
         details.addItem(.separator())
-        let rename = NSMenuItem(title: "Rename Device…", action: #selector(renameDevice(_:)), keyEquivalent: "")
+        let rename = NSMenuItem(title: L10n.tr("rename_device_menu"), action: #selector(renameDevice(_:)), keyEquivalent: "")
         rename.target = self
         rename.representedObject = peer.id
         details.addItem(rename)
-        let remove = NSMenuItem(title: "Unpair Device…", action: #selector(removePeer(_:)), keyEquivalent: "")
+        let remove = NSMenuItem(title: L10n.tr("unpair_device_menu"), action: #selector(removePeer(_:)), keyEquivalent: "")
         remove.target = self
         remove.representedObject = peer.id
         details.addItem(remove)
@@ -430,16 +433,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         runAfterMenuCloses { [weak self] in
             guard let self else { return }
             self.peerIdsBeforePairing = Set(self.peers.filter(\.connected).map(\.id))
-            self.pairing.show(statusText: "Waiting for device…") { [weak self] in self?.transport.createInvite() }
+            self.pairing.show(statusText: L10n.tr("pairing_waiting")) { [weak self] in self?.transport.createInvite() }
         }
     }
 
     @objc private func resetPairingKey() {
         let alert = NSAlert()
-        alert.messageText = "Generate a New Pairing Code?"
-        alert.informativeText = "This creates a new pairing code and clears paired phones. Every phone must scan the QR again."
-        alert.addButton(withTitle: "Generate")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.tr("dialog_generate_pairing_title")
+        alert.informativeText = L10n.tr("dialog_generate_pairing_message")
+        alert.addButton(withTitle: L10n.tr("dialog_generate_button"))
+        alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             transport.resetPairingKey()
             showPairing()
@@ -528,8 +531,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
               let url = dict["url"] as? URL else { return }
         let peerID = dict["peerId"] as? String
         transport.sendOpenURL(url, targetDeviceId: peerID)
-        let peerName = peerID != nil ? (peers.first(where: { $0.id == peerID })?.name ?? "device") : "all devices"
-        ToastHUD.shared.show(message: "Sent URL to \(peerName)", icon: "safari.fill")
+        let peerName = peerID != nil ? (peers.first(where: { $0.id == peerID })?.name ?? "device") : L10n.tr("all_connected_devices")
+        ToastHUD.shared.show(message: L10n.tr("sent_url_to_peer", peerName), icon: "safari.fill")
     }
 
     @objc private func sendClipboardToPeer(_ sender: NSMenuItem) {
@@ -538,12 +541,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         switch ClipboardClassifier.read(from: NSPasteboard.general) {
         case .text(let text):
             transport.sendClipboard(text, targetDeviceId: peerID)
-            ToastHUD.shared.show(message: "Sent clipboard to \(peerName)", icon: "doc.on.clipboard.fill")
+            ToastHUD.shared.show(message: L10n.tr("sent_clipboard_to_peer", peerName), icon: "doc.on.clipboard.fill")
         case .image(let image):
             transport.sendImage(image, targetDeviceId: peerID)
-            ToastHUD.shared.show(message: "Sent image to \(peerName)", icon: "photo.fill")
+            ToastHUD.shared.show(message: L10n.tr("sent_image_to_peer", peerName), icon: "photo.fill")
         case .unsupported:
-            ToastHUD.shared.show(message: "Nothing to send", icon: "exclamationmark.circle")
+            ToastHUD.shared.show(message: L10n.tr("nothing_to_send"), icon: "exclamationmark.circle")
         }
     }
 
@@ -554,13 +557,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let currentName = id == transport.localDeviceID ? transport.localDeviceName : peers.first(where: { $0.id == id })?.name
         guard let currentName else { return }
         let alert = NSAlert()
-        alert.messageText = id == transport.localDeviceID ? "Rename This Mac" : "Rename Device"
-        alert.informativeText = "Enter a new name for this device:"
+        alert.messageText = id == transport.localDeviceID ? L10n.tr("dialog_rename_this_mac_title") : L10n.tr("dialog_rename_device_title")
+        alert.informativeText = L10n.tr("dialog_rename_prompt")
         let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         input.stringValue = currentName
         alert.accessoryView = input
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.tr("dialog_save_button"))
+        alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
         alert.window.initialFirstResponder = input
         if alert.runModal() == .alertFirstButtonReturn {
             let newName = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -572,10 +575,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc private func unpairAllDevices() {
         let alert = NSAlert()
-        alert.messageText = "Unpair All Devices?"
-        alert.informativeText = "This Mac will stop syncing with every paired phone. You can add them again with a new QR at any time."
-        alert.addButton(withTitle: "Unpair")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.tr("dialog_unpair_all_title")
+        alert.informativeText = L10n.tr("dialog_unpair_all_message")
+        alert.addButton(withTitle: L10n.tr("dialog_unpair_button"))
+        alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
         if alert.runModal() == .alertFirstButtonReturn { transport.unpairAll() }
     }
 
@@ -584,10 +587,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let name = peers.first(where: { $0.id == id })?.name
         guard let name else { return }
         let alert = NSAlert()
-        alert.messageText = "Unpair \(name)?"
-        alert.informativeText = "This phone will no longer sync clipboard text or images with this Mac."
-        alert.addButton(withTitle: "Unpair")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.tr("dialog_unpair_single_title", name)
+        alert.informativeText = L10n.tr("dialog_unpair_single_message")
+        alert.addButton(withTitle: L10n.tr("dialog_unpair_button"))
+        alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
         if alert.runModal() == .alertFirstButtonReturn { transport.removePeer(id) }
     }
 
@@ -609,17 +612,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc private func openBluetoothSettings() {
         let alert = NSAlert()
-        alert.messageText = "Enable Bluetooth"
-        alert.informativeText = """
-        BinderClip uses Bluetooth as an automatic fallback when Wi-Fi and mesh are unreachable.
-
-        To enable Bluetooth:
-        1. Click “Open System Settings” below.
-        2. In the Bluetooth pane, turn ON Bluetooth.
-        3. BinderClip will automatically resume advertising once Bluetooth is on.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Done")
+        alert.messageText = L10n.tr("guide_bluetooth_title")
+        alert.informativeText = L10n.tr("guide_bluetooth_message")
+        alert.addButton(withTitle: L10n.tr("dialog_open_system_settings"))
+        alert.addButton(withTitle: L10n.tr("dialog_done_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
                 NSWorkspace.shared.open(url)
@@ -631,17 +627,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc private func openBluetoothPermissionGuide() {
         let alert = NSAlert()
-        alert.messageText = "Allow Bluetooth for BinderClip"
-        alert.informativeText = """
-        BinderClip uses Bluetooth Low Energy as an automatic fallback when Wi-Fi is unreachable.
-
-        To enable Bluetooth:
-        1. Click “Open System Settings” below.
-        2. In Privacy & Security → Bluetooth, turn ON the toggle for BinderClip.
-        3. If prompted, restart BinderClip.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Done")
+        alert.messageText = L10n.tr("guide_bluetooth_permission_title")
+        alert.informativeText = L10n.tr("guide_bluetooth_permission_message")
+        alert.addButton(withTitle: L10n.tr("dialog_open_system_settings"))
+        alert.addButton(withTitle: L10n.tr("dialog_done_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") {
                 NSWorkspace.shared.open(url)
@@ -653,16 +642,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc private func openLocalNetworkPermissionGuide() {
         let alert = NSAlert()
-        alert.messageText = "Allow Local Network for BinderClip"
-        alert.informativeText = """
-        BinderClip needs Local Network access to discover and sync with phones on your Wi-Fi network.
-
-        To enable Local Network:
-        1. Click “Open System Settings” below.
-        2. In Privacy & Security → Local Network, turn ON the toggle for BinderClip.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Done")
+        alert.messageText = L10n.tr("guide_local_network_title")
+        alert.informativeText = L10n.tr("guide_local_network_message")
+        alert.addButton(withTitle: L10n.tr("dialog_open_system_settings"))
+        alert.addButton(withTitle: L10n.tr("dialog_done_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork") {
                 NSWorkspace.shared.open(url)
@@ -674,16 +657,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc private func openClipboardPermissionGuide() {
         let alert = NSAlert()
-        alert.messageText = "Allow Clipboard Access for BinderClip"
-        alert.informativeText = """
-        BinderClip needs Clipboard Access to sync copied text and images with your paired devices.
-
-        To enable Clipboard Access:
-        1. Click “Open System Settings” below.
-        2. In Privacy & Security, ensure BinderClip is allowed clipboard access.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Done")
+        alert.messageText = L10n.tr("guide_clipboard_title")
+        alert.informativeText = L10n.tr("guide_clipboard_message")
+        alert.addButton(withTitle: L10n.tr("dialog_open_system_settings"))
+        alert.addButton(withTitle: L10n.tr("dialog_done_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             openPrivacySettings()
         }

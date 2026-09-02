@@ -66,6 +66,7 @@ chmod 755 "$STAGING_PATH/Contents/MacOS/BinderClip"
 ditto "$SPARKLE_FRAMEWORK" "$STAGING_PATH/Contents/Frameworks/Sparkle.framework"
 cp "$PACKAGE_DIR/Resources/AppIcon.icns" "$STAGING_PATH/Contents/Resources/AppIcon.icns"
 cp "$PACKAGE_DIR/Resources/BinderClipMenuIcon.svg" "$STAGING_PATH/Contents/Resources/BinderClipMenuIcon.svg"
+cp -R "$PACKAGE_DIR"/Resources/*.lproj "$STAGING_PATH/Contents/Resources/"
 print -n 'APPL????' > "$STAGING_PATH/Contents/PkgInfo"
 install_name_tool -add_rpath '@loader_path/../Frameworks' "$STAGING_PATH/Contents/MacOS/BinderClip" 2>/dev/null || true
 
@@ -73,6 +74,19 @@ cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>id</string>
+    <string>es</string>
+    <string>zh-Hans</string>
+    <string>ja</string>
+    <string>de</string>
+    <string>fr</string>
+    <string>pt-BR</string>
+    <string>ru</string>
+  </array>
   <key>CFBundleDisplayName</key><string>BinderClip Debug</string>
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>

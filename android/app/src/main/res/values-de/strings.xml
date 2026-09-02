@@ -1,0 +1,141 @@
+<resources>
+    <string name="app_name">BinderClip</string>
+    <string name="clipboard_accessibility_description">Sendet kopierten Zwischenablagetext an Ihre BinderClip-Geräte, wenn die automatische Synchronisierung aktiviert ist.</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_send_to_mac">An Mac senden</string>
+    <string name="tile_send_clipboard">Zwischenablage senden</string>
+    <string name="tile_not_paired">Nicht gekoppelt</string>
+
+    <!-- Notification Channels & Notifications -->
+    <string name="channel_clipboard_sync">Zwischenablagen-Synchronisierung</string>
+    <string name="channel_clipboard_sync_desc">Hält eine dauerhafte Verbindung mit dem gekoppelten Mac aufrecht</string>
+    <string name="channel_browser_links">Browser-Links</string>
+    <string name="channel_browser_links_desc">Benachrichtigungen beim Empfang von Weblinks</string>
+    <string name="notif_copy_to_clipboard">In Zwischenablage kopieren</string>
+    <string name="notif_open_link">Link öffnen</string>
+    <string name="notif_bluetooth_fallback_title">Bluetooth-Ausweichmodus bereit</string>
+    <string name="notif_bluetooth_fallback_desc">Aktivieren Sie Bluetooth, um ohne WLAN weiter zu synchronisieren</string>
+    <string name="notif_image_waiting_title">Bild wartet auf WLAN</string>
+    <string name="notif_image_waiting_desc">Bilder (%1$s) benötigen WLAN oder Mesh; Text wird weiterhin über Bluetooth synchronisiert</string>
+    <string name="notif_received_text">Text empfangen</string>
+    <string name="notif_received_image">Bild empfangen (%1$s)</string>
+
+    <!-- Main Screen & Sections -->
+    <string name="show_logs">Protokolle anzeigen</string>
+    <string name="paired_devices">Gekoppelte Geräte</string>
+    <string name="no_devices_paired">Noch keine Geräte gekoppelt</string>
+    <string name="no_devices_paired_desc">Scannen Sie einen QR-Code von Ihrem Mac zum Koppeln.</string>
+    <string name="reconnect">Neu verbinden</string>
+    <string name="scan_qr_to_pair">QR-Code scannen zum Koppeln</string>
+    <string name="send_current_clipboard">Aktuelle Zwischenablage senden</string>
+    <string name="section_permissions">Berechtigungen</string>
+    <string name="section_clipboard_automation">Zwischenablagen-Automatisierung</string>
+    <string name="section_settings">Einstellungen</string>
+
+    <!-- Permissions -->
+    <string name="perm_notifications">Benachrichtigungen</string>
+    <string name="perm_notifications_desc">Empfangene Zwischenablage anzeigen</string>
+    <string name="perm_bg_keepalive">Hintergrund-Betrieb</string>
+    <string name="perm_bg_keepalive_desc">Bedienungshilfen aktivieren</string>
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Erforderlich für Offline-Ausweichsynchronisierung</string>
+    <string name="perm_battery_opt">Akku-Optimierung</string>
+    <string name="perm_battery_opt_desc">Zuverlässige Hintergrundsynchronisierung erlauben</string>
+    <string name="perm_autostart">Autostart</string>
+    <string name="perm_autostart_desc">Hintergrundstart für zuverlässige Synchronisierung erlauben</string>
+    <string name="allow">Erlauben</string>
+    <string name="open">Öffnen</string>
+
+    <!-- Pending Copy -->
+    <string name="copy">Kopieren</string>
+    <string name="image_ready_to_copy">Bild kopierbereit</string>
+    <string name="text_ready_to_copy">Text kopierbereit</string>
+
+    <!-- Automation Cards -->
+    <string name="root_automation_title">Root-Zwischenablagen-Automatisierung</string>
+    <string name="root_automation_granted">Root-Zugriff gewährt: Text und Bilder werden in Echtzeit synchronisiert.</string>
+    <string name="root_automation_prompt">Tippen, um Root-Zugriff für automatische Hintergrundsynchronisierung zu gewähren.</string>
+    <string name="bg_sync_active_title">Hintergrundsynchronisierung aktiv</string>
+    <string name="bg_sync_active_desc">Android-Hintergrundzugriff auf Zwischenablage ist gewährt. Text und Links werden automatisch synchronisiert.</string>
+    <string name="shizuku_enable_title">Mit Shizuku aktivieren</string>
+    <string name="shizuku_enable_desc">Tippen, um die Zwischenablagen-Berechtigung automatisch über Shizuku anzuwenden.</string>
+    <string name="shizuku_apply_btn">Anwenden</string>
+    <string name="shizuku_auth_title">Shizuku autorisieren</string>
+    <string name="shizuku_auth_desc">Autorisieren Sie BinderClip in Shizuku für automatische Synchronisierung ohne Root.</string>
+    <string name="shizuku_auth_btn">Autorisieren</string>
+    <string name="shizuku_installed_title">Shizuku installiert</string>
+    <string name="shizuku_installed_desc">Starten Sie Shizuku über Wireless Debugging oder PC, um Synchronisierung ohne Root zu aktivieren.</string>
+    <string name="adb_setup_title">Nicht-Root / ADB-Einrichtung</string>
+    <string name="adb_setup_desc">Über PC oder Wireless Debugging ausführen:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
+    <string name="accessibility_keepalive_title">Bedienungshilfen-Keep-Alive</string>
+    <string name="accessibility_keepalive_desc_on">Bedienungshilfen-Dienst ist aktiv und hält Synchronisierung nach dem Start aufrecht.</string>
+    <string name="accessibility_keepalive_desc_off">Bedienungshilfen aktivieren, um Beenden im Hintergrund durch das System zu verhindern.</string>
+    <string name="quick_settings_hint">Schnelleinstellungen: Fügen Sie die Kachel „An Mac senden“ hinzu, um mit 1 Tippen aus jeder App zu senden.</string>
+
+    <!-- Settings -->
+    <string name="auto_apply_incoming_title">Eingehende Zwischenablage automatisch anwenden</string>
+    <string name="auto_apply_incoming_desc_on">Vom Mac empfangene Texte und Bilder werden automatisch in die Zwischenablage kopiert.</string>
+    <string name="auto_apply_incoming_desc_off">Benachrichtigung anzeigen, um empfangenen Text oder Bilder manuell zu kopieren.</string>
+    <string name="bt_fallback_title">Bluetooth-Ausweichmodus</string>
+    <string name="bt_fallback_desc_off">Bluetooth-Ausweichmodus ist aus; Synchronisierung erfordert WLAN oder Mesh.</string>
+    <string name="bt_fallback_desc_disabled">Bluetooth ist aus. BinderClip fordert Aktivierung an, wenn WLAN nicht erreichbar ist.</string>
+    <string name="bt_fallback_desc_on">Text und Links werden über Bluetooth synchronisiert, wenn WLAN und Mesh nicht erreichbar sind.</string>
+    <string name="bt_is_off_title">Bluetooth ist aus</string>
+    <string name="bt_is_off_desc">BinderClip fordert Aktivierung an, sobald der Ausweichmodus aktiv wird.</string>
+    <string name="turn_on">Einschalten</string>
+
+    <!-- Statuses & Overlays -->
+    <string name="url_sent_success">URL erfolgreich gesendet</string>
+    <string name="image_sent_success">Bild erfolgreich gesendet</string>
+    <string name="status_connected_bluetooth">Über Bluetooth verbunden</string>
+    <string name="status_connected_mesh">Über Mesh verbunden</string>
+    <string name="status_connected_lan">Über LAN verbunden</string>
+    <string name="status_connected">Verbunden</string>
+    <string name="status_connecting">Verbinden…</string>
+    <string name="status_reconnecting">Erneut verbinden…</string>
+    <string name="this_device">Dieses Gerät</string>
+    <string name="transport_bt_label">Übertragung: Bluetooth BLE</string>
+    <string name="ip_label">IP: %1$s</string>
+    <string name="ip_unavailable">Nicht verfügbar</string>
+
+    <!-- Dialogs -->
+    <string name="device_rename_title">Gerät umbenennen</string>
+    <string name="device_rename_prompt">Geben Sie einen neuen Namen für dieses Gerät ein:</string>
+    <string name="save">Speichern</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="close">Schließen</string>
+    <string name="rename">Umbenennen</string>
+    <string name="unpair_this_device">Dieses Gerät trennen</string>
+    <string name="unpair_device">Gerät trennen</string>
+    <string name="logs_title">Protokolle (%1$d)</string>
+    <string name="logs_search_placeholder">Protokolle durchsuchen…</string>
+    <string name="filter_all">Alle</string>
+    <string name="filter_info">Info</string>
+    <string name="filter_warning">Warnung</string>
+    <string name="filter_error">Fehler</string>
+    <string name="no_events_yet">Noch keine Ereignisse.</string>
+    <string name="no_matching_events">Keine passenden Ereignisse.</string>
+    <string name="clear">Löschen</string>
+    <string name="bt_guide_dialog_title">Bluetooth-Berechtigung erlauben</string>
+    <string name="bt_guide_dialog_text">BinderClip nutzt Bluetooth Low Energy zur Synchronisierung, wenn kein WLAN verfügbar ist.\n\nSo aktivieren Sie den Ausweichmodus:\n1. Tippen Sie unten auf „Einstellungen öffnen“.\n2. Tippen Sie auf „Berechtigungen“.\n3. Erlauben Sie „Geräte in der Nähe“ oder „Bluetooth“.</string>
+    <string name="open_settings">Einstellungen öffnen</string>
+
+    <!-- Share Sheet -->
+    <string name="share_open_link_title">Link auf Gerät öffnen</string>
+    <string name="share_to_device_title">Auf Gerät teilen</string>
+    <string name="share_all_devices">Alle verbundenen Geräte</string>
+    <string name="share_all_devices_url_sub">Öffnet im Browser auf allen Geräten</string>
+    <string name="share_all_devices_sub">Sendet an alle Geräte</string>
+    <string name="share_opens_browser_on">Öffnet Browser auf %1$s</string>
+    <string name="share_image_label">Bild (%1$s)</string>
+    <string name="share_text_content">Textinhalt</string>
+    <string name="share_error_unsupported">Dieser Inhalt konnte nicht gesendet werden</string>
+    <string name="share_sending_link">Link wird gesendet…</string>
+    <string name="share_sending">Wird gesendet…</string>
+
+    <!-- Toasts -->
+    <string name="toast_sent_to_mac">An Mac gesendet</string>
+    <string name="toast_sent_image_to_mac">Bild an Mac gesendet</string>
+    <string name="toast_nothing_to_send">Nichts zu senden</string>
+</resources>
