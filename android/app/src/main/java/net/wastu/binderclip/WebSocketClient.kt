@@ -362,10 +362,16 @@ class WebSocketClient(
 
     private fun handleBinaryMessage(webSocket: WebSocket, bytes: ByteString) {
         noteActivity()
-        val unpacked = SyncProtocol.unpackImage(bytes.toByteArray()) ?: return
+        Log.i(TAG, "handleBinaryMessage: received ${bytes.size} bytes")
+        val unpacked = SyncProtocol.unpackImage(bytes.toByteArray())
+        if (unpacked == null) {
+            Log.w(TAG, "handleBinaryMessage: unpackImage failed for ${bytes.size} bytes")
+            return
+        }
         val meta = unpacked.first
         val imageData = unpacked.second
         val imagePayload = ImagePayload(id = meta.id, mimeType = meta.mimeType, data = imageData)
+        Log.i(TAG, "handleBinaryMessage: unpacked ${imagePayload.mimeType} (${imageData.size} bytes)")
         onImage(imagePayload)
         onTransferStatus("Received image (${meta.mimeType})")
     }

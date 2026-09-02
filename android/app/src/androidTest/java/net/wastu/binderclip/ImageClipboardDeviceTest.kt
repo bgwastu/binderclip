@@ -16,13 +16,15 @@ class ImageClipboardDeviceTest {
         val original = context.resources.openRawResource(R.mipmap.ic_launcher_foreground).use { ImagePayload(mimeType = "image/png", data = it.readBytes()) }
         val clipboard = context.getSystemService(ClipboardManager::class.java)
 
-        ActivityScenario.launch(MainActivity::class.java).use {
-            ImageClipboard.write(context, clipboard, original)
-            val restored = ImageClipboard.read(context, clipboard)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                ImageClipboard.write(activity, clipboard, original)
+                val restored = ImageClipboard.read(activity, clipboard)
 
-            assertNotNull(restored)
-            assertEquals(original.sha256, restored?.sha256)
-            assertEquals("image/png", restored?.mimeType)
+                assertNotNull(restored)
+                assertEquals(original.sha256, restored?.sha256)
+                assertEquals("image/png", restored?.mimeType)
+            }
         }
     }
 }

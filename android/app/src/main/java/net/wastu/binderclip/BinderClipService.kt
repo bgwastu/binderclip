@@ -49,6 +49,13 @@ data class AppState(
     val members: List<RememberedPeer> = emptyList(),
     val rootAvailable: Boolean = false,
     val automaticClipboardEnabled: Boolean = false,
+    val shizukuInstalled: Boolean = false,
+    val shizukuAvailable: Boolean = false,
+    val shizukuAuthorized: Boolean = false,
+    val shizukuAutomationEnabled: Boolean = false,
+    val imeEnabled: Boolean = false,
+    val imeSelected: Boolean = false,
+    val autoApplyIncoming: Boolean = true,
     val syncToastHidden: Boolean = false,
     val btFallbackEnabled: Boolean = false,
     val bluetoothActive: Boolean = false,
@@ -72,6 +79,8 @@ class BinderClipService : Service() {
         const val ACTION_COPY_PENDING = "net.wastu.binderclip.COPY_PENDING"
         const val ACTION_UI_VISIBLE = "net.wastu.binderclip.UI_VISIBLE"
         const val ACTION_TOGGLE_ROOT_AUTOMATION = "net.wastu.binderclip.TOGGLE_ROOT_AUTOMATION"
+        const val ACTION_TOGGLE_SHIZUKU_AUTOMATION = "net.wastu.binderclip.TOGGLE_SHIZUKU_AUTOMATION"
+        const val ACTION_SET_AUTO_APPLY_INCOMING = "net.wastu.binderclip.SET_AUTO_APPLY_INCOMING"
         const val ACTION_SET_SYNC_TOASTS = "net.wastu.binderclip.SET_SYNC_TOASTS"
         const val ACTION_SET_BT_FALLBACK = "net.wastu.binderclip.SET_BT_FALLBACK"
         const val ACTION_REFRESH_CAPABILITIES = "net.wastu.binderclip.REFRESH_CAPABILITIES"
@@ -145,8 +154,12 @@ class BinderClipService : Service() {
 
     @Volatile
     private var automaticClipboardEnabled = false
-    private var rootPoll: ScheduledFuture<*>? = null
-    private var rootFingerprint: String? = null
+
+    @Volatile
+    private var shizukuAutomationEnabled = false
+
+    private var backgroundPoll: ScheduledFuture<*>? = null
+    private var backgroundFingerprint: String? = null
 
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -154,13 +167,13 @@ class BinderClipService : Service() {
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
                     client.setInteractive(true)
                     bluetoothLink?.setInteractive(true)
-                    if (automaticClipboardEnabled) startRootPolling()
+                    if (automaticClipboardEnabled || shizukuAutomationEnabled) startBackgroundPolling()
                     if (store.groupKey != null && !client.isConnected()) requestConnectResettingBackoff("screen_on")
                 }
                 Intent.ACTION_SCREEN_OFF -> {
                     client.setInteractive(false)
                     bluetoothLink?.setInteractive(false)
-                    stopRootPolling()
+                    stopBackgroundPolling()
                 }
             }
         }
@@ -282,6 +295,22 @@ class BinderClipService : Service() {
             executor.execute { sendAccessibilityClipboard(payload) }
         }
         AccessibilityClipboardBridge.onAvailabilityChanged = { executor.execute(::publishState) }
+        ImeBridge.onAvailabilityChanged = { executor.execute(::publishState) }
+        ShizukuClipboardBridge.onAvailabilityChanged = {
+            executor.execute {
+                val hasPerm = ShizukuClipboardBridge.hasPermission()
+                shizukuAutomationEnabled = hasPerm && store.isShizukuClipboardAutomationEnabled()
+                if (shizukuAutomationEnabled && hasPerm) {
+                    ShizukuClipboardBridge.enablePrivileges(this@BinderClipService)
+                }
+                if (automaticClipboardEnabled || shizukuAutomationEnabled) {
+                    startBackgroundPolling()
+                } else {
+                    stopBackgroundPolling()
+                }
+                publishState()
+            }
+        }
 
         registerNetworkCallback()
         updateNetworkFlag()
@@ -299,11 +328,15 @@ class BinderClipService : Service() {
             rootAvailable = RootClipboardBridge.isAvailable()
             automaticClipboardEnabled = rootAvailable && store.isRootClipboardAutomationEnabled() &&
                     RootClipboardBridge.enableBackgroundAccess(this)
+            shizukuAutomationEnabled = ShizukuClipboardBridge.hasPermission() && store.isShizukuClipboardAutomationEnabled()
+            if (shizukuAutomationEnabled) {
+                ShizukuClipboardBridge.enablePrivileges(this)
+            }
             if (store.groupKey != null) {
                 client.connect()
             }
             RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
-            if (automaticClipboardEnabled) startRootPolling()
+            if (automaticClipboardEnabled || shizukuAutomationEnabled) startBackgroundPolling()
             publishState()
         }
         publishState()
@@ -328,7 +361,9 @@ class BinderClipService : Service() {
             ACTION_SEND_SHARED -> {
                 val targetDeviceId = intent?.getStringExtra(EXTRA_TARGET_DEVICE_ID)
                 executor.execute {
-                    when (val shared = SharedPayloadCache.value.also { SharedPayloadCache.value = null }) {
+                    val shared = SharedPayloadCache.value.also { SharedPayloadCache.value = null }
+                    Log.i("BinderClip", "ACTION_SEND_SHARED: shared=$shared, isConnected=${client.isConnected()}")
+                    when (shared) {
                         is SharedPayload.Image -> sendSharedImage(shared.value)
                         is SharedPayload.Text -> {
                             val trimmed = shared.value.trim()
@@ -373,8 +408,8 @@ class BinderClipService : Service() {
                 rootAvailable = RootClipboardBridge.isAvailable()
                 automaticClipboardEnabled = enabled && rootAvailable && RootClipboardBridge.enableBackgroundAccess(this)
                 store.setRootClipboardAutomationEnabled(automaticClipboardEnabled)
-                if (automaticClipboardEnabled) startRootPolling() else {
-                    stopRootPolling()
+                if (automaticClipboardEnabled || shizukuAutomationEnabled) startBackgroundPolling() else {
+                    stopBackgroundPolling()
                     RootClipboardBridge.revokeBackgroundAccess(this)
                 }
                 RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
@@ -386,6 +421,31 @@ class BinderClipService : Service() {
                         else -> "Automatic sync off"
                     }
                 )
+            }
+
+            ACTION_TOGGLE_SHIZUKU_AUTOMATION -> executor.execute {
+                val enabled = intent?.getBooleanExtra("enabled", false) ?: false
+                val hasPerm = ShizukuClipboardBridge.hasPermission()
+                if (enabled && hasPerm) {
+                    ShizukuClipboardBridge.enablePrivileges(this)
+                    shizukuAutomationEnabled = true
+                    store.setShizukuClipboardAutomationEnabled(true)
+                    startBackgroundPolling()
+                    toast("Shizuku automation enabled")
+                } else if (!enabled) {
+                    shizukuAutomationEnabled = false
+                    store.setShizukuClipboardAutomationEnabled(false)
+                    if (!automaticClipboardEnabled) stopBackgroundPolling()
+                    toast("Shizuku automation disabled")
+                } else {
+                    toast("Authorize BinderClip in Shizuku first")
+                }
+                publishState()
+            }
+
+            ACTION_SET_AUTO_APPLY_INCOMING -> executor.execute {
+                store.setAutoApplyIncomingEnabled(intent?.getBooleanExtra("enabled", true) ?: true)
+                publishState()
             }
 
             ACTION_SET_SYNC_TOASTS -> executor.execute {
@@ -405,7 +465,18 @@ class BinderClipService : Service() {
                 if ((!rootAvailable || !RootClipboardBridge.hasBackgroundAccess(this)) && automaticClipboardEnabled) {
                     automaticClipboardEnabled = false
                     store.setRootClipboardAutomationEnabled(false)
-                    stopRootPolling()
+                }
+                val hasShizuku = ShizukuClipboardBridge.hasPermission()
+                if (!hasShizuku && shizukuAutomationEnabled) {
+                    shizukuAutomationEnabled = false
+                    store.setShizukuClipboardAutomationEnabled(false)
+                } else if (hasShizuku && store.isShizukuClipboardAutomationEnabled()) {
+                    shizukuAutomationEnabled = true
+                }
+                if (automaticClipboardEnabled || shizukuAutomationEnabled) {
+                    startBackgroundPolling()
+                } else {
+                    stopBackgroundPolling()
                 }
                 RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
                 publishState()
@@ -452,7 +523,7 @@ class BinderClipService : Service() {
     }
 
     override fun onDestroy() {
-        stopRootPolling()
+        stopBackgroundPolling()
         client.close()
         bluetoothLink?.stop()
         bluetoothEvaluator?.cancel(false)
@@ -495,9 +566,16 @@ class BinderClipService : Service() {
         if (hash == lastSeenHash) return
         lastSeenHash = hash
 
-        if (uiVisible || automaticClipboardEnabled) {
-            applyText(text)
-            syncToast("Received text")
+        val autoApply = store.isAutoApplyIncomingEnabled()
+        if (autoApply || uiVisible || automaticClipboardEnabled) {
+            val applied = runCatching { applyText(text); true }.getOrDefault(false)
+            if (applied) {
+                syncToast("Received text")
+                store.pendingText = null
+            } else {
+                store.pendingText = text
+                notifyPending("New clipboard text received", text)
+            }
         } else {
             store.pendingText = text
             notifyPending("New clipboard text received", text)
@@ -519,9 +597,16 @@ class BinderClipService : Service() {
         if (image.sha256 == lastSeenHash) return
         lastSeenHash = image.sha256
 
-        if (uiVisible || automaticClipboardEnabled) {
-            applyImage(image)
-            syncToast("Received image (${image.mimeType})")
+        val autoApply = store.isAutoApplyIncomingEnabled()
+        if (autoApply || uiVisible || automaticClipboardEnabled) {
+            val applied = runCatching { applyImage(image); true }.getOrDefault(false)
+            if (applied) {
+                syncToast("Received image (${image.mimeType})")
+                pendingImage = null
+            } else {
+                pendingImage = image
+                notifyPending("New image received", "Image (${image.mimeType})")
+            }
         } else {
             pendingImage = image
             notifyPending("New image received", "Image (${image.mimeType})")
@@ -530,7 +615,9 @@ class BinderClipService : Service() {
     }
 
     private fun sendCurrentClipboard(userInitiated: Boolean = false) {
-        when (val payload = ClipboardClassifier.read(this, clipboard)) {
+        val payload = ClipboardClassifier.read(this, clipboard)
+        Log.i("BinderClip", "sendCurrentClipboard: userInitiated=$userInitiated, payload=$payload, isConnected=${client.isConnected()}")
+        when (payload) {
             is LocalClipboardContent.Text -> {
                 val hash = SyncProtocol.sha256Hex(payload.value)
                 if (hash == lastSeenHash && !userInitiated) return
@@ -540,7 +627,7 @@ class BinderClipService : Service() {
                 if (userInitiated) syncToast("Sent text")
             }
             is LocalClipboardContent.Image -> {
-                if (payload.value.sha256 == lastSeenHash) return
+                if (payload.value.sha256 == lastSeenHash && !userInitiated) return
                 lastSeenHash = payload.value.sha256
                 dispatchImage(payload.value, userInitiated)
             }
@@ -582,23 +669,28 @@ class BinderClipService : Service() {
         ImageClipboard.write(this, clipboard, image)
     }
 
-    private fun startRootPolling() {
-        stopRootPolling()
-        rootPoll = reconnectExecutor.scheduleWithFixedDelay({
+    private fun startBackgroundPolling() {
+        stopBackgroundPolling()
+        backgroundPoll = reconnectExecutor.scheduleWithFixedDelay({
             executor.execute {
-                if (!automaticClipboardEnabled) return@execute
-                when (val clip = RootClipboardBridge.read(this, clipboard)) {
+                if (!automaticClipboardEnabled && !shizukuAutomationEnabled) return@execute
+                val clip = when {
+                    automaticClipboardEnabled && rootAvailable -> RootClipboardBridge.read(this, clipboard)
+                    shizukuAutomationEnabled && ShizukuClipboardBridge.hasPermission() -> ShizukuClipboardBridge.read(this)
+                    else -> null
+                }
+                when (clip) {
                     is RootClipboardBridge.Clip.Text -> {
                         val hash = SyncProtocol.sha256Hex(clip.value)
-                        if (hash != rootFingerprint && hash != lastSeenHash) {
-                            rootFingerprint = hash
+                        if (hash != backgroundFingerprint && hash != lastSeenHash) {
+                            backgroundFingerprint = hash
                             lastSeenHash = hash
                             client.sendText(clip.value, hash)
                         }
                     }
                     is RootClipboardBridge.Clip.Image -> {
-                        if (clip.value.sha256 != rootFingerprint && clip.value.sha256 != lastSeenHash) {
-                            rootFingerprint = clip.value.sha256
+                        if (clip.value.sha256 != backgroundFingerprint && clip.value.sha256 != lastSeenHash) {
+                            backgroundFingerprint = clip.value.sha256
                             lastSeenHash = clip.value.sha256
                             client.sendImage(clip.value)
                         }
@@ -609,9 +701,9 @@ class BinderClipService : Service() {
         }, 500, 500, TimeUnit.MILLISECONDS)
     }
 
-    private fun stopRootPolling() {
-        rootPoll?.cancel(false)
-        rootPoll = null
+    private fun stopBackgroundPolling() {
+        backgroundPoll?.cancel(false)
+        backgroundPoll = null
     }
 
     private fun updateStatus(status: String) {
@@ -681,6 +773,13 @@ class BinderClipService : Service() {
             members = members,
             rootAvailable = rootAvailable,
             automaticClipboardEnabled = automaticClipboardEnabled,
+            shizukuInstalled = ShizukuClipboardBridge.isInstalled(this),
+            shizukuAvailable = ShizukuClipboardBridge.isAvailable(),
+            shizukuAuthorized = ShizukuClipboardBridge.hasPermission(),
+            shizukuAutomationEnabled = shizukuAutomationEnabled,
+            imeEnabled = ImeBridge.isEnabled(this),
+            imeSelected = ImeBridge.isSelected(this),
+            autoApplyIncoming = store.isAutoApplyIncomingEnabled(),
             syncToastHidden = store.isSyncToastHidden(),
             btFallbackEnabled = store.isBtFallbackEnabled(),
             bluetoothActive = bluetoothLink?.isConnected() == true,
@@ -689,6 +788,7 @@ class BinderClipService : Service() {
             localDeviceId = store.deviceId,
             localDeviceName = DeviceNames.android(this),
         )
+        BinderClipTileService.requestUpdate(this)
     }
 
     private fun isWebUrl(text: String): Boolean {

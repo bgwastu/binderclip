@@ -177,6 +177,13 @@ class DeviceStore(context: Context) {
     fun isRootClipboardAutomationEnabled(): Boolean = prefs.getBoolean("root_clipboard_automation", false)
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
 
+    fun isShizukuClipboardAutomationEnabled(): Boolean = prefs.getBoolean("shizuku_clipboard_automation", false)
+    fun setShizukuClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("shizuku_clipboard_automation", enabled).apply() }
+
+    /** When true, automatically copy text and images received from Mac to this device's clipboard. */
+    fun isAutoApplyIncomingEnabled(): Boolean = prefs.getBoolean("auto_apply_incoming", true)
+    fun setAutoApplyIncomingEnabled(enabled: Boolean) { prefs.edit().putBoolean("auto_apply_incoming", enabled).apply() }
+
     /** Bluetooth Classic fallback for text/links; on by default, engages only off-Wi-Fi. */
     fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", true)
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }

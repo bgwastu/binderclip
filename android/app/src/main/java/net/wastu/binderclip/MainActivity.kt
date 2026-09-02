@@ -206,6 +206,15 @@ class MainActivity : AppCompatActivity() {
                         }
                     },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
+                    onRequestShizuku = { ShizukuClipboardBridge.requestPermission(this@MainActivity) },
+                    onToggleShizuku = { enabled ->
+                        startService(BinderClipService.ACTION_TOGGLE_SHIZUKU_AUTOMATION, enabled = enabled)
+                    },
+                    onOpenImeSettings = { ImeBridge.openImeSettings(this@MainActivity) },
+                    onOpenImePicker = { ImeBridge.openImePicker(this@MainActivity) },
+                    onToggleAutoApplyIncoming = { enabled ->
+                        startService(BinderClipService.ACTION_SET_AUTO_APPLY_INCOMING, enabled = enabled)
+                    },
                     onRemove = { id -> startService(BinderClipService.ACTION_REMOVE_MEMBER, memberId = id) },
                     onUpdateDeviceName = { memberId, name ->
                         startService(
@@ -417,6 +426,11 @@ private fun BinderClipScreen(
     onToggleBtFallback: (Boolean) -> Unit,
     onRequestBluetooth: () -> Unit,
     onDisableAccessibility: () -> Unit,
+    onRequestShizuku: () -> Unit,
+    onToggleShizuku: (Boolean) -> Unit,
+    onOpenImeSettings: () -> Unit,
+    onOpenImePicker: () -> Unit,
+    onToggleAutoApplyIncoming: (Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
     onRefresh: () -> Unit,
@@ -461,9 +475,9 @@ private fun BinderClipScreen(
                 onRequestNotifications
             )
         )
-        if (!state.rootAvailable && !state.accessibilityEnabled) add(
+        if (!state.rootAvailable && !state.shizukuAuthorized && !state.imeSelected && !state.accessibilityEnabled) add(
             PermissionNeed(
-                "Automatic Sync Clipboard",
+                "Background Keep-Alive",
                 "Enable Accessibility",
                 Icons.Outlined.AccessibilityNew,
                 onOpenAccessibility
@@ -609,29 +623,97 @@ private fun BinderClipScreen(
                     headlineContent = { Text(if (state.pendingImage) "Image ready to copy" else "Text ready to copy") },
                     trailingContent = { TextButton(onClick = onCopy) { Text("Copy") } })
             }
-            item { SectionTitle("Settings", topPadding = 16.dp) }
-            item {
-                if (state.rootAvailable) PreferenceToggle(
-                    title = "Automatic Sync Clipboard",
-                    summary = if (state.automaticClipboardEnabled) "Root syncs text and images in the background." else "Use approved root access for text and images.",
-                    checked = state.automaticClipboardEnabled,
-                    onChanged = onToggleRoot,
-                ) else {
-                    Column {
+            item { SectionTitle("Background Automation", topPadding = 16.dp) }
+            if (state.rootAvailable) {
+                item {
+                    PreferenceToggle(
+                        title = "Root Automation",
+                        summary = if (state.automaticClipboardEnabled) "Root syncs text and images automatically in the background." else "Use approved root access for text and images.",
+                        checked = state.automaticClipboardEnabled,
+                        onChanged = onToggleRoot,
+                    )
+                }
+            }
+            if (state.shizukuAvailable) {
+                if (state.shizukuAuthorized) {
+                    item {
                         PreferenceToggle(
-                            title = "Automatic Sync Clipboard",
-                            summary = if (state.accessibilityEnabled) "Accessibility syncs copied text in the background." else "Enable Accessibility to sync copied text.",
-                            checked = state.accessibilityEnabled,
-                            onChanged = { enabled -> if (enabled) onOpenAccessibility() else onDisableAccessibility() },
+                            title = "Shizuku Privileges",
+                            summary = if (state.shizukuAutomationEnabled) "Shizuku keeps background sync alive and allows AppOps privileges without root." else "Enable Shizuku privileges for background keep-alive without root.",
+                            checked = state.shizukuAutomationEnabled,
+                            onChanged = onToggleShizuku,
                         )
-                        Text(
-                            "Tip: You can also use the notification action or share sheet to send content instantly.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    }
+                } else {
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Shizuku Available") },
+                            supportingContent = { Text("Authorize BinderClip in Shizuku for background keep-alive and AppOps permissions without root.") },
+                            trailingContent = {
+                                Button(onClick = onRequestShizuku) { Text("Authorize") }
+                            }
                         )
                     }
                 }
+            } else if (state.shizukuInstalled) {
+                item {
+                    ListItem(
+                        headlineContent = { Text("Shizuku Not Running") },
+                        supportingContent = { Text("Start Shizuku via Wireless Debugging or computer for background keep-alive permissions.") }
+                    )
+                }
+            }
+            item {
+                if (state.imeSelected) {
+                    ListItem(
+                        headlineContent = { Text("Keyboard Helper Active") },
+                        supportingContent = { Text("BinderClip keyboard is active and syncing clipboard text in real-time.") },
+                        trailingContent = {
+                            TextButton(onClick = onOpenImePicker) { Text("Switch") }
+                        }
+                    )
+                } else if (state.imeEnabled) {
+                    ListItem(
+                        headlineContent = { Text("Keyboard Helper Enabled") },
+                        supportingContent = { Text("Select BinderClip keyboard for real-time clipboard sync without root.") },
+                        trailingContent = {
+                            Button(onClick = onOpenImePicker) { Text("Select") }
+                        }
+                    )
+                } else {
+                    ListItem(
+                        headlineContent = { Text("Keyboard Sync Helper") },
+                        supportingContent = { Text("Enable BinderClip in keyboard settings for real-time clipboard sync without root.") },
+                        trailingContent = {
+                            TextButton(onClick = onOpenImeSettings) { Text("Enable") }
+                        }
+                    )
+                }
+            }
+            item {
+                PreferenceToggle(
+                    title = "Accessibility Keep-Alive",
+                    summary = if (state.accessibilityEnabled) "Accessibility service is active and helps prevent OEM background kills." else "Enable Accessibility to help prevent OEM background kills.",
+                    checked = state.accessibilityEnabled,
+                    onChanged = { enabled -> if (enabled) onOpenAccessibility() else onDisableAccessibility() },
+                )
+            }
+            item {
+                Text(
+                    "Quick Settings: Add the 'Send to Mac' tile to your notification panel for instant 1-tap clipboard send from any app.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+            item { SectionTitle("Settings", topPadding = 16.dp) }
+            item {
+                PreferenceToggle(
+                    title = "Auto-apply incoming clipboard",
+                    summary = if (state.autoApplyIncoming) "Text and images received from Mac are copied to clipboard automatically." else "Show a notification to copy received text or images manually.",
+                    checked = state.autoApplyIncoming,
+                    onChanged = onToggleAutoApplyIncoming,
+                )
             }
             item {
                 PreferenceToggle(
