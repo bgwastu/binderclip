@@ -188,8 +188,8 @@ class DeviceStore(context: Context) {
     fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", true)
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
 
-    /** When true, suppress the transient toasts shown for automatic clipboard copy/receive/send. */
-    fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", false)
+    /** Suppress transient toasts shown for clipboard copy/receive/send by default. */
+    fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", true)
     fun setSyncToastHidden(hidden: Boolean) { prefs.edit().putBoolean("hide_sync_toasts", hidden).apply() }
 
     fun reset() { prefs.edit().clear().apply() }

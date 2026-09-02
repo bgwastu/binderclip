@@ -71,6 +71,7 @@ object ShizukuClipboardBridge {
         if (!hasPermission()) return false
         val pkg = context.packageName
         val cmds = listOf(
+            "pm grant $pkg android.permission.READ_CLIPBOARD_IN_BACKGROUND",
             "cmd appops set $pkg READ_CLIPBOARD allow",
             "cmd appops set $pkg RUN_IN_BACKGROUND allow",
             "cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow",

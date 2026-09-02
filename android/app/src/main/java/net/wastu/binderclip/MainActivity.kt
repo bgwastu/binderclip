@@ -174,12 +174,6 @@ class MainActivity : AppCompatActivity() {
                             enabled = enabled
                         )
                     },
-                    onToggleSyncToasts = { hidden ->
-                        startService(
-                            BinderClipService.ACTION_SET_SYNC_TOASTS,
-                            hidden = hidden
-                        )
-                    },
                     onToggleBtFallback = { enabled ->
                         startService(
                             BinderClipService.ACTION_SET_BT_FALLBACK,
@@ -207,11 +201,9 @@ class MainActivity : AppCompatActivity() {
                     },
                     onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
                     onRequestShizuku = { ShizukuClipboardBridge.requestPermission(this@MainActivity) },
-                    onToggleShizuku = { enabled ->
-                        startService(BinderClipService.ACTION_TOGGLE_SHIZUKU_AUTOMATION, enabled = enabled)
+                    onEnableShizuku = {
+                        startService(BinderClipService.ACTION_TOGGLE_SHIZUKU_AUTOMATION, enabled = true)
                     },
-                    onOpenImeSettings = { ImeBridge.openImeSettings(this@MainActivity) },
-                    onOpenImePicker = { ImeBridge.openImePicker(this@MainActivity) },
                     onToggleAutoApplyIncoming = { enabled ->
                         startService(BinderClipService.ACTION_SET_AUTO_APPLY_INCOMING, enabled = enabled)
                     },
@@ -422,14 +414,11 @@ private fun BinderClipScreen(
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
     onToggleRoot: (Boolean) -> Unit,
-    onToggleSyncToasts: (Boolean) -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
     onRequestBluetooth: () -> Unit,
     onDisableAccessibility: () -> Unit,
     onRequestShizuku: () -> Unit,
-    onToggleShizuku: (Boolean) -> Unit,
-    onOpenImeSettings: () -> Unit,
-    onOpenImePicker: () -> Unit,
+    onEnableShizuku: () -> Unit,
     onToggleAutoApplyIncoming: (Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
@@ -475,7 +464,7 @@ private fun BinderClipScreen(
                 onRequestNotifications
             )
         )
-        if (!state.rootAvailable && !state.shizukuAuthorized && !state.imeSelected && !state.accessibilityEnabled) add(
+        if (!state.rootAvailable && !state.backgroundAccessGranted && !state.accessibilityEnabled) add(
             PermissionNeed(
                 "Background Keep-Alive",
                 "Enable Accessibility",
@@ -623,69 +612,66 @@ private fun BinderClipScreen(
                     headlineContent = { Text(if (state.pendingImage) "Image ready to copy" else "Text ready to copy") },
                     trailingContent = { TextButton(onClick = onCopy) { Text("Copy") } })
             }
-            item { SectionTitle("Background Automation", topPadding = 16.dp) }
+            item { SectionTitle("Clipboard Automation", topPadding = 16.dp) }
             if (state.rootAvailable) {
                 item {
                     PreferenceToggle(
-                        title = "Root Automation",
-                        summary = if (state.automaticClipboardEnabled) "Root syncs text and images automatically in the background." else "Use approved root access for text and images.",
+                        title = "Root Clipboard Automation",
+                        summary = if (state.automaticClipboardEnabled) "Root access granted: text and images sync in real-time." else "Tap to grant root access for automatic background sync.",
                         checked = state.automaticClipboardEnabled,
                         onChanged = onToggleRoot,
                     )
                 }
-            }
-            if (state.shizukuAvailable) {
-                if (state.shizukuAuthorized) {
-                    item {
-                        PreferenceToggle(
-                            title = "Shizuku Privileges",
-                            summary = if (state.shizukuAutomationEnabled) "Shizuku keeps background sync alive and allows AppOps privileges without root." else "Enable Shizuku privileges for background keep-alive without root.",
-                            checked = state.shizukuAutomationEnabled,
-                            onChanged = onToggleShizuku,
-                        )
-                    }
-                } else {
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Shizuku Available") },
-                            supportingContent = { Text("Authorize BinderClip in Shizuku for background keep-alive and AppOps permissions without root.") },
-                            trailingContent = {
-                                Button(onClick = onRequestShizuku) { Text("Authorize") }
-                            }
-                        )
-                    }
-                }
-            } else if (state.shizukuInstalled) {
+            } else if (state.backgroundAccessGranted) {
                 item {
                     ListItem(
-                        headlineContent = { Text("Shizuku Not Running") },
-                        supportingContent = { Text("Start Shizuku via Wireless Debugging or computer for background keep-alive permissions.") }
+                        headlineContent = { Text("Background Sync Active") },
+                        supportingContent = { Text("Android background clipboard access is granted. Text and links sync automatically.") },
+                        leadingContent = {
+                            Icon(
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     )
                 }
-            }
-            item {
-                if (state.imeSelected) {
-                    ListItem(
-                        headlineContent = { Text("Keyboard Helper Active") },
-                        supportingContent = { Text("BinderClip keyboard is active and syncing clipboard text in real-time.") },
-                        trailingContent = {
-                            TextButton(onClick = onOpenImePicker) { Text("Switch") }
+            } else {
+                if (state.shizukuAvailable) {
+                    if (state.shizukuAuthorized) {
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Enable with Shizuku") },
+                                supportingContent = { Text("Tap to apply background clipboard permission automatically via Shizuku.") },
+                                trailingContent = {
+                                    Button(onClick = onEnableShizuku) { Text("Apply") }
+                                }
+                            )
                         }
-                    )
-                } else if (state.imeEnabled) {
-                    ListItem(
-                        headlineContent = { Text("Keyboard Helper Enabled") },
-                        supportingContent = { Text("Select BinderClip keyboard for real-time clipboard sync without root.") },
-                        trailingContent = {
-                            Button(onClick = onOpenImePicker) { Text("Select") }
+                    } else {
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Authorize Shizuku") },
+                                supportingContent = { Text("Authorize BinderClip in Shizuku for automated background sync without root.") },
+                                trailingContent = {
+                                    Button(onClick = onRequestShizuku) { Text("Authorize") }
+                                }
+                            )
                         }
-                    )
-                } else {
+                    }
+                } else if (state.shizukuInstalled) {
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Shizuku Installed") },
+                            supportingContent = { Text("Start Shizuku via Wireless Debugging or computer to enable background sync without root.") }
+                        )
+                    }
+                }
+                item {
                     ListItem(
-                        headlineContent = { Text("Keyboard Sync Helper") },
-                        supportingContent = { Text("Enable BinderClip in keyboard settings for real-time clipboard sync without root.") },
-                        trailingContent = {
-                            TextButton(onClick = onOpenImeSettings) { Text("Enable") }
+                        headlineContent = { Text("Non-Root / ADB Setup") },
+                        supportingContent = {
+                            Text("Run via computer or Wireless Debugging:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow")
                         }
                     )
                 }
@@ -693,7 +679,7 @@ private fun BinderClipScreen(
             item {
                 PreferenceToggle(
                     title = "Accessibility Keep-Alive",
-                    summary = if (state.accessibilityEnabled) "Accessibility service is active and helps prevent OEM background kills." else "Enable Accessibility to help prevent OEM background kills.",
+                    summary = if (state.accessibilityEnabled) "Accessibility service is active and keeps sync running after boot." else "Enable Accessibility service to prevent OEM background kills.",
                     checked = state.accessibilityEnabled,
                     onChanged = { enabled -> if (enabled) onOpenAccessibility() else onDisableAccessibility() },
                 )
@@ -713,14 +699,6 @@ private fun BinderClipScreen(
                     summary = if (state.autoApplyIncoming) "Text and images received from Mac are copied to clipboard automatically." else "Show a notification to copy received text or images manually.",
                     checked = state.autoApplyIncoming,
                     onChanged = onToggleAutoApplyIncoming,
-                )
-            }
-            item {
-                PreferenceToggle(
-                    title = "Hide Sync Toasts",
-                    summary = if (state.syncToastHidden) "Clipboard copy/receive toasts are hidden." else "Show a toast when clipboard text or images sync.",
-                    checked = state.syncToastHidden,
-                    onChanged = onToggleSyncToasts,
                 )
             }
             item {

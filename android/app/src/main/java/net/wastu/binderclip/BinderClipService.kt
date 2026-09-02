@@ -49,14 +49,12 @@ data class AppState(
     val members: List<RememberedPeer> = emptyList(),
     val rootAvailable: Boolean = false,
     val automaticClipboardEnabled: Boolean = false,
+    val backgroundAccessGranted: Boolean = false,
     val shizukuInstalled: Boolean = false,
     val shizukuAvailable: Boolean = false,
     val shizukuAuthorized: Boolean = false,
-    val shizukuAutomationEnabled: Boolean = false,
-    val imeEnabled: Boolean = false,
-    val imeSelected: Boolean = false,
     val autoApplyIncoming: Boolean = true,
-    val syncToastHidden: Boolean = false,
+    val syncToastHidden: Boolean = true,
     val btFallbackEnabled: Boolean = false,
     val bluetoothActive: Boolean = false,
     val bluetoothEnabled: Boolean = false,
@@ -289,24 +287,20 @@ class BinderClipService : Service() {
         })
 
         clipboard.addPrimaryClipChangedListener {
-            if (uiVisible) executor.execute(::sendCurrentClipboard)
+            val hasBgPerm = RootClipboardBridge.hasBackgroundAccess(this)
+            if (uiVisible || automaticClipboardEnabled || hasBgPerm) {
+                executor.execute { sendCurrentClipboard(userInitiated = false) }
+            }
         }
         AccessibilityClipboardBridge.onClipboard = { payload ->
             executor.execute { sendAccessibilityClipboard(payload) }
         }
         AccessibilityClipboardBridge.onAvailabilityChanged = { executor.execute(::publishState) }
-        ImeBridge.onAvailabilityChanged = { executor.execute(::publishState) }
         ShizukuClipboardBridge.onAvailabilityChanged = {
             executor.execute {
                 val hasPerm = ShizukuClipboardBridge.hasPermission()
-                shizukuAutomationEnabled = hasPerm && store.isShizukuClipboardAutomationEnabled()
-                if (shizukuAutomationEnabled && hasPerm) {
+                if (hasPerm) {
                     ShizukuClipboardBridge.enablePrivileges(this@BinderClipService)
-                }
-                if (automaticClipboardEnabled || shizukuAutomationEnabled) {
-                    startBackgroundPolling()
-                } else {
-                    stopBackgroundPolling()
                 }
                 publishState()
             }
@@ -326,17 +320,16 @@ class BinderClipService : Service() {
 
         executor.execute {
             rootAvailable = RootClipboardBridge.isAvailable()
-            automaticClipboardEnabled = rootAvailable && store.isRootClipboardAutomationEnabled() &&
-                    RootClipboardBridge.enableBackgroundAccess(this)
-            shizukuAutomationEnabled = ShizukuClipboardBridge.hasPermission() && store.isShizukuClipboardAutomationEnabled()
-            if (shizukuAutomationEnabled) {
+            val hasBgAccess = RootClipboardBridge.hasBackgroundAccess(this)
+            automaticClipboardEnabled = (rootAvailable && store.isRootClipboardAutomationEnabled() && RootClipboardBridge.enableBackgroundAccess(this)) || hasBgAccess
+            if (ShizukuClipboardBridge.hasPermission()) {
                 ShizukuClipboardBridge.enablePrivileges(this)
             }
             if (store.groupKey != null) {
                 client.connect()
             }
             RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
-            if (automaticClipboardEnabled || shizukuAutomationEnabled) startBackgroundPolling()
+            if (automaticClipboardEnabled) startBackgroundPolling()
             publishState()
         }
         publishState()
@@ -424,19 +417,17 @@ class BinderClipService : Service() {
             }
 
             ACTION_TOGGLE_SHIZUKU_AUTOMATION -> executor.execute {
-                val enabled = intent?.getBooleanExtra("enabled", false) ?: false
                 val hasPerm = ShizukuClipboardBridge.hasPermission()
-                if (enabled && hasPerm) {
-                    ShizukuClipboardBridge.enablePrivileges(this)
-                    shizukuAutomationEnabled = true
-                    store.setShizukuClipboardAutomationEnabled(true)
-                    startBackgroundPolling()
-                    toast("Shizuku automation enabled")
-                } else if (!enabled) {
-                    shizukuAutomationEnabled = false
-                    store.setShizukuClipboardAutomationEnabled(false)
-                    if (!automaticClipboardEnabled) stopBackgroundPolling()
-                    toast("Shizuku automation disabled")
+                if (hasPerm) {
+                    val ok = ShizukuClipboardBridge.enablePrivileges(this)
+                    val granted = RootClipboardBridge.hasBackgroundAccess(this)
+                    if (granted) {
+                        automaticClipboardEnabled = true
+                        startBackgroundPolling()
+                        toast("Background clipboard sync enabled via Shizuku")
+                    } else if (ok) {
+                        toast("Permissions granted via Shizuku")
+                    }
                 } else {
                     toast("Authorize BinderClip in Shizuku first")
                 }
@@ -462,18 +453,14 @@ class BinderClipService : Service() {
 
             ACTION_REFRESH_CAPABILITIES -> executor.execute {
                 rootAvailable = RootClipboardBridge.isAvailable()
-                if ((!rootAvailable || !RootClipboardBridge.hasBackgroundAccess(this)) && automaticClipboardEnabled) {
+                val hasBgAccess = RootClipboardBridge.hasBackgroundAccess(this)
+                if (hasBgAccess) {
+                    automaticClipboardEnabled = true
+                } else if (!rootAvailable && automaticClipboardEnabled) {
                     automaticClipboardEnabled = false
                     store.setRootClipboardAutomationEnabled(false)
                 }
-                val hasShizuku = ShizukuClipboardBridge.hasPermission()
-                if (!hasShizuku && shizukuAutomationEnabled) {
-                    shizukuAutomationEnabled = false
-                    store.setShizukuClipboardAutomationEnabled(false)
-                } else if (hasShizuku && store.isShizukuClipboardAutomationEnabled()) {
-                    shizukuAutomationEnabled = true
-                }
-                if (automaticClipboardEnabled || shizukuAutomationEnabled) {
+                if (automaticClipboardEnabled) {
                     startBackgroundPolling()
                 } else {
                     stopBackgroundPolling()
@@ -673,12 +660,8 @@ class BinderClipService : Service() {
         stopBackgroundPolling()
         backgroundPoll = reconnectExecutor.scheduleWithFixedDelay({
             executor.execute {
-                if (!automaticClipboardEnabled && !shizukuAutomationEnabled) return@execute
-                val clip = when {
-                    automaticClipboardEnabled && rootAvailable -> RootClipboardBridge.read(this, clipboard)
-                    shizukuAutomationEnabled && ShizukuClipboardBridge.hasPermission() -> ShizukuClipboardBridge.read(this)
-                    else -> null
-                }
+                if (!automaticClipboardEnabled) return@execute
+                val clip = RootClipboardBridge.read(this, clipboard)
                 when (clip) {
                     is RootClipboardBridge.Clip.Text -> {
                         val hash = SyncProtocol.sha256Hex(clip.value)
@@ -773,12 +756,10 @@ class BinderClipService : Service() {
             members = members,
             rootAvailable = rootAvailable,
             automaticClipboardEnabled = automaticClipboardEnabled,
+            backgroundAccessGranted = RootClipboardBridge.hasBackgroundAccess(this),
             shizukuInstalled = ShizukuClipboardBridge.isInstalled(this),
             shizukuAvailable = ShizukuClipboardBridge.isAvailable(),
             shizukuAuthorized = ShizukuClipboardBridge.hasPermission(),
-            shizukuAutomationEnabled = shizukuAutomationEnabled,
-            imeEnabled = ImeBridge.isEnabled(this),
-            imeSelected = ImeBridge.isSelected(this),
             autoApplyIncoming = store.isAutoApplyIncomingEnabled(),
             syncToastHidden = store.isSyncToastHidden(),
             btFallbackEnabled = store.isBtFallbackEnabled(),
