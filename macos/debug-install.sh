@@ -19,7 +19,7 @@ INSTALL_DIR="$HOME/Applications"
 INSTALL_PATH="$INSTALL_DIR/$APP_NAME"
 STAGING_PATH="$INSTALL_DIR/.BinderClip Debug.app.new"
 BACKUP_PATH="$INSTALL_DIR/.BinderClip Debug.app.previous"
-VERSION="$(git describe --tags --always 2>/dev/null | sed 's/^v//' || echo "0.0.0-debug")"
+VERSION="$(git describe --tags --always 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "0.0.0-debug")"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || date +%s)"
 
 usage() {

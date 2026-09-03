@@ -52,7 +52,7 @@ android {
         }.standardOutput.asText.get().trim().takeIf { it.isNotEmpty() } ?: fallback
     }.getOrDefault(fallback)
 
-    val gitTagVersion = gitProvider("describe", "--tags", "--abbrev=0", fallback = "1.0.0").removePrefix("v")
+    val gitTagVersion = gitProvider("describe", "--tags", "--abbrev=0", fallback = "1.0.0").replace(Regex("^(android-|macos-)?v?"), "")
     val gitCommitCount = gitProvider("rev-list", "--count", "HEAD", fallback = "1").toIntOrNull() ?: 1
     val gitHash = gitProvider("rev-parse", "--short", "HEAD", fallback = "unknown")
 

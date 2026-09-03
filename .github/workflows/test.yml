@@ -9,7 +9,47 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run-macos: ${{ steps.filter.outputs.run-macos }}
+      run-android: ${{ steps.filter.outputs.run-android }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            DIFF=$(git diff --name-only origin/${{ github.base_ref }} HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
+          else
+            DIFF=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
+          fi
+          echo "Changed files:"
+          echo "$DIFF"
+
+          RUN_MACOS=false
+          RUN_ANDROID=false
+
+          if [ "$DIFF" = "ALL" ] || echo "$DIFF" | grep -qE '^(macos/|AGENTS.md|\.github/)'; then
+            RUN_MACOS=true
+          fi
+
+          if [ "$DIFF" = "ALL" ] || echo "$DIFF" | grep -qE '^(android/|AGENTS.md|\.github/)'; then
+            RUN_ANDROID=true
+          fi
+
+          if [ "$RUN_MACOS" = "false" ] && [ "$RUN_ANDROID" = "false" ]; then
+            RUN_MACOS=true
+            RUN_ANDROID=true
+          fi
+
+          echo "run-macos=$RUN_MACOS" >> "$GITHUB_OUTPUT"
+          echo "run-android=$RUN_ANDROID" >> "$GITHUB_OUTPUT"
+
   macos:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.run-macos == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
@@ -18,6 +58,8 @@ jobs:
       - run: swift test --package-path macos/BinderClipMac
 
   android:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.run-android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

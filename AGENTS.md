@@ -4,6 +4,7 @@
 - Update this file when an essential project convention, build command, or architecture detail changes. Keep it concise.
 - macOS debug install: `./macos/debug-install.sh`.
 - macOS production package: `./macos/package-release.sh`; it bundles Sparkle 2 and creates an ad-hoc signed universal ZIP, DMG, and signed appcast.xml using BWS secrets.
+- Releases support independent platform tags (`macos-v*`, `android-v*`) and unified `v*` tags with automated diff-based change detection so folder-specific changes only build and release the affected platform while preserving the Sparkle appcast feed.
 - macOS tests: `swift test --package-path macos/BinderClipMac`. Roster tests use a temp directory so they never rotate the live pairing key in Application Support.
 - Android tests: `./android/gradlew -p android test`.
 - Android local Gradle verification uses Java 21 (`JAVA_HOME=$HOME/.local/share/mise/installs/java/21.0.2`); Java 26 fails Android SDK JDK-image transforms.
