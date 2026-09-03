@@ -86,39 +86,21 @@ private struct LiquidGlassModifier: ViewModifier {
     let colorScheme: ColorScheme
 
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.40),
-                            lineWidth: 0.5
-                        )
-                )
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.38 : 0.12),
-                    radius: 14,
-                    x: 0,
-                    y: 4
-                )
-        } else {
-            content
-                .background(.regularMaterial, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            Color.white.opacity(colorScheme == .dark ? 0.16 : 0.50),
-                            lineWidth: 0.5
-                        )
-                )
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.12),
-                    radius: 14,
-                    x: 0,
-                    y: 4
-                )
-        }
+        content
+            .background(.regularMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        Color.white.opacity(colorScheme == .dark ? 0.16 : 0.48),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(
+                color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.12),
+                radius: 14,
+                x: 0,
+                y: 4
+            )
     }
 }
 
