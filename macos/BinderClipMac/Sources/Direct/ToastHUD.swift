@@ -1,8 +1,143 @@
 import AppKit
+import SwiftUI
+
+private enum ToastCategory {
+    case clipboard
+    case browser
+    case media
+    case alert
+    case standard
+
+    static func from(icon: String) -> ToastCategory {
+        if icon.contains("clipboard") {
+            return .clipboard
+        } else if icon.contains("safari") || icon.contains("link") || icon.contains("globe") {
+            return .browser
+        } else if icon.contains("photo") || icon.contains("image") {
+            return .media
+        } else if icon.contains("exclamationmark") {
+            return .alert
+        } else {
+            return .standard
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .clipboard:
+            return Color(nsColor: .systemGreen)
+        case .browser:
+            return Color(nsColor: .systemBlue)
+        case .media:
+            return Color(nsColor: .systemPurple)
+        case .alert:
+            return Color(nsColor: .systemOrange)
+        case .standard:
+            return Color(nsColor: .controlAccentColor)
+        }
+    }
+}
+
+private struct ToastCapsuleView: View {
+    let message: String
+    let icon: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var category: ToastCategory {
+        ToastCategory.from(icon: icon)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Category-tinted circular icon platter
+            ZStack {
+                Circle()
+                    .fill(category.color.opacity(colorScheme == .dark ? 0.22 : 0.14))
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                category.color.opacity(colorScheme == .dark ? 0.38 : 0.24),
+                                lineWidth: 0.5
+                            )
+                    )
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(category.color)
+            }
+            .frame(width: 28, height: 28)
+
+            // Message text strictly adhering to dynamic dark/light mode
+            Text(message)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 380, alignment: .leading)
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 16)
+        .padding(.vertical, 7)
+        .liquidGlassBacking(colorScheme: colorScheme)
+        .padding(14) // Breathing room for the ambient drop shadow
+    }
+}
+
+private struct LiquidGlassModifier: ViewModifier {
+    let colorScheme: ColorScheme
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.40),
+                            lineWidth: 0.5
+                        )
+                )
+                .shadow(
+                    color: Color.black.opacity(colorScheme == .dark ? 0.38 : 0.12),
+                    radius: 14,
+                    x: 0,
+                    y: 4
+                )
+        } else {
+            content
+                .background(.regularMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            Color.white.opacity(colorScheme == .dark ? 0.16 : 0.50),
+                            lineWidth: 0.5
+                        )
+                )
+                .shadow(
+                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.12),
+                    radius: 14,
+                    x: 0,
+                    y: 4
+                )
+        }
+    }
+}
+
+private extension View {
+    func liquidGlassBacking(colorScheme: ColorScheme) -> some View {
+        modifier(LiquidGlassModifier(colorScheme: colorScheme))
+    }
+}
+
+private final class ToastPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+    override var isKeyWindow: Bool { true }
+}
 
 final class ToastHUD {
     static let shared = ToastHUD()
-    private var window: NSPanel?
+    private var window: ToastPanel?
+    private var hostingView: NSHostingView<ToastCapsuleView>?
     private var dismissWorkItem: DispatchWorkItem?
 
     func show(message: String, icon: String = "checkmark.circle.fill") {
@@ -10,9 +145,15 @@ final class ToastHUD {
             guard let self else { return }
             self.dismissWorkItem?.cancel()
 
-            if self.window == nil {
-                let panel = NSPanel(
-                    contentRect: NSRect(x: 0, y: 0, width: 280, height: 64),
+            let toastView = ToastCapsuleView(message: message, icon: icon)
+
+            let panel: ToastPanel
+            if let existingWindow = self.window, let hosting = self.hostingView {
+                panel = existingWindow
+                hosting.rootView = toastView
+            } else {
+                panel = ToastPanel(
+                    contentRect: NSRect(x: 0, y: 0, width: 280, height: 70),
                     styleMask: [.borderless, .nonactivatingPanel],
                     backing: .buffered,
                     defer: false
@@ -20,85 +161,81 @@ final class ToastHUD {
                 panel.level = .floating
                 panel.isOpaque = false
                 panel.backgroundColor = .clear
-                panel.hasShadow = true
+                panel.hasShadow = false
                 panel.ignoresMouseEvents = true
                 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+                panel.isReleasedWhenClosed = false
+
+                let hosting = NSHostingView(rootView: toastView)
+                panel.contentView = hosting
+                self.hostingView = hosting
                 self.window = panel
             }
 
-            guard let window = self.window else { return }
+            guard let hosting = self.hostingView else { return }
+            hosting.layoutSubtreeIfNeeded()
 
-            let visualEffect = NSVisualEffectView()
-            visualEffect.material = .hudWindow
-            visualEffect.blendingMode = .behindWindow
-            visualEffect.state = .active
-            visualEffect.wantsLayer = true
-            visualEffect.layer?.cornerRadius = 18
-            visualEffect.layer?.masksToBounds = true
+            let fittingSize = hosting.fittingSize
+            let targetWidth = max(160, min(fittingSize.width, 500))
+            let targetHeight = max(58, fittingSize.height)
 
-            let image = NSImageView()
-            image.image = NSImage(systemSymbolName: icon, accessibilityDescription: message)
-            image.contentTintColor = NSColor(calibratedRed: 0.2, green: 0.8, blue: 0.5, alpha: 1.0)
-            image.translatesAutoresizingMaskIntoConstraints = false
-            image.widthAnchor.constraint(equalToConstant: 24).isActive = true
-            image.heightAnchor.constraint(equalToConstant: 24).isActive = true
+            guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+            let screenRect = screen.visibleFrame
+            let targetX = screenRect.midX - (targetWidth / 2)
+            let targetY = screenRect.maxY - targetHeight - 16
 
-            let label = NSTextField(labelWithString: message)
-            label.font = .systemFont(ofSize: 14, weight: .semibold)
-            label.textColor = .white
-            label.alignment = .left
-            label.lineBreakMode = .byTruncatingTail
-            label.translatesAutoresizingMaskIntoConstraints = false
+            let isAlreadyVisible = panel.isVisible && panel.alphaValue > 0.05
 
-            let stack = NSStackView(views: [image, label])
-            stack.orientation = .horizontal
-            stack.alignment = .centerY
-            stack.spacing = 12
-            stack.edgeInsets = NSEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
-            stack.translatesAutoresizingMaskIntoConstraints = false
+            if isAlreadyVisible {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.22
+                    context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
+                    panel.animator().setFrame(
+                        NSRect(x: targetX, y: targetY, width: targetWidth, height: targetHeight),
+                        display: true
+                    )
+                    panel.animator().alphaValue = 1.0
+                }
+            } else {
+                panel.setFrame(
+                    NSRect(x: targetX, y: targetY + 10, width: targetWidth, height: targetHeight),
+                    display: false
+                )
+                panel.alphaValue = 0.0
+                panel.orderFront(nil)
 
-            visualEffect.addSubview(stack)
-            NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-                stack.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-                stack.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-                stack.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
-            ])
-
-            window.contentView = visualEffect
-            window.layoutIfNeeded()
-
-            let contentSize = stack.fittingSize
-            let finalWidth = max(220, min(contentSize.width + 40, 480))
-            let finalHeight = max(52, contentSize.height + 20)
-
-            if let screen = NSScreen.main {
-                let screenRect = screen.visibleFrame
-                let originX = screenRect.midX - (finalWidth / 2)
-                let originY = screenRect.minY + 90
-                window.setFrame(NSRect(x: originX, y: originY, width: finalWidth, height: finalHeight), display: true)
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.28
+                    context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
+                    panel.animator().setFrame(
+                        NSRect(x: targetX, y: targetY, width: targetWidth, height: targetHeight),
+                        display: true
+                    )
+                    panel.animator().alphaValue = 1.0
+                }
             }
 
-            window.alphaValue = 0
-            window.orderFront(nil)
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                window.animator().alphaValue = 1.0
-            }
-
-            let workItem = DispatchWorkItem { [weak self, weak window] in
-                guard let window else { return }
+            var workItem: DispatchWorkItem?
+            workItem = DispatchWorkItem { [weak self, weak panel] in
+                guard let panel else { return }
+                let currentFrame = panel.frame
                 NSAnimationContext.runAnimationGroup({ context in
-                    context.duration = 0.35
-                    window.animator().alphaValue = 0.0
+                    context.duration = 0.22
+                    context.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0.0, 1.0, 1.0)
+                    panel.animator().setFrame(
+                        NSRect(x: currentFrame.minX, y: currentFrame.minY + 8, width: currentFrame.width, height: currentFrame.height),
+                        display: true
+                    )
+                    panel.animator().alphaValue = 0.0
                 }, completionHandler: {
-                    window.orderOut(nil)
-                    self?.dismissWorkItem = nil
+                    guard let self, let currentItem = self.dismissWorkItem, currentItem === workItem else { return }
+                    panel.orderOut(nil)
+                    self.dismissWorkItem = nil
                 })
             }
+            guard let workItem else { return }
             self.dismissWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: workItem)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: workItem)
         }
     }
 }
