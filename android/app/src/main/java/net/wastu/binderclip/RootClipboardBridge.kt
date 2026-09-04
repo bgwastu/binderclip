@@ -60,6 +60,12 @@ object RootClipboardBridge {
         runRootCommand("cmd appops set --user $userId $pkg READ_CLIPBOARD allow")
         runRootCommand("cmd appops set $pkg READ_CLIPBOARD allow")
 
+        // Suppress system "pasted from your clipboard" toast
+        runRootCommand("settings put --user $userId secure clipboard_show_access_notifications 0", logFailure = false)
+        runRootCommand("settings put secure clipboard_show_access_notifications 0", logFailure = false)
+        runRootCommand("cmd settings put --user $userId secure clipboard_show_access_notifications 0", logFailure = false)
+        runRootCommand("cmd settings put secure clipboard_show_access_notifications 0", logFailure = false)
+
         val granted = hasBackgroundAccess(context)
         if (!granted) {
             DiagnosticLog.warning("Background clipboard permission not granted after root commands (userId=$userId)")

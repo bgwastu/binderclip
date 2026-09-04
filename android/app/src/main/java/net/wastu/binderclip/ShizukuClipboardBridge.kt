@@ -83,6 +83,9 @@ object ShizukuClipboardBridge {
         for (cmd in cmds) {
             if (!exec(cmd)) allOk = false
         }
+        // Suppress system "pasted from your clipboard" toast
+        exec("settings put secure clipboard_show_access_notifications 0")
+        exec("cmd settings put secure clipboard_show_access_notifications 0")
         return allOk
     }
 
