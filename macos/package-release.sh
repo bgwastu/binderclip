@@ -88,6 +88,28 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <array>
     <string>_binderclip._tcp</string>
   </array>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>Send to Phones via BinderClip</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>sendToPhones</string>
+      <key>NSPortName</key>
+      <string>BinderClip</string>
+      <key>NSSendTypes</key>
+      <array>
+        <string>NSStringPboardType</string>
+        <string>NSFilenamesPboardType</string>
+        <string>public.url</string>
+        <string>public.plain-text</string>
+        <string>public.image</string>
+      </array>
+    </dict>
+  </array>
   <key>SUFeedURL</key><string>$FEED_URL</string>
   <key>SUPublicEDKey</key><string>$SPARKLE_PUBLIC_ED_KEY</string>
   <key>SUEnableAutomaticChecks</key><true/>

@@ -1,10 +1,7 @@
 <resources>
     <string name="app_name">BinderClip</string>
-    <string name="clipboard_accessibility_description">Envoie le texte copié du presse-papiers à vos appareils BinderClip lorsque la synchronisation automatique est activée.</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_send_to_mac">Envoyer au Mac</string>
-    <string name="tile_send_clipboard">Envoyer le presse-papiers</string>
     <string name="tile_not_paired">Non associé</string>
 
     <!-- Notification Channels & Notifications -->
@@ -30,14 +27,11 @@
     <string name="scan_qr_to_pair">Scanner le QR pour associer</string>
     <string name="send_current_clipboard">Envoyer le presse-papiers actuel</string>
     <string name="section_permissions">Autorisations</string>
-    <string name="section_clipboard_automation">Automatisation du presse-papiers</string>
     <string name="section_settings">Paramètres</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notifications</string>
     <string name="perm_notifications_desc">Afficher le presse-papiers reçu</string>
-    <string name="perm_bg_keepalive">Maintien en arrière-plan</string>
-    <string name="perm_bg_keepalive_desc">Activer l’accessibilité</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Requis pour la synchronisation de secours hors ligne</string>
     <string name="perm_battery_opt">Optimisation de la batterie</string>
@@ -52,31 +46,7 @@
     <string name="image_ready_to_copy">Image prête à être copiée</string>
     <string name="text_ready_to_copy">Texte prêt à être copié</string>
 
-    <!-- Automation Cards -->
-    <string name="root_automation_title">Automatisation avec Root</string>
-    <string name="root_automation_granted">Accès root accordé : textes et images synchronisés en temps réel.</string>
-    <string name="root_automation_prompt">Appuyez pour accorder l’accès root pour la synchronisation automatique.</string>
-    <string name="bg_sync_active_title">Synchronisation en arrière-plan active</string>
-    <string name="bg_sync_active_desc">Accès au presse-papiers accordé. Les textes et liens se synchronisent automatiquement.</string>
-    <string name="shizuku_enable_title">Activer avec Shizuku</string>
-    <string name="shizuku_enable_desc">Appuyez pour appliquer automatiquement l’autorisation via Shizuku.</string>
-    <string name="shizuku_apply_btn">Appliquer</string>
-    <string name="shizuku_auth_title">Autoriser Shizuku</string>
-    <string name="shizuku_auth_desc">Autorisez BinderClip dans Shizuku pour synchroniser sans root.</string>
-    <string name="shizuku_auth_btn">Autoriser</string>
-    <string name="shizuku_installed_title">Shizuku installé</string>
-    <string name="shizuku_installed_desc">Démarrez Shizuku via le débogage sans fil ou un ordinateur pour synchroniser sans root.</string>
-    <string name="adb_setup_title">Configuration Sans Root / ADB</string>
-    <string name="adb_setup_desc">Exécutez via ordinateur ou débogage sans fil :\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
-    <string name="accessibility_keepalive_title">Accessibilité Keep-Alive</string>
-    <string name="accessibility_keepalive_desc_on">Le service d’accessibilité est actif et maintient la synchronisation après le démarrage.</string>
-    <string name="accessibility_keepalive_desc_off">Activez l’accessibilité pour éviter les arrêts en arrière-plan par le système.</string>
-    <string name="quick_settings_hint">Réglages rapides : ajoutez la tuile « Envoyer au Mac » au volet des notifications pour envoyer en 1 geste.</string>
-
     <!-- Settings -->
-    <string name="auto_apply_incoming_title">Appliquer automatiquement le presse-papiers reçu</string>
-    <string name="auto_apply_incoming_desc_on">Les textes et images reçus du Mac sont copiés dans le presse-papiers automatiquement.</string>
-    <string name="auto_apply_incoming_desc_off">Afficher une notification pour copier manuellement les textes ou images reçus.</string>
     <string name="bt_fallback_title">Relais Bluetooth</string>
     <string name="bt_fallback_desc_off">Le relais Bluetooth est désactivé ; la synchronisation nécessite le Wi-Fi ou Mesh.</string>
     <string name="bt_fallback_desc_disabled">Bluetooth désactivé. BinderClip demandera son activation hors Wi-Fi.</string>

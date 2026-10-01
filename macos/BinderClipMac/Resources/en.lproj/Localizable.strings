@@ -46,6 +46,9 @@
 "received_image_format" = "Received image (%@)";
 "sent_url_to_peer" = "Sent URL to %@";
 "sent_clipboard_to_peer" = "Sent clipboard to %@";
+"sent_clipboard_to_phones" = "Sent to connected phones";
+"sent_url_to_phones" = "Sent link to connected phones";
+"sent_image_to_phones" = "Sent image to connected phones";
 "sent_image_to_peer" = "Sent image to %@";
 "nothing_to_send" = "Nothing to send";
 

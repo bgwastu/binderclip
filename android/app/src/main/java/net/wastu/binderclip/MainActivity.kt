@@ -1,13 +1,11 @@
 package net.wastu.binderclip
 
 import android.Manifest
-import android.app.ActivityManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,10 +34,9 @@ import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Android
-import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.Notifications
@@ -85,6 +82,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -126,7 +124,10 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissionRevision += 1 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); DiagnosticLog.initialize(this); startService(BinderClipService.ACTION_START)
+        super.onCreate(savedInstanceState); DiagnosticLog.initialize(this)
+        if (RootClipboardBridge.isAvailable()) {
+            startService(BinderClipService.ACTION_START)
+        }
         intent?.dataString?.takeIf { it.startsWith("binderclip://") }?.let(::pair)
         setContent {
             BinderClipTheme {
@@ -141,15 +142,12 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 var showBluetoothGuide by remember { mutableStateOf(false) }
-                val power = getSystemService(PowerManager::class.java)
-                val batteryOptimizationIgnored =
-                    Build.VERSION.SDK_INT < Build.VERSION_CODES.M || power.isIgnoringBatteryOptimizations(packageName)
-                val backgroundRestricted =
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && getSystemService(ActivityManager::class.java).isBackgroundRestricted
-                val autoStartHelpNeeded = !getSharedPreferences("binderclip", MODE_PRIVATE).getBoolean(
-                    "auto_start_help_seen",
-                    false
-                ) || backgroundRestricted
+                if (!state.rootAvailable) {
+                    RootRequiredScreen(
+                        onGrantRoot = ::refreshRootAccess,
+                    )
+                    return@BinderClipTheme
+                }
                 DisposableEffect(Unit) {
                     startService(BinderClipService.ACTION_UI_VISIBLE, visible = true)
                     onDispose { startService(BinderClipService.ACTION_UI_VISIBLE, visible = false) }
@@ -158,23 +156,12 @@ class MainActivity : AppCompatActivity() {
                     state = state,
                     notificationsGranted = notificationsGranted,
                     bluetoothGranted = bluetoothGranted,
-                    batteryOptimizationIgnored = batteryOptimizationIgnored,
-                    autoStartHelpNeeded = autoStartHelpNeeded,
                     permissionRevision = revision,
                     onScan = ::scan,
                     onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                    onOpenAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                    onRequestBatteryOptimization = ::requestBatteryOptimization,
-                    onOpenAppDetails = ::openAutoStartSettings,
                     onSend = { startService(BinderClipService.ACTION_SEND_CURRENT) },
                     onCopy = { startService(BinderClipService.ACTION_COPY_PENDING) },
                     onReconnect = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
-                    onToggleRoot = { enabled ->
-                        startService(
-                            BinderClipService.ACTION_TOGGLE_ROOT_AUTOMATION,
-                            enabled = enabled
-                        )
-                    },
                     onToggleBtFallback = { enabled ->
                         startService(
                             BinderClipService.ACTION_SET_BT_FALLBACK,
@@ -199,14 +186,6 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                         }
-                    },
-                    onDisableAccessibility = { startService(BinderClipService.ACTION_DISABLE_ACCESSIBILITY) },
-                    onRequestShizuku = { ShizukuClipboardBridge.requestPermission(this@MainActivity) },
-                    onEnableShizuku = {
-                        startService(BinderClipService.ACTION_TOGGLE_SHIZUKU_AUTOMATION, enabled = true)
-                    },
-                    onToggleAutoApplyIncoming = { enabled ->
-                        startService(BinderClipService.ACTION_SET_AUTO_APPLY_INCOMING, enabled = enabled)
                     },
                     onRemove = { id -> startService(BinderClipService.ACTION_REMOVE_MEMBER, memberId = id) },
                     onUpdateDeviceName = { memberId, name ->
@@ -250,7 +229,17 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         permissionRevision += 1
-        startService(BinderClipService.ACTION_REFRESH_CAPABILITIES)
+        refreshRootAccess()
+    }
+
+    private fun refreshRootAccess() {
+        val granted = RootClipboardBridge.isAvailable()
+        AppRuntime.state.value = AppRuntime.state.value.copy(rootAvailable = granted)
+        if (granted) {
+            RootClipboardBridge.ensureAutostart(this)
+            startService(BinderClipService.ACTION_START)
+            startService(BinderClipService.ACTION_REFRESH_CAPABILITIES)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -274,6 +263,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pair(uri: String) {
+        if (!RootClipboardBridge.isAvailable()) {
+            Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
+            return
+        }
         android.util.Log.i("BinderClip", "Pairing with URI: $uri")
         val macName = SyncProtocol.parsePairingUrl(uri)?.deviceName?.takeIf { it.isNotBlank() }
         Toast.makeText(this, macName ?: "Connecting…", Toast.LENGTH_SHORT).show()
@@ -282,95 +275,6 @@ class MainActivity : AppCompatActivity() {
             Intent(this, BinderClipService::class.java).setAction(BinderClipService.ACTION_PAIR)
                 .putExtra(BinderClipService.EXTRA_URI, uri)
         )
-    }
-
-    private fun requestBatteryOptimization() {
-        val request = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-        runCatching { startActivity(request) }.getOrElse {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
-        }
-    }
-
-    private fun openAutoStartSettings() {
-        getSharedPreferences("binderclip", MODE_PRIVATE).edit().putBoolean("auto_start_help_seen", true).apply()
-        val manufacturer = android.os.Build.MANUFACTURER.lowercase()
-        val candidates = mutableListOf<Intent>()
-        when {
-            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") -> {
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.miui.securitycenter",
-                            "com.miui.permcenter.autostart.AutoStartManagementActivity"
-                        )
-                    )
-                )
-            }
-
-            manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme") -> {
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.coloros.safecenter",
-                            "com.coloros.safecenter.permission.startup.StartupAppListActivity"
-                        )
-                    )
-                )
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.oppo.safe",
-                            "com.oppo.safe.permission.startup.StartupAppListActivity"
-                        )
-                    )
-                )
-            }
-
-            manufacturer.contains("vivo") -> {
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.vivo.permissionmanager",
-                            "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"
-                        )
-                    )
-                )
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.iqoo.secure",
-                            "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager"
-                        )
-                    )
-                )
-            }
-
-            manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.huawei.systemmanager",
-                            "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
-                        )
-                    )
-                )
-                candidates.add(
-                    Intent().setComponent(
-                        android.content.ComponentName(
-                            "com.huawei.systemmanager",
-                            "com.huawei.systemmanager.optimize.process.ProtectActivity"
-                        )
-                    )
-                )
-            }
-        }
-        for (intent in candidates) {
-            if (packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) != null) {
-                runCatching { startActivity(intent); return }
-            }
-        }
-        // Fallback: standard App Info page
-        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
     }
 
     private fun startService(
@@ -397,24 +301,14 @@ private fun BinderClipScreen(
     state: AppState,
     notificationsGranted: Boolean,
     bluetoothGranted: Boolean,
-    batteryOptimizationIgnored: Boolean,
-    autoStartHelpNeeded: Boolean,
     permissionRevision: Int,
     onScan: () -> Unit,
     onRequestNotifications: () -> Unit,
-    onOpenAccessibility: () -> Unit,
-    onRequestBatteryOptimization: () -> Unit,
-    onOpenAppDetails: () -> Unit,
     onSend: () -> Unit,
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
-    onToggleRoot: (Boolean) -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
     onRequestBluetooth: () -> Unit,
-    onDisableAccessibility: () -> Unit,
-    onRequestShizuku: () -> Unit,
-    onEnableShizuku: () -> Unit,
-    onToggleAutoApplyIncoming: (Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
     onRefresh: () -> Unit,
@@ -424,30 +318,7 @@ private fun BinderClipScreen(
     var selectedDeviceId by remember { mutableStateOf<String?>(null) }
     var showLogs by remember { mutableStateOf(false) }
     val diagnosticEvents by DiagnosticLog.events.collectAsState()
-    val devices = buildList {
-        // Exclude synthetic alternate-host entries (used only as reconnect
-        // candidates) so they don't appear as duplicate devices in the list.
-        state.peer?.let(::add)
-        addAll(state.members.filter { !it.deviceId.contains('@') })
-        if (state.peer != null && none { it.deviceId == state.localDeviceId }) add(
-            RememberedPeer(
-                state.localDeviceName.ifBlank { DeviceNames.android(context) },
-                localIpAddress(context),
-                39_421,
-                state.localDeviceId,
-                "Android",
-                true
-            )
-        )
-    }.distinctBy { it.deviceId }
-        .map { device ->
-            if (device.deviceId == state.localDeviceId) device.copy(
-                name = state.localDeviceName.ifBlank { DeviceNames.android(context) },
-                host = localIpAddress(context),
-                platform = "Android"
-            ) else device
-        }
-        .sortedWith(compareByDescending<RememberedPeer> { it.deviceId == state.localDeviceId }.thenBy { it.name.lowercase() })
+    val devices = listOfNotNull(state.peer)
     // Read so the composition updates immediately after Android's permission result.
     permissionRevision.hashCode()
     val missingPermissions = buildList {
@@ -459,15 +330,7 @@ private fun BinderClipScreen(
                 onRequestNotifications
             )
         )
-        if (!state.rootAvailable && !state.backgroundAccessGranted && !state.accessibilityEnabled) add(
-            PermissionNeed(
-                context.getString(R.string.perm_bg_keepalive),
-                context.getString(R.string.perm_bg_keepalive_desc),
-                Icons.Outlined.AccessibilityNew,
-                onOpenAccessibility
-            )
-        )
-        if (state.btFallbackEnabled && !bluetoothGranted) add(
+        if (!bluetoothGranted) add(
             PermissionNeed(
                 context.getString(R.string.perm_bluetooth),
                 context.getString(R.string.perm_bluetooth_desc),
@@ -475,23 +338,10 @@ private fun BinderClipScreen(
                 onRequestBluetooth
             )
         )
-        if (!batteryOptimizationIgnored) add(
-            PermissionNeed(
-                context.getString(R.string.perm_battery_opt),
-                context.getString(R.string.perm_battery_opt_desc),
-                Icons.Outlined.BatteryChargingFull,
-                onRequestBatteryOptimization
-            )
-        )
-        if (autoStartHelpNeeded) add(
-            PermissionNeed(
-                context.getString(R.string.perm_autostart),
-                context.getString(R.string.perm_autostart_desc),
-                Icons.Outlined.Settings,
-                onOpenAppDetails,
-                context.getString(R.string.open)
-            )
-        )
+    }
+
+    LaunchedEffect(bluetoothGranted, state.btFallbackEnabled) {
+        if (state.btFallbackEnabled && !bluetoothGranted) onToggleBtFallback(false)
     }
     var sentOverlayMessage by remember { mutableStateOf<String?>(null) }
     var sentOverlayIsSuccess by remember { mutableStateOf(true) }
@@ -560,7 +410,7 @@ private fun BinderClipScreen(
                     val device = devices[index]
                     DeviceRow(
                         device,
-                        isCurrentDevice = device.deviceId == state.localDeviceId,
+                        isCurrentDevice = false,
                         phase = state.connectionPhase,
                         transportType = state.transportType,
                         onClick = { selectedDeviceId = device.deviceId })
@@ -586,7 +436,7 @@ private fun BinderClipScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSend()
                     },
-                    enabled = devices.any { it.connected && it.deviceId != state.localDeviceId },
+                    enabled = devices.any { it.connected },
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
                     Icon(
@@ -607,104 +457,18 @@ private fun BinderClipScreen(
                     headlineContent = { Text(if (state.pendingImage) stringResource(R.string.image_ready_to_copy) else stringResource(R.string.text_ready_to_copy)) },
                     trailingContent = { TextButton(onClick = onCopy) { Text(stringResource(R.string.copy)) } })
             }
-            item { SectionTitle(stringResource(R.string.section_clipboard_automation), topPadding = 16.dp) }
-            if (state.rootAvailable) {
-                item {
-                    PreferenceToggle(
-                        title = stringResource(R.string.root_automation_title),
-                        summary = if (state.automaticClipboardEnabled) stringResource(R.string.root_automation_granted) else stringResource(R.string.root_automation_prompt),
-                        checked = state.automaticClipboardEnabled,
-                        onChanged = onToggleRoot,
-                    )
-                }
-            } else if (state.backgroundAccessGranted) {
-                item {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.bg_sync_active_title)) },
-                        supportingContent = { Text(stringResource(R.string.bg_sync_active_desc)) },
-                        leadingContent = {
-                            Icon(
-                                Icons.Outlined.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    )
-                }
-            } else {
-                if (state.shizukuAvailable) {
-                    if (state.shizukuAuthorized) {
-                        item {
-                            ListItem(
-                                headlineContent = { Text(stringResource(R.string.shizuku_enable_title)) },
-                                supportingContent = { Text(stringResource(R.string.shizuku_enable_desc)) },
-                                trailingContent = {
-                                    Button(onClick = onEnableShizuku) { Text(stringResource(R.string.shizuku_apply_btn)) }
-                                }
-                            )
-                        }
-                    } else {
-                        item {
-                            ListItem(
-                                headlineContent = { Text(stringResource(R.string.shizuku_auth_title)) },
-                                supportingContent = { Text(stringResource(R.string.shizuku_auth_desc)) },
-                                trailingContent = {
-                                    Button(onClick = onRequestShizuku) { Text(stringResource(R.string.shizuku_auth_btn)) }
-                                }
-                            )
-                        }
-                    }
-                } else if (state.shizukuInstalled) {
-                    item {
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.shizuku_installed_title)) },
-                            supportingContent = { Text(stringResource(R.string.shizuku_installed_desc)) }
-                        )
-                    }
-                }
-                item {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.adb_setup_title)) },
-                        supportingContent = {
-                            Text(stringResource(R.string.adb_setup_desc))
-                        }
-                    )
-                }
-            }
-            item {
-                PreferenceToggle(
-                    title = stringResource(R.string.accessibility_keepalive_title),
-                    summary = if (state.accessibilityEnabled) stringResource(R.string.accessibility_keepalive_desc_on) else stringResource(R.string.accessibility_keepalive_desc_off),
-                    checked = state.accessibilityEnabled,
-                    onChanged = { enabled -> if (enabled) onOpenAccessibility() else onDisableAccessibility() },
-                )
-            }
-            item {
-                Text(
-                    stringResource(R.string.quick_settings_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
             item { SectionTitle(stringResource(R.string.section_settings), topPadding = 16.dp) }
-            item {
-                PreferenceToggle(
-                    title = stringResource(R.string.auto_apply_incoming_title),
-                    summary = if (state.autoApplyIncoming) stringResource(R.string.auto_apply_incoming_desc_on) else stringResource(R.string.auto_apply_incoming_desc_off),
-                    checked = state.autoApplyIncoming,
-                    onChanged = onToggleAutoApplyIncoming,
-                )
-            }
             item {
                 PreferenceToggle(
                     title = stringResource(R.string.bt_fallback_title),
                     summary = when {
+                        !bluetoothGranted -> stringResource(R.string.bt_fallback_desc_needs_permission)
                         !state.btFallbackEnabled -> stringResource(R.string.bt_fallback_desc_off)
                         !state.bluetoothEnabled -> stringResource(R.string.bt_fallback_desc_disabled)
                         else -> stringResource(R.string.bt_fallback_desc_on)
                     },
                     checked = state.btFallbackEnabled,
+                    enabled = bluetoothGranted,
                     onChanged = onToggleBtFallback,
                 )
             }
@@ -767,7 +531,6 @@ private fun BinderClipScreen(
     var deviceToRename by remember { mutableStateOf<RememberedPeer?>(null) }
     var renameInput by remember { mutableStateOf("") }
     selectedDevice?.let { target ->
-        val isCurrentDevice = target.deviceId == state.localDeviceId
         AlertDialog(
             onDismissRequest = { selectedDeviceId = null },
             title = { Text(target.name) },
@@ -800,7 +563,7 @@ private fun BinderClipScreen(
                     }) { Text(stringResource(R.string.rename)) }
                     TextButton(onClick = {
                         onRemove(target.deviceId); selectedDeviceId = null
-                    }) { Text(if (isCurrentDevice) stringResource(R.string.unpair_this_device) else stringResource(R.string.unpair_device)) }
+                    }) { Text(stringResource(R.string.unpair_device)) }
                 }
             },
             dismissButton = { TextButton(onClick = { selectedDeviceId = null }) { Text(stringResource(R.string.close)) } },
@@ -839,15 +602,46 @@ private fun BinderClipScreen(
     if (showLogs) {
         var logQuery by remember { mutableStateOf("") }
         var selectedFilter by remember { mutableStateOf<DiagnosticLevel?>(null) }
+        var confirmClearLogs by remember { mutableStateOf(false) }
         val filteredEvents = remember(diagnosticEvents, logQuery, selectedFilter) {
             diagnosticEvents.filter { event ->
                 (selectedFilter == null || event.level == selectedFilter) &&
                         (logQuery.isBlank() || event.message.contains(logQuery, ignoreCase = true))
             }
         }
+        if (confirmClearLogs) {
+            AlertDialog(
+                onDismissRequest = { confirmClearLogs = false },
+                title = { Text(stringResource(R.string.clear_logs_confirm_title)) },
+                text = { Text(stringResource(R.string.clear_logs_confirm_message)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        DiagnosticLog.clear()
+                        confirmClearLogs = false
+                    }) { Text(stringResource(R.string.clear)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmClearLogs = false }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
+        }
         AlertDialog(
             onDismissRequest = { showLogs = false },
-            title = { Text(stringResource(R.string.logs_title, filteredEvents.size)) },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(stringResource(R.string.logs_title, filteredEvents.size))
+                    IconButton(onClick = { confirmClearLogs = true }) {
+                        Icon(
+                            Icons.Outlined.DeleteOutline,
+                            contentDescription = stringResource(R.string.clear),
+                        )
+                    }
+                }
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     androidx.compose.material3.OutlinedTextField(
@@ -933,8 +727,55 @@ private fun BinderClipScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showLogs = false }) { Text(stringResource(R.string.close)) } },
-            dismissButton = { TextButton(onClick = { DiagnosticLog.clear() }) { Text(stringResource(R.string.clear)) } },
         )
+    }
+}
+
+@Composable
+private fun RootRequiredScreen(onGrantRoot: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Scaffold { insets ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(insets)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_binder_clip),
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                stringResource(R.string.root_required_title),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.root_required_desc),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(32.dp))
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onGrantRoot()
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text(stringResource(R.string.root_required_grant))
+            }
+        }
     }
 }
 
@@ -1052,10 +893,17 @@ private fun StatusDot(connected: Boolean, size: androidx.compose.ui.unit.Dp) = B
 )
 
 @Composable
-private fun PreferenceToggle(title: String, summary: String, checked: Boolean, onChanged: (Boolean) -> Unit) = ListItem(
+private fun PreferenceToggle(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onChanged: (Boolean) -> Unit,
+) = ListItem(
     headlineContent = { Text(title) },
     supportingContent = { Text(summary) },
-    trailingContent = { Switch(checked = checked, onCheckedChange = onChanged) })
+    trailingContent = { Switch(checked = checked, onCheckedChange = onChanged, enabled = enabled) },
+)
 
 /** The current device's IP as assigned by the OS to the active network, which
  *  is correct regardless of VLAN, mesh VPN, mobile data, or any subnet. Falls

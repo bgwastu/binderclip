@@ -1,11 +1,21 @@
 # BinderClip
 
-Clipboard sharing between Android and Mac.
+The most reliable clipboard sync app for Android and Mac. (Requires Root)
 
-BinderClip syncs text and images over a persistent WebSocket on your LAN or mesh VPN (for example Tailscale). The Mac always hosts; Android always connects.
+BinderClip syncs clipboard (text or images) over your LAN or mesh VPN (like Tailscale). It also uses Bluetooth BLE for last resort.
+
+AI disclosure: Human validated.
 
 ## Features
 
-- Pair by scanning a QR from the Mac menu bar (shared 256-bit PSK as the access gate)
-- Text and still images — PNG, JPEG, WebP, HEIC up to 30 MiB
-- Android share integration and optional automatic clipboard sync (with root access, or with accessibility permission for non-root)
+- Automatically clipboard syncs text and images, up to 30 MiB
+- Share current browser tab URL between Android and Mac
+- Auto update when new version is available. For android, use [Obtainium](https://obtainium.imranr.dev/).
+
+## Install
+Download the latest release from the [Releases](https://github.com/bgwastu/BinderClip/releases) page.
+> Note: Since the app is not notarized yet, you need to see [disable gatekeeper](https://www.google.com/search?q=How+to+open+an+unverified+app+blocked+by+macOS+Gatekeeper) on macOS.
+
+
+## Acknowledgments
+Thanks to [ClipRelay](https://github.com/geekflyer/cliprelay) for the initial implementation and inspiration.

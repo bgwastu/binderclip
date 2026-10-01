@@ -17,10 +17,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Granted only by the optional, user-approved KernelSU path. -->
     <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND" />
-    <!-- Optional Shizuku integration for non-root background clipboard automation. -->
-    <uses-permission android:name="moe.shizuku.privileged.api.permission.API_V23" />
 
     <queries>
         <!-- CleanCopy shares through this private FileProvider. -->
@@ -44,13 +41,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/image_paths" />
         </provider>
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:multiprocess="false"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
         <activity android:name=".ShareReceiverActivity" android:exported="true" android:theme="@style/Theme.BinderClip">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -59,14 +49,6 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".SendClipboardActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:launchMode="singleInstance" />
 
         <activity
             android:name=".MainActivity"
@@ -104,30 +86,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-
-        <service
-            android:name=".ClipboardAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true"
-            android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/clipboard_accessibility_service" />
-        </service>
-
-        <service
-            android:name=".BinderClipTileService"
-            android:label="@string/tile_send_to_mac"
-            android:icon="@drawable/ic_binder_clip"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
 
     </application>
 

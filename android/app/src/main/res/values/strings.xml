@@ -1,11 +1,9 @@
 <resources>
     <string name="app_name">BinderClip</string>
-    <string name="clipboard_accessibility_description">Sends copied clipboard text to your BinderClip devices when automatic sync is enabled.</string>
-
-    <!-- Quick Settings Tile -->
-    <string name="tile_send_to_mac">Send to Mac</string>
-    <string name="tile_send_clipboard">Send Clipboard</string>
     <string name="tile_not_paired">Not paired</string>
+    <string name="root_required_title">Root access required</string>
+    <string name="root_required_desc">BinderClip needs KernelSU or Magisk root to sync the clipboard in the background. Grant root when prompted, then tap below.</string>
+    <string name="root_required_grant">Check root access</string>
 
     <!-- Notification Channels & Notifications -->
     <string name="channel_clipboard_sync">Clipboard Sync</string>
@@ -30,14 +28,11 @@
     <string name="scan_qr_to_pair">Scan QR to Pair</string>
     <string name="send_current_clipboard">Send current clipboard</string>
     <string name="section_permissions">Permissions</string>
-    <string name="section_clipboard_automation">Clipboard Automation</string>
     <string name="section_settings">Settings</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notifications</string>
     <string name="perm_notifications_desc">Show received clipboard</string>
-    <string name="perm_bg_keepalive">Background Keep-Alive</string>
-    <string name="perm_bg_keepalive_desc">Enable Accessibility</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Needed for offline fallback sync</string>
     <string name="perm_battery_opt">Battery Optimization</string>
@@ -52,35 +47,12 @@
     <string name="image_ready_to_copy">Image ready to copy</string>
     <string name="text_ready_to_copy">Text ready to copy</string>
 
-    <!-- Automation Cards -->
-    <string name="root_automation_title">Root Clipboard Automation</string>
-    <string name="root_automation_granted">Root access granted: text and images sync in real-time.</string>
-    <string name="root_automation_prompt">Tap to grant root access for automatic background sync.</string>
-    <string name="bg_sync_active_title">Background Sync Active</string>
-    <string name="bg_sync_active_desc">Android background clipboard access is granted. Text and links sync automatically.</string>
-    <string name="shizuku_enable_title">Enable with Shizuku</string>
-    <string name="shizuku_enable_desc">Tap to apply background clipboard permission automatically via Shizuku.</string>
-    <string name="shizuku_apply_btn">Apply</string>
-    <string name="shizuku_auth_title">Authorize Shizuku</string>
-    <string name="shizuku_auth_desc">Authorize BinderClip in Shizuku for automated background sync without root.</string>
-    <string name="shizuku_auth_btn">Authorize</string>
-    <string name="shizuku_installed_title">Shizuku Installed</string>
-    <string name="shizuku_installed_desc">Start Shizuku via Wireless Debugging or computer to enable background sync without root.</string>
-    <string name="adb_setup_title">Non-Root / ADB Setup</string>
-    <string name="adb_setup_desc">Run via computer or Wireless Debugging:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
-    <string name="accessibility_keepalive_title">Accessibility Keep-Alive</string>
-    <string name="accessibility_keepalive_desc_on">Accessibility service is active and keeps sync running after boot.</string>
-    <string name="accessibility_keepalive_desc_off">Enable Accessibility service to prevent OEM background kills.</string>
-    <string name="quick_settings_hint">Quick Settings: Add the \'Send to Mac\' tile to your notification panel for instant 1-tap clipboard send from any app.</string>
-
     <!-- Settings -->
-    <string name="auto_apply_incoming_title">Auto-apply incoming clipboard</string>
-    <string name="auto_apply_incoming_desc_on">Text and images received from Mac are copied to clipboard automatically.</string>
-    <string name="auto_apply_incoming_desc_off">Show a notification to copy received text or images manually.</string>
     <string name="bt_fallback_title">Bluetooth fallback</string>
     <string name="bt_fallback_desc_off">Bluetooth fallback is off; sync requires Wi-Fi or mesh.</string>
     <string name="bt_fallback_desc_disabled">Bluetooth is off. BinderClip will try to enable it when Wi-Fi is unreachable.</string>
     <string name="bt_fallback_desc_on">Text and links sync over Bluetooth when Wi-Fi and mesh are unreachable.</string>
+    <string name="bt_fallback_desc_needs_permission">Grant Nearby devices permission above to enable Bluetooth fallback.</string>
     <string name="bt_is_off_title">Bluetooth is off</string>
     <string name="bt_is_off_desc">BinderClip will request it when the fallback engages.</string>
     <string name="turn_on">Turn On</string>
@@ -110,6 +82,8 @@
     <string name="unpair_device">Unpair Device</string>
     <string name="logs_title">Logs (%1$d)</string>
     <string name="logs_search_placeholder">Search logs…</string>
+    <string name="clear_logs_confirm_title">Clear all logs?</string>
+    <string name="clear_logs_confirm_message">This removes every log entry. This cannot be undone.</string>
     <string name="filter_all">All</string>
     <string name="filter_info">Info</string>
     <string name="filter_warning">Warning</string>

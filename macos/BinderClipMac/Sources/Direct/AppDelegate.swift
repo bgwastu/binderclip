@@ -101,6 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         transport.start()
         clipboard.start()
         peers = transport.peersSnapshot()
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
         renderMenu()
         updateStatusIcon()
 
@@ -688,5 +690,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             ?? "https://github.com/bgwastu/BinderClip/releases/latest/download/appcast.xml"
         let timestamp = Int(Date().timeIntervalSince1970)
         return "\(base)?t=\(timestamp)"
+    }
+
+    @objc func sendToPhones(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>?) {
+        switch ClipboardClassifier.read(from: pboard) {
+        case .text(let text):
+            if let url = ServicesShare.webURL(from: text) {
+                transport.sendOpenURL(url)
+                ToastHUD.shared.show(message: L10n.tr("sent_url_to_phones"), icon: "safari.fill")
+            } else {
+                transport.sendClipboard(text)
+                ToastHUD.shared.show(message: L10n.tr("sent_clipboard_to_phones"), icon: "doc.on.clipboard.fill")
+            }
+        case .image(let image):
+            transport.sendImage(image)
+            ToastHUD.shared.show(message: L10n.tr("sent_image_to_phones"), icon: "photo.fill")
+        case .unsupported:
+            break
+        }
     }
 }

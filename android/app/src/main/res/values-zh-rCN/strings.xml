@@ -1,10 +1,7 @@
 <resources>
     <string name="app_name">BinderClip</string>
-    <string name="clipboard_accessibility_description">开启自动同步后，将剪贴板复制的文本发送至您的 BinderClip 设备。</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_send_to_mac">发送至 Mac</string>
-    <string name="tile_send_clipboard">发送剪贴板</string>
     <string name="tile_not_paired">未配对</string>
 
     <!-- Notification Channels & Notifications -->
@@ -30,14 +27,11 @@
     <string name="scan_qr_to_pair">扫码配对</string>
     <string name="send_current_clipboard">发送当前剪贴板</string>
     <string name="section_permissions">系统权限</string>
-    <string name="section_clipboard_automation">剪贴板自动化</string>
     <string name="section_settings">设置</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">通知权限</string>
     <string name="perm_notifications_desc">显示接收到的剪贴板内容</string>
-    <string name="perm_bg_keepalive">后台常驻保活</string>
-    <string name="perm_bg_keepalive_desc">开启无障碍服务</string>
     <string name="perm_bluetooth">蓝牙权限</string>
     <string name="perm_bluetooth_desc">用于离线备用同步通道</string>
     <string name="perm_battery_opt">电池优化白名单</string>
@@ -52,31 +46,7 @@
     <string name="image_ready_to_copy">图片已就绪</string>
     <string name="text_ready_to_copy">文本已就绪</string>
 
-    <!-- Automation Cards -->
-    <string name="root_automation_title">Root 权限自动化</string>
-    <string name="root_automation_granted">已授予 Root 权限：文本与图片实时自动同步。</string>
-    <string name="root_automation_prompt">点击授予 Root 权限以实现自动后台同步。</string>
-    <string name="bg_sync_active_title">后台同步已激活</string>
-    <string name="bg_sync_active_desc">已获得 Android 后台剪贴板权限，文本和链接将自动同步。</string>
-    <string name="shizuku_enable_title">使用 Shizuku 激活</string>
-    <string name="shizuku_enable_desc">点击通过 Shizuku 自动应用后台剪贴板权限。</string>
-    <string name="shizuku_apply_btn">应用</string>
-    <string name="shizuku_auth_title">授权 Shizuku</string>
-    <string name="shizuku_auth_desc">在 Shizuku 中授权 BinderClip，无需 Root 即可自动化后台同步。</string>
-    <string name="shizuku_auth_btn">授权</string>
-    <string name="shizuku_installed_title">Shizuku 已安装</string>
-    <string name="shizuku_installed_desc">请通过无线调试或电脑启动 Shizuku 以开启无 Root 后台同步。</string>
-    <string name="adb_setup_title">免 Root / ADB 命令配置</string>
-    <string name="adb_setup_desc">通过电脑或无线调试运行：\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
-    <string name="accessibility_keepalive_title">无障碍服务保活</string>
-    <string name="accessibility_keepalive_desc_on">无障碍服务已激活，开机后自动拉起同步。</string>
-    <string name="accessibility_keepalive_desc_off">启用无障碍服务以防止被系统杀后台。</string>
-    <string name="quick_settings_hint">快捷设置：将“发送至 Mac”磁贴添加至下拉快捷控制中心，任何应用一键发送剪贴板。</string>
-
     <!-- Settings -->
-    <string name="auto_apply_incoming_title">自动写入接收的剪贴板</string>
-    <string name="auto_apply_incoming_desc_on">从 Mac 接收的文本和图片将自动复制到手机剪贴板。</string>
-    <string name="auto_apply_incoming_desc_off">接收到内容时弹出通知，需手动点击复制。</string>
     <string name="bt_fallback_title">蓝牙备用同步通道</string>
     <string name="bt_fallback_desc_off">蓝牙备用已关闭；同步需要 Wi-Fi 或 Mesh 网络。</string>
     <string name="bt_fallback_desc_disabled">蓝牙已关闭。当 Wi-Fi 断开时 BinderClip 会请求开启蓝牙。</string>

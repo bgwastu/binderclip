@@ -125,16 +125,22 @@ object RootClipboardBridge {
         text?.let(Clip::Text)
     }.getOrNull()
 
-    fun syncKeepAlive(context: Context, paired: Boolean) {
+    /** Doze whitelist, background appops, notifications grant, and adb boot script — no manual OEM autostart UI. */
+    fun ensureAutostart(context: Context) {
         if (!isAvailable()) return
         val packageName = ServiceAutostart.requireSafePackageName(context.packageName)
+        applyKeepAlivePrivileges(packageName)
+        when {
+            !runRootCommand("test -d /data/adb", logFailure = false) -> {}
+            installBootScript(packageName) -> DiagnosticLog.info("Installed root boot keep-alive")
+            else -> DiagnosticLog.warning("Could not install root boot keep-alive")
+        }
+    }
+
+    fun syncKeepAlive(context: Context, paired: Boolean) {
+        if (!isAvailable()) return
         if (paired) {
-            applyKeepAlivePrivileges(packageName)
-            when {
-                !runRootCommand("test -d /data/adb", logFailure = false) -> {}
-                installBootScript(packageName) -> DiagnosticLog.info("Installed root boot keep-alive")
-                else -> DiagnosticLog.warning("Could not install root boot keep-alive")
-            }
+            ensureAutostart(context)
         } else if (removeBootScript()) {
             DiagnosticLog.info("Removed root boot keep-alive")
         }

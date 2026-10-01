@@ -1,10 +1,7 @@
 <resources>
     <string name="app_name">BinderClip</string>
-    <string name="clipboard_accessibility_description">Отправляет скопированный текст на ваши устройства BinderClip при включённой автосинхронизации.</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_send_to_mac">Отправить на Mac</string>
-    <string name="tile_send_clipboard">Отправить буфер обмена</string>
     <string name="tile_not_paired">Не сопряжено</string>
 
     <!-- Notification Channels & Notifications -->
@@ -30,14 +27,11 @@
     <string name="scan_qr_to_pair">Сканировать QR для сопряжения</string>
     <string name="send_current_clipboard">Отправить текущий буфер обмена</string>
     <string name="section_permissions">Разрешения</string>
-    <string name="section_clipboard_automation">Автоматизация буфера обмена</string>
     <string name="section_settings">Настройки</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Уведомления</string>
     <string name="perm_notifications_desc">Показывать полученный буфер обмена</string>
-    <string name="perm_bg_keepalive">Работа в фоне</string>
-    <string name="perm_bg_keepalive_desc">Включить Спец. возможности</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Требуется для офлайн-синхронизации</string>
     <string name="perm_battery_opt">Оптимизация батареи</string>
@@ -52,31 +46,7 @@
     <string name="image_ready_to_copy">Изображение готово к копированию</string>
     <string name="text_ready_to_copy">Текст готов к копированию</string>
 
-    <!-- Automation Cards -->
-    <string name="root_automation_title">Автоматизация через Root</string>
-    <string name="root_automation_granted">Root-доступ предоставлен: текст и изображения синхронизируются в реальном времени.</string>
-    <string name="root_automation_prompt">Нажмите для предоставления Root-доступа для фоновой автосинхронизации.</string>
-    <string name="bg_sync_active_title">Фоновая синхронизация активна</string>
-    <string name="bg_sync_active_desc">Фоновый доступ к буферу обмена Android предоставлен. Текст и ссылки синхронизируются автоматически.</string>
-    <string name="shizuku_enable_title">Включить через Shizuku</string>
-    <string name="shizuku_enable_desc">Нажмите для применения прав к буферу обмена через Shizuku.</string>
-    <string name="shizuku_apply_btn">Применить</string>
-    <string name="shizuku_auth_title">Авторизовать Shizuku</string>
-    <string name="shizuku_auth_desc">Авторизуйте BinderClip в Shizuku для автосинхронизации без Root.</string>
-    <string name="shizuku_auth_btn">Авторизовать</string>
-    <string name="shizuku_installed_title">Shizuku установлен</string>
-    <string name="shizuku_installed_desc">Запустите Shizuku через беспроводную отладку или ПК для синхронизации без Root.</string>
-    <string name="adb_setup_title">Настройка без Root / через ADB</string>
-    <string name="adb_setup_desc">Выполните через ПК или беспроводную отладку:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
-    <string name="accessibility_keepalive_title">Спец. возможности (Keep-Alive)</string>
-    <string name="accessibility_keepalive_desc_on">Служба активна и возобновляет синхронизацию после перезагрузки.</string>
-    <string name="accessibility_keepalive_desc_off">Включите спец. возможности, чтобы система не закрывала приложение в фоне.</string>
-    <string name="quick_settings_hint">Быстрые настройки: добавьте плитку «Отправить на Mac» в панель уведомлений для отправки в 1 касание.</string>
-
     <!-- Settings -->
-    <string name="auto_apply_incoming_title">Автоматически вставлять входящее</string>
-    <string name="auto_apply_incoming_desc_on">Текст и изображения с Mac автоматически копируются в буфер обмена.</string>
-    <string name="auto_apply_incoming_desc_off">Показывать уведомление для ручного копирования полученных данных.</string>
     <string name="bt_fallback_title">Резервный Bluetooth</string>
     <string name="bt_fallback_desc_off">Резервный Bluetooth выключен; требуется Wi-Fi или mesh.</string>
     <string name="bt_fallback_desc_disabled">Bluetooth выключен. BinderClip запросит включение при отсутствии Wi-Fi.</string>

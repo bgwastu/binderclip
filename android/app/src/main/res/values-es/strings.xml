@@ -1,10 +1,7 @@
 <resources>
     <string name="app_name">BinderClip</string>
-    <string name="clipboard_accessibility_description">Envía el texto copiado del portapapeles a tus dispositivos BinderClip cuando la sincronización automática está activada.</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_send_to_mac">Enviar a Mac</string>
-    <string name="tile_send_clipboard">Enviar portapapeles</string>
     <string name="tile_not_paired">No emparejado</string>
 
     <!-- Notification Channels & Notifications -->
@@ -30,14 +27,11 @@
     <string name="scan_qr_to_pair">Escanear QR para emparejar</string>
     <string name="send_current_clipboard">Enviar portapapeles actual</string>
     <string name="section_permissions">Permisos</string>
-    <string name="section_clipboard_automation">Automatización del portapapeles</string>
     <string name="section_settings">Ajustes</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notificaciones</string>
     <string name="perm_notifications_desc">Mostrar portapapeles recibido</string>
-    <string name="perm_bg_keepalive">Mantener en segundo plano</string>
-    <string name="perm_bg_keepalive_desc">Activar Accesibilidad</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Necesario para sincronización de respaldo sin conexión</string>
     <string name="perm_battery_opt">Optimización de batería</string>
@@ -52,31 +46,7 @@
     <string name="image_ready_to_copy">Imagen lista para copiar</string>
     <string name="text_ready_to_copy">Texto listo para copiar</string>
 
-    <!-- Automation Cards -->
-    <string name="root_automation_title">Automatización con Root</string>
-    <string name="root_automation_granted">Acceso root concedido: texto e imágenes se sincronizan en tiempo real.</string>
-    <string name="root_automation_prompt">Toca para conceder acceso root y habilitar la sincronización automática.</string>
-    <string name="bg_sync_active_title">Sincronización activa en segundo plano</string>
-    <string name="bg_sync_active_desc">Acceso al portapapeles en segundo plano concedido. El texto y los enlaces se sincronizan automáticamente.</string>
-    <string name="shizuku_enable_title">Activar con Shizuku</string>
-    <string name="shizuku_enable_desc">Toca para aplicar permisos del portapapeles en segundo plano automáticamente mediante Shizuku.</string>
-    <string name="shizuku_apply_btn">Aplicar</string>
-    <string name="shizuku_auth_title">Autorizar Shizuku</string>
-    <string name="shizuku_auth_desc">Autoriza BinderClip en Shizuku para sincronización en segundo plano sin root.</string>
-    <string name="shizuku_auth_btn">Autorizar</string>
-    <string name="shizuku_installed_title">Shizuku instalado</string>
-    <string name="shizuku_installed_desc">Inicia Shizuku mediante depuración inalámbrica o por ordenador para sincronizar sin root.</string>
-    <string name="adb_setup_title">Configuración Sin Root / ADB</string>
-    <string name="adb_setup_desc">Ejecuta por ordenador o depuración inalámbrica:\npm grant net.wastu.binderclip android.permission.READ_CLIPBOARD_IN_BACKGROUND\ncmd appops set net.wastu.binderclip READ_CLIPBOARD allow</string>
-    <string name="accessibility_keepalive_title">Accesibilidad Keep-Alive</string>
-    <string name="accessibility_keepalive_desc_on">El servicio de accesibilidad está activo y mantiene la sincronización tras el reinicio.</string>
-    <string name="accessibility_keepalive_desc_off">Activa el servicio de Accesibilidad para evitar cierres del sistema en segundo plano.</string>
-    <string name="quick_settings_hint">Ajustes rápidos: añade el mosaico \'Enviar a Mac\' al panel de notificaciones para enviar con 1 toque desde cualquier app.</string>
-
     <!-- Settings -->
-    <string name="auto_apply_incoming_title">Aplicar portapapeles entrante automáticamente</string>
-    <string name="auto_apply_incoming_desc_on">El texto y las imágenes recibidos del Mac se copian al portapapeles automáticamente.</string>
-    <string name="auto_apply_incoming_desc_off">Muestra una notificación para copiar texto o imágenes recibidos manualmente.</string>
     <string name="bt_fallback_title">Respaldo Bluetooth</string>
     <string name="bt_fallback_desc_off">El respaldo Bluetooth está desactivado; se requiere Wi-Fi o red mesh.</string>
     <string name="bt_fallback_desc_disabled">Bluetooth desactivado. BinderClip intentará activarlo cuando no haya Wi-Fi.</string>
