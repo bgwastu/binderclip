@@ -609,6 +609,7 @@ private fun BinderClipScreen(
                         (logQuery.isBlank() || event.message.contains(logQuery, ignoreCase = true))
             }
         }
+        val displayedEvents = remember(filteredEvents) { filteredEvents.asReversed() }
         if (confirmClearLogs) {
             AlertDialog(
                 onDismissRequest = { confirmClearLogs = false },
@@ -705,11 +706,11 @@ private fun BinderClipScreen(
                         }
                     } else {
                         LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                            modifier = Modifier.fillMaxWidth().height(360.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(filteredEvents.size, key = { filteredEvents[it].timestamp }) { index ->
-                                val event = filteredEvents[filteredEvents.lastIndex - index]
+                            items(displayedEvents.size, key = { displayedEvents[it].id }) { index ->
+                                val event = displayedEvents[index]
                                 Text(
                                     "${
                                         DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(event.timestamp))

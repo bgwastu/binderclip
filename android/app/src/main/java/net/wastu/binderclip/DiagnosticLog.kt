@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Redacted, persistent diagnostic trail. Clipboard bytes, filenames, keys and invitations never enter it. */
 data class DiagnosticEvent(
+    val id: Long,
     val timestamp: Long = System.currentTimeMillis(),
     val level: DiagnosticLevel,
     val message: String,
@@ -24,6 +25,7 @@ object DiagnosticLog {
     private val mutableEvents = MutableStateFlow<List<DiagnosticEvent>>(emptyList())
     val events = mutableEvents.asStateFlow()
     @Volatile private var context: Context? = null
+    private var nextEventId = 1L
 
     fun initialize(context: Context) {
         synchronized(lock) {
@@ -33,15 +35,20 @@ object DiagnosticLog {
         val restored = runCatching {
             JSONArray(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(EVENTS, "[]"))
         }.getOrElse { JSONArray() }
+        var legacyId = 0L
         mutableEvents.value = buildList {
             for (index in 0 until restored.length()) {
                 val value = restored.optJSONObject(index) ?: continue
                 val timestamp = value.optLong("timestamp")
                 val level = value.optString("level").let { runCatching { DiagnosticLevel.valueOf(it) }.getOrNull() } ?: continue
                 val message = value.optString("message").takeIf { it.isNotBlank() } ?: continue
-                if (timestamp >= now - RETENTION_MS) add(DiagnosticEvent(timestamp, level, message))
+                if (timestamp < now - RETENTION_MS) continue
+                val storedId = value.optLong("id", -1L)
+                val id = if (storedId >= 0) storedId else ++legacyId
+                add(DiagnosticEvent(id, timestamp, level, message))
             }
         }.takeLast(MAXIMUM_EVENTS)
+        nextEventId = (mutableEvents.value.maxOfOrNull { it.id } ?: 0L) + 1L
         }
     }
 
@@ -53,7 +60,7 @@ object DiagnosticLog {
 
     private fun append(level: DiagnosticLevel, message: String) {
         synchronized(lock) {
-            val event = DiagnosticEvent(level = level, message = message)
+            val event = DiagnosticEvent(id = nextEventId++, level = level, message = message)
             val previous = mutableEvents.value.lastOrNull()
             if (previous?.level == level && previous.message == message && event.timestamp - previous.timestamp < 10_000) return
             mutableEvents.value = (mutableEvents.value + event).filter { it.timestamp >= event.timestamp - RETENTION_MS }.takeLast(MAXIMUM_EVENTS)
@@ -64,7 +71,13 @@ object DiagnosticLog {
     private fun persistLocked() {
         val appContext = context ?: return
         val serialized = JSONArray().also { array -> mutableEvents.value.forEach { event ->
-            array.put(JSONObject().put("timestamp", event.timestamp).put("level", event.level.name).put("message", event.message))
+            array.put(
+                JSONObject()
+                    .put("id", event.id)
+                    .put("timestamp", event.timestamp)
+                    .put("level", event.level.name)
+                    .put("message", event.message),
+            )
         } }
         appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString(EVENTS, serialized.toString()).apply()
     }
