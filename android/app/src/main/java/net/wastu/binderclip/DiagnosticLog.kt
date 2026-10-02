@@ -35,7 +35,9 @@ object DiagnosticLog {
         val restored = runCatching {
             JSONArray(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(EVENTS, "[]"))
         }.getOrElse { JSONArray() }
+        val seenIds = mutableSetOf<Long>()
         var legacyId = 0L
+        var repairedIds = false
         mutableEvents.value = buildList {
             for (index in 0 until restored.length()) {
                 val value = restored.optJSONObject(index) ?: continue
@@ -44,11 +46,18 @@ object DiagnosticLog {
                 val message = value.optString("message").takeIf { it.isNotBlank() } ?: continue
                 if (timestamp < now - RETENTION_MS) continue
                 val storedId = value.optLong("id", -1L)
-                val id = if (storedId >= 0) storedId else ++legacyId
+                var id = if (storedId > 0) storedId else ++legacyId
+                if (id in seenIds) {
+                    id = (seenIds.maxOrNull() ?: 0L) + 1L
+                    while (id in seenIds) id++
+                    repairedIds = true
+                }
+                seenIds.add(id)
                 add(DiagnosticEvent(id, timestamp, level, message))
             }
         }.takeLast(MAXIMUM_EVENTS)
         nextEventId = (mutableEvents.value.maxOfOrNull { it.id } ?: 0L) + 1L
+        if (repairedIds) persistLocked()
         }
     }
 

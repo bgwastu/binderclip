@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -609,7 +611,8 @@ private fun BinderClipScreen(
                         (logQuery.isBlank() || event.message.contains(logQuery, ignoreCase = true))
             }
         }
-        val displayedEvents = remember(filteredEvents) { filteredEvents.asReversed() }
+        val displayedEvents = remember(filteredEvents) { filteredEvents.takeLast(500).asReversed() }
+        val logScroll = rememberScrollState()
         if (confirmClearLogs) {
             AlertDialog(
                 onDismissRequest = { confirmClearLogs = false },
@@ -705,12 +708,14 @@ private fun BinderClipScreen(
                             )
                         }
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth().height(360.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(360.dp)
+                                .verticalScroll(logScroll),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            items(displayedEvents.size, key = { displayedEvents[it].id }) { index ->
-                                val event = displayedEvents[index]
+                            displayedEvents.forEach { event ->
                                 Text(
                                     "${
                                         DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(event.timestamp))
