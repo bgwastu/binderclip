@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">Не удалось отправить этот контент</string>
     <string name="share_sending_link">Отправка ссылки…</string>
     <string name="share_sending">Отправка…</string>
+    <string name="share_queued">В очереди для Mac; отправится после подключения</string>
+    <string name="share_error_queue_full">Не удалось добавить в очередь. Откройте BinderClip и повторите попытку.</string>
+    <string name="share_error_delivery">Не удалось начать отправку. Откройте BinderClip и повторите попытку.</string>
+    <string name="share_error_image_connection">Для изображений требуется активное подключение к Mac по Wi-Fi или mesh-сети.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Отправлено на Mac</string>

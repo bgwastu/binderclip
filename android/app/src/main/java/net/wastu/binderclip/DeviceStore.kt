@@ -24,6 +24,8 @@ data class RememberedPeer(
     val connected: Boolean = false,
 )
 
+data class QueuedShare(val id: String, val text: String)
+
 object DeviceNames {
     fun android(context: Context): String {
         val custom = DeviceStore(context).customDeviceName
@@ -49,7 +51,53 @@ object DeviceNames {
 
 /** Durable state; the group key is encrypted by a non-exportable Android Keystore key. */
 class DeviceStore(context: Context) {
+    companion object {
+        private val shareLock = Any()
+        private const val SHARE_OUTBOX = "share_outbox"
+        private const val MAX_QUEUED_SHARES = 8
+        const val KEY_ALIAS = "net.wastu.binderclip.group-key"
+        const val GCM_NONCE_BYTES = 12
+        fun nonce(): String = ByteArray(16).also { SecureRandom().nextBytes(it) }
+            .let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+    }
     private val prefs = context.getSharedPreferences("binderclip", Context.MODE_PRIVATE)
+
+    /** Explicit text/link shares survive service startup, reconnects, and process death. */
+    fun enqueueShare(text: String): Boolean = synchronized(shareLock) {
+        if (text.isBlank() || text.toByteArray(Charsets.UTF_8).size > SyncProtocol.MAXIMUM_TEXT_BYTES) return@synchronized false
+        val current = queuedSharesLocked()
+        if (current.size >= MAX_QUEUED_SHARES) return@synchronized false
+        saveSharesLocked(current + QueuedShare(UUID.randomUUID().toString(), text))
+    }
+
+    fun nextQueuedShare(): QueuedShare? = synchronized(shareLock) { queuedSharesLocked().firstOrNull() }
+
+    fun removeQueuedShare(id: String): Boolean = synchronized(shareLock) {
+        val current = queuedSharesLocked()
+        if (current.firstOrNull()?.id != id) return@synchronized false
+        saveSharesLocked(current.drop(1))
+    }
+
+    fun clearQueuedShares() = synchronized(shareLock) { prefs.edit().remove(SHARE_OUTBOX).commit() }
+
+    private fun queuedSharesLocked(): List<QueuedShare> = runCatching {
+        val encrypted = prefs.getString(SHARE_OUTBOX, null) ?: return emptyList()
+        val data = decrypt(encrypted) ?: return emptyList()
+        val array = JSONArray(String(data, Charsets.UTF_8))
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(QueuedShare(item.getString("id"), item.getString("text")))
+            }
+        }
+    }.getOrDefault(emptyList())
+
+    private fun saveSharesLocked(shares: List<QueuedShare>): Boolean {
+        val array = JSONArray().also { output -> shares.forEach { share ->
+            output.put(JSONObject().put("id", share.id).put("text", share.text))
+        } }
+        return prefs.edit().putString(SHARE_OUTBOX, encrypt(array.toString().toByteArray(Charsets.UTF_8))).commit()
+    }
 
     var customDeviceName: String?
         get() = prefs.getString("custom_device_name", null)?.takeIf { it.isNotBlank() }
@@ -155,6 +203,7 @@ class DeviceStore(context: Context) {
 
     /** Reset pairing key: fresh PSK key, empty roster. */
     fun resetPairingKey() {
+        clearQueuedShares()
         val key = ByteArray(32).also { SecureRandom().nextBytes(it) }
         groupKey = key
         peer = null
@@ -165,6 +214,7 @@ class DeviceStore(context: Context) {
 
     /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
     fun unpair() {
+        clearQueuedShares()
         groupKey = null
         peer = null
         peerCandidates = emptyList()
@@ -217,10 +267,4 @@ class DeviceStore(context: Context) {
             init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, GCM_NONCE_BYTES)))
         }.doFinal(bytes.copyOfRange(GCM_NONCE_BYTES, bytes.size))
     }.getOrNull()
-    companion object {
-        const val KEY_ALIAS = "net.wastu.binderclip.group-key"
-        const val GCM_NONCE_BYTES = 12
-        fun nonce(): String = ByteArray(16).also { SecureRandom().nextBytes(it) }
-            .let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
-    }
 }

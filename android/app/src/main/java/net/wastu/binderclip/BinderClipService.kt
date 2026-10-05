@@ -77,6 +77,7 @@ class BinderClipService : Service() {
         val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
         val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
         val ACTION_SEND_SHARED = "${BuildConfig.APPLICATION_ID}.SEND_SHARED"
+        const val EXTRA_SHARED_IMAGE_ID = "shared_image_id"
         val ACTION_SEARCH_RECONNECT = "${BuildConfig.APPLICATION_ID}.SEARCH_RECONNECT"
         const val EXTRA_MEMBER_ID = "member_id"
         const val EXTRA_TARGET_DEVICE_ID = "target_device_id"
@@ -217,7 +218,10 @@ class BinderClipService : Service() {
             onStatus = ::updateStatus,
             onFailure = ::reportFailure,
             onPeerIdentity = { id, name ->
-                runServiceWork { if (automaticClipboardEnabled && interactive) startBackgroundPolling() }
+                runServiceWork {
+                    if (automaticClipboardEnabled && interactive) startBackgroundPolling()
+                    drainQueuedShares()
+                }
                 store.peer = store.peer?.copy(name = name, deviceId = id)
                 refreshNsdDiscovery()
                 publishState()
@@ -258,7 +262,10 @@ class BinderClipService : Service() {
             override fun onRemoteSleep() = peerSleeping()
 
             override fun onAuthenticated(remoteId: String, remoteName: String) {
-                runServiceWork { if (automaticClipboardEnabled && interactive) startBackgroundPolling() }
+                runServiceWork {
+                    if (automaticClipboardEnabled && interactive) startBackgroundPolling()
+                    drainQueuedShares()
+                }
                 store.peer = (store.peer ?: RememberedPeer("Mac", "bluetooth", 0, remoteId, "macOS", false))
                     .copy(name = remoteName.ifBlank { store.peer?.name ?: "Mac" }, deviceId = remoteId, connected = true)
                 // Bluetooth is live; stop the WebSocket racer from fighting it while we probe for
@@ -375,25 +382,16 @@ class BinderClipService : Service() {
             ACTION_SEARCH_RECONNECT -> resetReconnectBackoffAndTrigger("user_reconnect")
 
             ACTION_SEND_SHARED -> {
-                val targetDeviceId = intent?.getStringExtra(EXTRA_TARGET_DEVICE_ID)
+                val imageId = intent?.getStringExtra(EXTRA_SHARED_IMAGE_ID)
                 runServiceWork {
-                    val shared = SharedPayloadCache.value.also { SharedPayloadCache.value = null }
-                    Log.d("BinderClip", "Shared item received")
-                    when (shared) {
-                        is SharedPayload.Image -> sendSharedImage(shared.value)
-                        is SharedPayload.Text -> {
-                            val trimmed = shared.value.trim()
-                            val isUrl = isWebUrl(trimmed)
-                            if (!isUrl) applyText(shared.value)
-                            if (isUrl) {
-                                if (client.isConnected()) client.sendOpenUrl(trimmed, targetDeviceId)
-                                else bluetoothLink?.takeIf { it.isConnected() }?.sendOpenUrl(trimmed)
-                            } else {
-                                if (client.isConnected()) client.sendText(shared.value)
-                                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(shared.value)
-                            }
+                    if (imageId != null) {
+                        SharedPayloadCache.take(imageId)?.let(::sendSharedImage)
+                            ?: reportFailure("Shared image is no longer available")
+                    } else {
+                        drainQueuedShares()
+                        if (!client.isConnected() && bluetoothLink?.isConnected() != true && !client.isConnecting()) {
+                            client.forceReconnect()
                         }
-                        null -> reportFailure("Nothing to share")
                     }
                 }
             }
@@ -593,8 +591,32 @@ class BinderClipService : Service() {
     }
 
     private fun sendSharedImage(image: ImagePayload) {
-        lastSeenHash = image.sha256
-        dispatchImage(image, userInitiated = true)
+        if (dispatchImage(image, userInitiated = true)) lastSeenHash = image.sha256
+        else reportFailure("Could not send shared image: Wi-Fi or mesh connection required")
+    }
+
+    private fun drainQueuedShares() {
+        if (store.groupKey == null) return
+        while (true) {
+            val share = store.nextQueuedShare() ?: return
+            val text = share.text
+            val trimmed = text.trim()
+            val isLink = isWebUrl(trimmed)
+            val sent = if (isLink) {
+                if (client.isConnected()) client.sendOpenUrl(trimmed)
+                else bluetoothLink?.takeIf { it.isConnected() }?.sendOpenUrl(trimmed) == true
+            } else {
+                if (client.isConnected()) client.sendText(text)
+                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(text) == true
+            }
+            if (!sent) return
+            if (!store.removeQueuedShare(share.id)) {
+                reportFailure("Could not clear queued share")
+                return
+            }
+            if (!isLink) applyText(text)
+            DiagnosticLog.info("Queued share sent (${if (isLink) "link" else "text"})")
+        }
     }
 
     private fun applyText(text: String) {
@@ -775,8 +797,7 @@ class BinderClipService : Service() {
     }
 
     private fun isWebUrl(text: String): Boolean {
-        val lower = text.lowercase()
-        return lower.startsWith("http://") || lower.startsWith("https://")
+        return WebLinks.isWebUrl(text)
     }
 
     private fun toast(msg: String) {

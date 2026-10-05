@@ -468,8 +468,8 @@ class WebSocketClient(
         sendSecureText(socket, payload.toString())
     }
 
-    fun sendOpenUrl(url: String, targetDeviceId: String? = null) {
-        val socket = activeSocket ?: return
+    fun sendOpenUrl(url: String, targetDeviceId: String? = null): Boolean {
+        val socket = activeSocket ?: return false
         val payload = JSONObject().apply {
             put("type", "openUrl")
             put("eventId", UUID.randomUUID().toString())
@@ -479,7 +479,7 @@ class WebSocketClient(
                 put("targetDeviceId", targetDeviceId)
             }
         }
-        sendSecureText(socket, payload.toString())
+        return sendSecureText(socket, payload.toString())
     }
 
     fun sendImage(image: ImagePayload): Boolean {

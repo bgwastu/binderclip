@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">Impossible d’envoyer ce contenu</string>
     <string name="share_sending_link">Envoi du lien…</string>
     <string name="share_sending">Envoi en cours…</string>
+    <string name="share_queued">En attente pour le Mac ; envoi après connexion</string>
+    <string name="share_error_queue_full">Impossible de mettre le partage en attente. Ouvrez BinderClip et réessayez.</string>
+    <string name="share_error_delivery">Impossible de démarrer l’envoi. Ouvrez BinderClip pour réessayer.</string>
+    <string name="share_error_image_connection">Les images nécessitent une connexion Wi-Fi ou maillée active avec le Mac.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Envoyé au Mac</string>

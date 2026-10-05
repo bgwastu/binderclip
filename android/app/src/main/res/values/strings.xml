@@ -107,6 +107,10 @@
     <string name="share_error_unsupported">Couldn’t send this content</string>
     <string name="share_sending_link">Sending link…</string>
     <string name="share_sending">Sending…</string>
+    <string name="share_queued">Queued for Mac; sends when connected</string>
+    <string name="share_error_queue_full">Couldn’t queue share. Open BinderClip and try again.</string>
+    <string name="share_error_delivery">Couldn’t start share delivery. Open BinderClip to retry.</string>
+    <string name="share_error_image_connection">Images need a live Wi-Fi or mesh connection to the Mac.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Sent to Mac</string>

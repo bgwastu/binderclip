@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">Tidak dapat mengirim konten ini</string>
     <string name="share_sending_link">Mengirim tautan…</string>
     <string name="share_sending">Mengirim…</string>
+    <string name="share_queued">Masuk antrean untuk Mac; dikirim saat terhubung</string>
+    <string name="share_error_queue_full">Tidak dapat mengantrekan kiriman. Buka BinderClip lalu coba lagi.</string>
+    <string name="share_error_delivery">Tidak dapat memulai pengiriman. Buka BinderClip untuk mencoba lagi.</string>
+    <string name="share_error_image_connection">Gambar memerlukan koneksi Wi-Fi atau mesh yang aktif ke Mac.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Terkirim ke Mac</string>

@@ -16,9 +16,16 @@ class SharePayloadTest {
             "https://github.com/wastu/binderclip"
         )
         for (url in urls) {
-            val isWeb = url.startsWith("http://") || url.startsWith("https://")
-            assertTrue("Expected $url to be classified as web URL", isWeb)
+            assertTrue("Expected $url to be classified as web URL", WebLinks.isWebUrl(url))
         }
+    }
+
+    @Test
+    fun malformedOrAnnotatedLinksStayAsText() {
+        for (text in listOf("https://", "https://example.com\nA page title", "http://example.com extra", "file:///tmp/photo")) {
+            assertFalse("Expected ordinary text: $text", WebLinks.isWebUrl(text))
+        }
+        assertTrue(WebLinks.isWebUrl("HTTPS://example.com/path?x=1#section"))
     }
 
     @Test

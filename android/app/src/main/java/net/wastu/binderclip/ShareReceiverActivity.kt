@@ -14,8 +14,15 @@ sealed interface SharedPayload {
 }
 
 object SharedPayloadCache {
-    @Volatile
-    var value: SharedPayload? = null
+    private val images = LinkedHashMap<String, ImagePayload>()
+
+    @Synchronized fun put(image: ImagePayload): String {
+        val id = java.util.UUID.randomUUID().toString()
+        images[id] = image
+        return id
+    }
+
+    @Synchronized fun take(id: String?): ImagePayload? = images.remove(id)
 }
 
 /** Native Android share-sheet endpoint; sends to the paired Mac. */
@@ -79,23 +86,43 @@ class ShareReceiverActivity : ComponentActivity() {
             return
         }
 
+        if (payload is SharedPayload.Image && AppRuntime.state.value.transportType !in setOf(TransportType.LAN, TransportType.MESH)) {
+            Toast.makeText(this, getString(R.string.share_error_image_connection), Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
         sendPayload(payload)
     }
 
     private fun sendPayload(payload: SharedPayload) {
         Log.i("BinderClip", "Accepted shared ${if (payload is SharedPayload.Image) "image" else "text"} for Mac")
-        SharedPayloadCache.value = payload
+        if (payload is SharedPayload.Text) {
+            val queued = runCatching { DeviceStore(this).enqueueShare(payload.value) }.getOrDefault(false)
+            if (!queued) {
+                Toast.makeText(this, getString(R.string.share_error_queue_full), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+        }
         val serviceIntent = Intent(this, BinderClipService::class.java).apply {
             action = BinderClipService.ACTION_SEND_SHARED
+            if (payload is SharedPayload.Image) {
+                putExtra(BinderClipService.EXTRA_SHARED_IMAGE_ID, SharedPayloadCache.put(payload.value))
+            }
         }
-        ContextCompat.startForegroundService(this, serviceIntent)
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (error: RuntimeException) {
+            SharedPayloadCache.take(serviceIntent.getStringExtra(BinderClipService.EXTRA_SHARED_IMAGE_ID))
+            DiagnosticLog.warning("Could not start share delivery: ${error.javaClass.simpleName}")
+            Toast.makeText(this, getString(R.string.share_error_delivery), Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
         Toast.makeText(
             this,
-            if (payload is SharedPayload.Text && (payload.value.startsWith("http://") || payload.value.startsWith("https://"))) {
-                getString(R.string.share_sending_link)
-            } else {
-                getString(R.string.share_sending)
-            },
+            if (payload is SharedPayload.Text) getString(R.string.share_queued) else getString(R.string.share_sending),
             Toast.LENGTH_SHORT,
         ).show()
         finish()

@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">Não foi possível enviar este conteúdo</string>
     <string name="share_sending_link">Enviando link…</string>
     <string name="share_sending">Enviando…</string>
+    <string name="share_queued">Na fila para o Mac; será enviado ao conectar</string>
+    <string name="share_error_queue_full">Não foi possível colocar na fila. Abra o BinderClip e tente novamente.</string>
+    <string name="share_error_delivery">Não foi possível iniciar o envio. Abra o BinderClip para tentar novamente.</string>
+    <string name="share_error_image_connection">As imagens precisam de uma conexão Wi-Fi ou mesh ativa com o Mac.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Enviado para o Mac</string>

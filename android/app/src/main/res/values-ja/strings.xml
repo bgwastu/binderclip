@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">このコンテンツは送信できませんでした</string>
     <string name="share_sending_link">リンクを送信中…</string>
     <string name="share_sending">送信中…</string>
+    <string name="share_queued">Mac 宛てに待機中。接続後に送信します</string>
+    <string name="share_error_queue_full">送信を待機列に追加できません。BinderClip を開いて再試行してください。</string>
+    <string name="share_error_delivery">送信を開始できません。BinderClip を開いて再試行してください。</string>
+    <string name="share_error_image_connection">画像の送信には Mac との Wi-Fi またはメッシュ接続が必要です。</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">Mac に送信しました</string>

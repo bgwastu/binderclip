@@ -103,6 +103,10 @@
     <string name="share_error_unsupported">Dieser Inhalt konnte nicht gesendet werden</string>
     <string name="share_sending_link">Link wird gesendet…</string>
     <string name="share_sending">Wird gesendet…</string>
+    <string name="share_queued">Für Mac vorgemerkt; wird nach Verbindung gesendet</string>
+    <string name="share_error_queue_full">Freigabe konnte nicht vorgemerkt werden. Öffne BinderClip und versuche es erneut.</string>
+    <string name="share_error_delivery">Senden konnte nicht gestartet werden. Öffne BinderClip und versuche es erneut.</string>
+    <string name="share_error_image_connection">Bilder benötigen eine aktive WLAN- oder Mesh-Verbindung zum Mac.</string>
 
     <!-- Toasts -->
     <string name="toast_sent_to_mac">An Mac gesendet</string>
