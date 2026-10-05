@@ -50,6 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         }
     }
 
+    private var sleepObservers: [NSObjectProtocol] = []
+    private var waitingForUserWake = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = updaterController
         statusMenu.delegate = self
@@ -80,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
+            self?.clipboard.setSyncActive(peers.contains { $0.connected })
         }
         transport.onLog = { message in
             DiagnosticLog.shared.info(message)
@@ -100,6 +104,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
         transport.start()
         clipboard.start()
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.waitingForUserWake = true
+            self.clipboard.stop()
+            self.transport.setSystemSleeping(true)
+            DiagnosticLog.shared.flush()
+        })
+        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.resumeAfterUserWake()
+        })
+        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.resumeAfterUserWake()
+        })
         peers = transport.peersSnapshot()
         NSApp.servicesProvider = self
         NSUpdateDynamicServices()
@@ -113,13 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                     .appendingPathComponent("net.wastu.binderclip", isDirectory: true)
                 try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
                 try? invite.absoluteString.write(to: debugDir.appendingPathComponent("debug-invite.txt"), atomically: true, encoding: .utf8)
-                print("[BinderClip Debug] Ready pairing code: \(invite.absoluteString)")
+                print("[BinderClip Debug] Pairing code written to Application Support")
             }
         }
         #endif
     }
 
+    private func resumeAfterUserWake() {
+        // Maintenance wakes with a sleeping display must not re-arm the radio/clipboard loop.
+        guard SystemWakePolicy.shouldResume(waiting: waitingForUserWake, displayAwake: CGDisplayIsAsleep(CGMainDisplayID()) == 0) else { return }
+        waitingForUserWake = false
+        transport.setSystemSleeping(false)
+        clipboard.start()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        for observer in sleepObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+        DiagnosticLog.shared.flush()
         clipboard.stop()
         transport.stop()
     }

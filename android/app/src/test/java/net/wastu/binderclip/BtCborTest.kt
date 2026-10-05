@@ -163,4 +163,21 @@ class BtCborTest {
         assertNull(BluetoothLink.endpointsFromFields(listOf("type" to "auth_ok", "endpoints" to emptyList<String>())))
         assertNull(BluetoothLink.endpointsFromFields(listOf("type" to "auth_ok", "endpoints" to "not-a-list")))
     }
+    @Test
+    fun rejectsOversizedMapsDuplicateKeysAndTrailingInput() {
+        org.junit.Assert.assertThrows(Exception::class.java) { BtCbor.decode(byteArrayOf(0xbb.toByte()) + ByteArray(8) { 0xff.toByte() }) }
+        org.junit.Assert.assertThrows(Exception::class.java) { BtCbor.decode(byteArrayOf(0xa2.toByte(), 0x61, 0x74, 0x61, 0x61, 0x61, 0x74, 0x61, 0x62)) }
+        org.junit.Assert.assertThrows(Exception::class.java) { BtCbor.decode(byteArrayOf(0xa0.toByte(), 0x00)) }
+    }
+    @Test
+    fun decodesLargeFrameAcrossSmallRadioChunks() {
+        val payload = ByteArray(100_000) { (it % 127).toByte() }
+        val framed = BtFrameIo.frame(payload)
+        val reader = BtFrameIo.Reader()
+        val emitted = mutableListOf<ByteArray>()
+        for (offset in framed.indices step 20) emitted.addAll(reader.feed(framed.copyOfRange(offset, minOf(offset + 20, framed.size))))
+        assertEquals(1, emitted.size)
+        org.junit.Assert.assertArrayEquals(payload, emitted.single())
+    }
+
 }

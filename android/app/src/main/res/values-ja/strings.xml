@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">Mac に送信しました</string>
     <string name="toast_sent_image_to_mac">画像を Mac に送信しました</string>
     <string name="toast_nothing_to_send">送信するコンテンツがありません</string>
+    <string name="root_required_title">rootアクセスが必要です</string>
+    <string name="root_required_desc">BinderClipがバックグラウンドでクリップボードを同期するには、KernelSUまたはMagiskのrootアクセスが必要です。要求されたらアクセスを許可し、下のボタンをタップしてください。</string>
+    <string name="root_required_grant">rootアクセスを確認</string>
+    <string name="bt_fallback_desc_needs_permission">Bluetoothの代替接続を有効にするには、上で付近のデバイスへのアクセスを許可してください。</string>
+    <string name="clear_logs_confirm_title">すべてのログを削除しますか？</string>
+    <string name="clear_logs_confirm_message">すべてのログが削除されます。この操作は取り消せません。</string>
+    <string name="secure_connection_failed">安全な接続に失敗しました。MacとスマートフォンのBinderClipを更新するか、再度ペアリングしてください。</string>
 </resources>

@@ -27,6 +27,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.net.Inet4Address
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -113,6 +114,8 @@ class BinderClipService : Service() {
     private lateinit var store: DeviceStore
     private lateinit var client: WebSocketClient
     private lateinit var clipboard: ClipboardManager
+    private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    @Volatile private var stopping = false
     private lateinit var nsdManager: NsdManager
     private var nsdDiscoveryListener: NsdManager.DiscoveryListener? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -148,23 +151,42 @@ class BinderClipService : Service() {
     private var automaticClipboardEnabled = false
 
     private var backgroundPoll: ScheduledFuture<*>? = null
+    private val pollInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
     private var backgroundFingerprint: String? = null
+    @Volatile private var interactive = true
+    private val clipboardReadCache = ClipboardReadCache<RootClipboardBridge.Clip>()
+    @Volatile private var remoteSleepUntilMs = 0L
 
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            if (stopping) return
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
+                    interactive = true
+                    remoteSleepUntilMs = 0L
+                    clipboardReadCache.invalidate()
+                    bluetoothLink?.resetRetry()
                     client.setInteractive(true)
                     bluetoothLink?.setInteractive(true)
                     if (automaticClipboardEnabled) startBackgroundPolling()
                     if (store.groupKey != null && !client.isConnected()) requestConnectResettingBackoff("screen_on")
                 }
                 Intent.ACTION_SCREEN_OFF -> {
+                    interactive = false
                     client.setInteractive(false)
                     bluetoothLink?.setInteractive(false)
                     stopBackgroundPolling()
                 }
             }
+        }
+    }
+
+    private fun runServiceWork(work: () -> Unit) {
+        if (stopping) return
+        try {
+            executor.execute { if (!stopping) work() }
+        } catch (error: RejectedExecutionException) {
+            if (!stopping) throw error
         }
     }
 
@@ -195,6 +217,7 @@ class BinderClipService : Service() {
             onStatus = ::updateStatus,
             onFailure = ::reportFailure,
             onPeerIdentity = { id, name ->
+                runServiceWork { if (automaticClipboardEnabled && interactive) startBackgroundPolling() }
                 store.peer = store.peer?.copy(name = name, deviceId = id)
                 refreshNsdDiscovery()
                 publishState()
@@ -206,7 +229,7 @@ class BinderClipService : Service() {
                 // the reliable fallback. Fastest re-arm wins over the 20s stall detector.
                 if (store.groupKey != null && btTornDownForWsAtMs > 0L) {
                     btTornDownForWsAtMs = 0L
-                    executor.execute {
+                    runServiceWork {
                         // The tunnel we switched to just died; re-arm Bluetooth immediately.
                         bluetoothLink?.takeIf { store.isBtFallbackEnabled() && !it.isConnected() && !it.isListening() }?.startListening()
                     }
@@ -214,6 +237,8 @@ class BinderClipService : Service() {
                 refreshNsdDiscovery()
                 publishState()
             },
+            onRemoteSleep = ::peerSleeping,
+            onProtocolFailure = { reportFailure(getString(R.string.secure_connection_failed)) },
             onUnpaired = {
                 lastError = null
                 pairingHint = null
@@ -221,15 +246,19 @@ class BinderClipService : Service() {
                 stopNsdDiscovery()
                 bluetoothLink?.stop()
                 DiagnosticLog.info("Mac unpaired this phone")
-                executor.execute { RootClipboardBridge.syncKeepAlive(this, paired = false) }
+                runServiceWork { RootClipboardBridge.syncKeepAlive(this, paired = false) }
                 publishState()
             },
         )
         val power = getSystemService(PowerManager::class.java)
-        client.setInteractive(power?.isInteractive != false)
+        interactive = power?.isInteractive != false
+        client.setInteractive(interactive)
 
         bluetoothLink = BluetoothLink(this, store, { DeviceNames.android(this) }, object : BluetoothLink.Callbacks {
+            override fun onRemoteSleep() = peerSleeping()
+
             override fun onAuthenticated(remoteId: String, remoteName: String) {
+                runServiceWork { if (automaticClipboardEnabled && interactive) startBackgroundPolling() }
                 store.peer = (store.peer ?: RememberedPeer("Mac", "bluetooth", 0, remoteId, "macOS", false))
                     .copy(name = remoteName.ifBlank { store.peer?.name ?: "Mac" }, deviceId = remoteId, connected = true)
                 // Bluetooth is live; stop the WebSocket racer from fighting it while we probe for
@@ -242,7 +271,7 @@ class BinderClipService : Service() {
             }
 
             override fun onEndpoints(endpoints: List<String>) {
-                executor.execute {
+                runServiceWork {
                     val merged = SyncProtocol.mergeAdvertisedEndpoints(store.peerCandidates, endpoints)
                     if (merged != store.peerCandidates) {
                         store.peerCandidates = merged
@@ -269,7 +298,7 @@ class BinderClipService : Service() {
             override fun onOpenUrl(url: String) = receiveOpenUrl(url)
 
             override fun onUnpair() {
-                executor.execute {
+                runServiceWork {
                     lastError = null
                     pairingHint = null
                     store.unpair()
@@ -277,17 +306,22 @@ class BinderClipService : Service() {
                     bluetoothLink?.stop()
                     client.close()
                     DiagnosticLog.info("Mac unpaired this phone (bluetooth)")
-                    executor.execute { RootClipboardBridge.syncKeepAlive(this@BinderClipService, paired = false) }
+                    runServiceWork { RootClipboardBridge.syncKeepAlive(this@BinderClipService, paired = false) }
                     publishState()
                 }
             }
         })
 
-        clipboard.addPrimaryClipChangedListener {
-            if (uiVisible || automaticClipboardEnabled) {
-                executor.execute { sendCurrentClipboard(userInitiated = false) }
+        bluetoothLink?.setInteractive(interactive)
+
+        clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+            if (stopping) return@OnPrimaryClipChangedListener
+            clipboardReadCache.invalidate()
+            if (interactive && (uiVisible || automaticClipboardEnabled)) {
+                runServiceWork { if (!stopping) sendCurrentClipboard(userInitiated = false) }
             }
         }
+        clipboard.addPrimaryClipChangedListener(clipboardListener!!)
 
         registerNetworkCallback()
         updateNetworkFlag()
@@ -301,12 +335,12 @@ class BinderClipService : Service() {
         }
         registerReceiver(screenStateReceiver, screenFilter)
 
-        executor.execute {
+        runServiceWork {
             applyRootClipboardAutomation()
+            if (stopping) return@runServiceWork
             if (store.groupKey != null) {
                 client.connect()
             }
-            RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
             publishState()
         }
         publishState()
@@ -327,24 +361,24 @@ class BinderClipService : Service() {
         }
         when (intent?.action ?: ACTION_START) {
             ACTION_PAIR -> intent?.getStringExtra(EXTRA_URI)?.let { uri ->
-                executor.execute {
+                runServiceWork {
                     runCatching { client.pair(uri) }
                         .onSuccess { RootClipboardBridge.syncKeepAlive(this, store.groupKey != null) }
                         .onFailure { reportFailure(it.message ?: "Pairing failed") }
                 }
             }
 
-            ACTION_UNPAIR -> executor.execute(::unpair)
+            ACTION_UNPAIR -> runServiceWork(::unpair)
 
-            ACTION_SEND_CURRENT -> executor.execute { sendCurrentClipboard(userInitiated = true) }
+            ACTION_SEND_CURRENT -> runServiceWork { sendCurrentClipboard(userInitiated = true) }
 
             ACTION_SEARCH_RECONNECT -> resetReconnectBackoffAndTrigger("user_reconnect")
 
             ACTION_SEND_SHARED -> {
                 val targetDeviceId = intent?.getStringExtra(EXTRA_TARGET_DEVICE_ID)
-                executor.execute {
+                runServiceWork {
                     val shared = SharedPayloadCache.value.also { SharedPayloadCache.value = null }
-                    Log.i("BinderClip", "ACTION_SEND_SHARED: shared=$shared, isConnected=${client.isConnected()}")
+                    Log.d("BinderClip", "Shared item received")
                     when (shared) {
                         is SharedPayload.Image -> sendSharedImage(shared.value)
                         is SharedPayload.Text -> {
@@ -385,20 +419,21 @@ class BinderClipService : Service() {
                 }
             }
 
-            ACTION_SET_SYNC_TOASTS -> executor.execute {
+            ACTION_SET_SYNC_TOASTS -> runServiceWork {
                 store.setSyncToastHidden(intent?.getBooleanExtra("hidden", false) ?: false)
                 publishState()
             }
 
-            ACTION_SET_BT_FALLBACK -> executor.execute {
+            ACTION_SET_BT_FALLBACK -> runServiceWork {
                 store.setBtFallbackEnabled(intent?.getBooleanExtra("enabled", false) ?: false)
                 if (!store.isBtFallbackEnabled()) bluetoothLink?.stop()
                 evaluateBluetooth()
                 publishState()
             }
 
-            ACTION_REFRESH_CAPABILITIES -> executor.execute {
+            ACTION_REFRESH_CAPABILITIES -> runServiceWork {
                 rootAvailable = RootClipboardBridge.isAvailable()
+                if (stopping) return@runServiceWork
                 if (!rootAvailable) {
                     automaticClipboardEnabled = false
                     stopBackgroundPolling()
@@ -409,14 +444,14 @@ class BinderClipService : Service() {
                     stopSelf()
                 } else {
                     applyRootClipboardAutomation()
-                    RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
+                    if (stopping) return@runServiceWork
                     if (store.groupKey != null && !client.isConnected()) client.connect()
                     publishState()
                 }
             }
 
             ACTION_REMOVE_MEMBER -> intent?.getStringExtra(EXTRA_MEMBER_ID)?.let { id ->
-                executor.execute {
+                runServiceWork {
                     store.removeMember(id)
                     if (store.peer?.deviceId == id) {
                         store.peer = null
@@ -433,8 +468,8 @@ class BinderClipService : Service() {
             ACTION_UPDATE_DEVICE_NAME -> {
                 val id = intent?.getStringExtra(EXTRA_MEMBER_ID)
                 val newName = intent?.getStringExtra(EXTRA_DEVICE_NAME)?.trim()
-                executor.execute {
-                    if (id.isNullOrBlank() || newName.isNullOrBlank()) return@execute
+                runServiceWork {
+                    if (id.isNullOrBlank() || newName.isNullOrBlank()) return@runServiceWork
                     store.applyRename(id, newName)
                     client.sendRename(id, newName)
                     publishState()
@@ -449,9 +484,18 @@ class BinderClipService : Service() {
     }
 
     override fun onDestroy() {
+        synchronized(this) {
+            stopping = true
+            stopBackgroundPolling()
+            networkDebounceFuture?.cancel(false)
+        }
+        clipboardListener?.let { if (::clipboard.isInitialized) clipboard.removePrimaryClipChangedListener(it) }
+        clipboardListener = null
+        DiagnosticLog.flush()
         stopBackgroundPolling()
-        client.close()
-        bluetoothLink?.stop()
+        if (::client.isInitialized) client.shutdown()
+        bluetoothLink?.shutdown()
+        if (::client.isInitialized) publishState(notify = false)
         bluetoothEvaluator?.cancel(false)
         stopNsdDiscovery()
         unregisterNetworkCallback()
@@ -474,14 +518,14 @@ class BinderClipService : Service() {
     }
 
     private fun resetReconnectBackoffAndTrigger(reason: String) {
-        executor.execute {
+        runServiceWork {
             Log.d("BinderClip", "Triggering reconnect ($reason)")
             client.forceReconnect()
         }
     }
 
     private fun requestConnectResettingBackoff(reason: String) {
-        executor.execute {
+        runServiceWork {
             Log.d("BinderClip", "Requesting connect ($reason)")
             client.requestConnectResettingBackoff()
         }
@@ -530,20 +574,17 @@ class BinderClipService : Service() {
 
     private fun sendCurrentClipboard(userInitiated: Boolean = false) {
         val payload = ClipboardClassifier.read(this, clipboard)
-        Log.i("BinderClip", "sendCurrentClipboard: userInitiated=$userInitiated, payload=$payload, isConnected=${client.isConnected()}")
+        Log.d("BinderClip", "Clipboard change: userInitiated=$userInitiated")
         when (payload) {
             is LocalClipboardContent.Text -> {
                 val hash = SyncProtocol.sha256Hex(payload.value)
                 if (hash == lastSeenHash && !userInitiated) return
-                lastSeenHash = hash
-                if (client.isConnected()) client.sendText(payload.value, hash)
-                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(payload.value)
+                if (dispatchText(payload.value, hash)) lastSeenHash = hash
                 if (userInitiated) syncToast("Sent text")
             }
             is LocalClipboardContent.Image -> {
                 if (payload.value.sha256 == lastSeenHash && !userInitiated) return
-                lastSeenHash = payload.value.sha256
-                dispatchImage(payload.value, userInitiated)
+                if (dispatchImage(payload.value, userInitiated)) lastSeenHash = payload.value.sha256
             }
             is LocalClipboardContent.Unsupported -> {
                 if (userInitiated) toast("Clipboard content is unsupported")
@@ -566,49 +607,84 @@ class BinderClipService : Service() {
         ImageClipboard.write(this, clipboard, image)
     }
 
-    private fun startBackgroundPolling() {
-        stopBackgroundPolling()
-        backgroundPoll = reconnectExecutor.scheduleWithFixedDelay({
-            executor.execute {
-                if (!automaticClipboardEnabled) return@execute
-                val clip = RootClipboardBridge.read(this, clipboard)
-                when (clip) {
-                    is RootClipboardBridge.Clip.Text -> {
-                        val hash = SyncProtocol.sha256Hex(clip.value)
-                        if (hash != backgroundFingerprint && hash != lastSeenHash) {
-                            backgroundFingerprint = hash
-                            lastSeenHash = hash
-                            client.sendText(clip.value, hash)
-                        }
-                    }
-                    is RootClipboardBridge.Clip.Image -> {
-                        if (clip.value.sha256 != backgroundFingerprint && clip.value.sha256 != lastSeenHash) {
-                            backgroundFingerprint = clip.value.sha256
-                            lastSeenHash = clip.value.sha256
-                            client.sendImage(clip.value)
-                        }
-                    }
-                    else -> {}
-                }
-            }
-        }, 500, 500, TimeUnit.MILLISECONDS)
+    private fun pollAllowed(): Boolean = !stopping && PowerPolicy.shouldPoll(
+        automaticClipboardEnabled, interactive, store.groupKey != null,
+        client.isConnected() || bluetoothLink?.isConnected() == true,
+    )
+
+    private fun dispatchText(text: String, hash: String): Boolean =
+        if (client.isConnected()) client.sendText(text, hash)
+        else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(text) == true
+
+    private fun peerSleeping() {
+        remoteSleepUntilMs = android.os.SystemClock.elapsedRealtime() + PowerPolicy.REMOTE_SLEEP_MS
+        client.setReconnectSuppressed(false)
+        client.deferReconnect(PowerPolicy.REMOTE_SLEEP_MS)
+        bluetoothLink?.deferReconnect(PowerPolicy.REMOTE_SLEEP_MS)
     }
 
-    private fun stopBackgroundPolling() {
+    @Synchronized private fun startBackgroundPolling() {
+        if (stopping) return
+        stopBackgroundPolling()
+        if (!interactive || store.groupKey == null) return
+        // The read executes on this scheduler, so fixed delay bounds in-flight polls to one.
+        backgroundPoll = reconnectExecutor.scheduleWithFixedDelay({
+            if (!pollAllowed() || !pollInFlight.compareAndSet(false, true)) return@scheduleWithFixedDelay
+            try {
+                EnergyCounters.add("clipboard.poll")
+                val ticket = clipboardReadCache.generation()
+                val metadata = clipboard.primaryClip?.let { clip ->
+                    val item = clip.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                    // Once/minute revalidation also catches providers mutating a stable URI.
+                    val bucket = android.os.SystemClock.elapsedRealtime() / 60_000
+                    "$bucket:${clip.description.timestamp}:${clip.description}:${item?.uri}:${item?.text}"
+                } ?: run { pollInFlight.set(false); return@scheduleWithFixedDelay }
+                val clip = clipboardReadCache.read(metadata) {
+                    EnergyCounters.add("clipboard.read")
+                    RootClipboardBridge.read(this, clipboard)
+                }
+                runServiceWork {
+                    try {
+                        if (!pollAllowed() || ticket != clipboardReadCache.generation()) return@runServiceWork
+                        when (clip) {
+                            is RootClipboardBridge.Clip.Text -> {
+                                val hash = SyncProtocol.sha256Hex(clip.value)
+                                if (hash != backgroundFingerprint && hash != lastSeenHash && dispatchText(clip.value, hash)) {
+                                    backgroundFingerprint = hash
+                                    lastSeenHash = hash
+                                }
+                            }
+                            is RootClipboardBridge.Clip.Image -> {
+                                if (clip.value.sha256 != backgroundFingerprint && clip.value.sha256 != lastSeenHash && dispatchImage(clip.value, false)) {
+                                    backgroundFingerprint = clip.value.sha256
+                                    lastSeenHash = clip.value.sha256
+                                }
+                            }
+                            else -> {}
+                        }
+                    } finally { pollInFlight.set(false) }
+                }
+            } catch (_: Exception) { pollInFlight.set(false) }
+        }, PowerPolicy.POLL_MS, PowerPolicy.POLL_MS, TimeUnit.MILLISECONDS)
+    }
+
+    @Synchronized private fun stopBackgroundPolling() {
         backgroundPoll?.cancel(false)
         backgroundPoll = null
     }
 
     private fun applyRootClipboardAutomation() {
+        if (stopping) return
         rootAvailable = RootClipboardBridge.isAvailable()
         if (!rootAvailable) {
             automaticClipboardEnabled = false
             stopBackgroundPolling()
             return
         }
-        RootClipboardBridge.ensureAutostart(this)
         RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
-        automaticClipboardEnabled = RootClipboardBridge.enableBackgroundAccess(this)
+        val enabled = RootClipboardBridge.enableBackgroundAccess(this)
+        if (stopping) return
+        automaticClipboardEnabled = enabled
         store.setRootClipboardAutomationEnabled(automaticClipboardEnabled)
         if (automaticClipboardEnabled) startBackgroundPolling() else stopBackgroundPolling()
     }
@@ -644,7 +720,8 @@ class BinderClipService : Service() {
         )
     }
 
-    private fun publishState() {
+    private fun publishState(notify: Boolean = true) {
+        if (stopping && notify) return
         val paired = store.groupKey != null
         val liveConnected = client.isConnected() || bluetoothLink?.isConnected() == true
         // If any transport is live, we are connected — never let a still-racing WebSocket
@@ -675,7 +752,7 @@ class BinderClipService : Service() {
             TransportType.MESH -> "$statusText · Mesh"
             else -> statusText
         }
-        updateNotification(statusWithTransport)
+        if (notify) updateNotification(statusWithTransport)
 
         AppRuntime.state.value = AppState(
             status = statusText,
@@ -916,11 +993,13 @@ class BinderClipService : Service() {
     }
 
     private fun evaluateBluetooth() {
+        if (stopping) return
         val link = bluetoothLink ?: return
         if (store.groupKey == null) {
             link.stop()
             return
         }
+        if (android.os.SystemClock.elapsedRealtime() < remoteSleepUntilMs) return
         val btConnected = link.isConnected()
         val decision = BtPolicy.decide(
             paired = true,
@@ -931,10 +1010,10 @@ class BinderClipService : Service() {
             networkAvailable = networkAvailable,
             btAdapterOn = link.adapterEnabled(),
             permissionGranted = link.hasPermission(),
-            nowMs = System.currentTimeMillis(),
+            nowMs = android.os.SystemClock.elapsedRealtime(),
             lastWsConnectedMs = client.lastConnectedAtMs(),
         )
-        android.util.Log.d("BinderClipBLE", "evaluateBluetooth decision: $decision (btConnected=$btConnected, wsConn=${client.isConnected()}, backoff=${client.currentBackoffSeconds()})")
+
         when (decision) {
             BtPolicy.Decision.LISTEN_BT -> {
                 if (!btConnected && !link.isListening()) {
@@ -951,7 +1030,7 @@ class BinderClipService : Service() {
                 // Try to enable it silently first; fall back to a Settings shortcut notification.
                 if (link.adapterEnabled()) {
                     // Nothing to do — adapter just came on.
-                } else if (link.requestEnable()) {
+                } else if (link.canRetry() && link.requestEnable()) {
                     android.util.Log.i("BinderClipBLE", "Requested Bluetooth radio enable for fallback")
                 } else {
                     promptBtEnable()
@@ -967,12 +1046,13 @@ class BinderClipService : Service() {
         // flap forever.
         val wsStable = client.isConnected()
         if (wsStable && btConnected) {
-            if (wsStableSinceMs == 0L) wsStableSinceMs = System.currentTimeMillis()
-            val stableForMs = System.currentTimeMillis() - wsStableSinceMs
+            if (wsStableSinceMs == 0L) wsStableSinceMs = android.os.SystemClock.elapsedRealtime()
+            val stableForMs = android.os.SystemClock.elapsedRealtime() - wsStableSinceMs
             if (stableForMs >= BT_TO_WS_GRACE_MS) {
                 DiagnosticLog.info("WebSocket stable ${stableForMs / 1000}s; tearing down Bluetooth")
                 btTornDownForWsAtMs = System.currentTimeMillis()
                 link.stop()
+                publishState()
             }
         } else {
             wsStableSinceMs = 0L
@@ -1012,20 +1092,20 @@ class BinderClipService : Service() {
     }
 
     /** Wi-Fi/mesh first; Bluetooth carries text/links only and defers images. */
-    private fun dispatchImage(image: ImagePayload, userInitiated: Boolean) {
+    private fun dispatchImage(image: ImagePayload, userInitiated: Boolean): Boolean {
         if (client.isConnected()) {
-            client.sendImage(image)
-            if (userInitiated) syncToast("Sent image")
-        } else if (bluetoothLink?.isConnected() == true) {
+            val queued = client.sendImage(image)
+            if (queued && userInitiated) syncToast("Sent image")
+            return queued
+        }
+        if (bluetoothLink?.isConnected() == true) {
             if (userInitiated) syncToast("Images need Wi-Fi or mesh")
             else if (lastDeferredImageHash != image.sha256) {
                 lastDeferredImageHash = image.sha256
                 notifyDeferredImage(image.mimeType)
             }
-        } else {
-            client.sendImage(image)
-            if (userInitiated) syncToast("Sent image")
         }
+        return false
     }
 
     // MARK: - Network Monitor
@@ -1059,9 +1139,11 @@ class BinderClipService : Service() {
         }
     }
 
-    private fun scheduleNetworkReconnect(reason: String) {
+    @Synchronized private fun scheduleNetworkReconnect(reason: String) {
+        if (stopping) return
         networkDebounceFuture?.cancel(false)
         networkDebounceFuture = reconnectExecutor.schedule({
+            if (stopping) return@schedule
             val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             networkAvailable = connectivity.allNetworks.any { net ->
                 val caps = connectivity.getNetworkCapabilities(net)
@@ -1070,7 +1152,11 @@ class BinderClipService : Service() {
                     caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
             }
             evaluateBluetooth()
-            if (!client.isConnected() && bluetoothLink?.isConnected() != true) {
+            if (PowerPolicy.shouldProbePreferredTransport(client.isConnected(), bluetoothLink?.isConnected() == true,
+                    networkAvailable, reason == "network_available")) {
+                DiagnosticLog.info("Network became available; probing WebSocket while retaining Bluetooth")
+                runServiceWork { if (!client.isConnected()) client.forceReconnect() }
+            } else if (!client.isConnected() && bluetoothLink?.isConnected() != true) {
                 requestConnectResettingBackoff(reason)
             }
         }, 2, TimeUnit.SECONDS)

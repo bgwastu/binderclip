@@ -22,7 +22,7 @@ final class SyncProtocolTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(parsed.version, 2)
+        XCTAssertEqual(parsed.version, SyncProtocol.version)
         XCTAssertEqual(parsed.deviceId, id)
         XCTAssertEqual(parsed.deviceName, name)
         XCTAssertEqual(parsed.psk, psk)

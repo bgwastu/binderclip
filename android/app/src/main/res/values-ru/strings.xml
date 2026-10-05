@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">Отправлено на Mac</string>
     <string name="toast_sent_image_to_mac">Изображение отправлено на Mac</string>
     <string name="toast_nothing_to_send">Нечего отправлять</string>
+    <string name="root_required_title">Требуется root-доступ</string>
+    <string name="root_required_desc">BinderClip требуется root-доступ через KernelSU или Magisk для синхронизации буфера обмена в фоне. Предоставьте доступ при запросе, затем нажмите кнопку ниже.</string>
+    <string name="root_required_grant">Проверить root-доступ</string>
+    <string name="bt_fallback_desc_needs_permission">Предоставьте выше разрешение на доступ к устройствам поблизости, чтобы включить резервное подключение по Bluetooth.</string>
+    <string name="clear_logs_confirm_title">Удалить все журналы?</string>
+    <string name="clear_logs_confirm_message">Все записи журнала будут удалены. Это действие нельзя отменить.</string>
+    <string name="secure_connection_failed">Не удалось установить защищённое соединение. Обновите BinderClip на Mac и телефоне или выполните сопряжение заново.</string>
 </resources>

@@ -112,4 +112,5 @@
     <string name="toast_sent_to_mac">Sent to Mac</string>
     <string name="toast_sent_image_to_mac">Sent image to Mac</string>
     <string name="toast_nothing_to_send">Nothing to send</string>
+    <string name="secure_connection_failed">Secure connection failed. Update BinderClip on your Mac and phone, or pair again.</string>
 </resources>

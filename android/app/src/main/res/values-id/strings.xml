@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">Terkirim ke Mac</string>
     <string name="toast_sent_image_to_mac">Gambar terkirim ke Mac</string>
     <string name="toast_nothing_to_send">Tidak ada yang dapat dikirim</string>
+    <string name="root_required_title">Akses root diperlukan</string>
+    <string name="root_required_desc">BinderClip memerlukan root KernelSU atau Magisk untuk menyinkronkan clipboard di latar belakang. Berikan akses root saat diminta, lalu ketuk di bawah.</string>
+    <string name="root_required_grant">Periksa akses root</string>
+    <string name="bt_fallback_desc_needs_permission">Berikan izin Perangkat di sekitar di atas untuk mengaktifkan cadangan Bluetooth.</string>
+    <string name="clear_logs_confirm_title">Hapus semua log?</string>
+    <string name="clear_logs_confirm_message">Ini menghapus semua entri log. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="secure_connection_failed">Koneksi aman gagal. Perbarui BinderClip di Mac dan ponsel, atau pasangkan kembali.</string>
 </resources>

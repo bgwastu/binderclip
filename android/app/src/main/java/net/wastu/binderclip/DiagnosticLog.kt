@@ -26,6 +26,8 @@ object DiagnosticLog {
     val events = mutableEvents.asStateFlow()
     @Volatile private var context: Context? = null
     private var nextEventId = 1L
+    private val persistenceExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "binderclip-diagnostics").apply { isDaemon = true } }
+    private var pendingPersist: java.util.concurrent.ScheduledFuture<*>? = null
 
     fun initialize(context: Context) {
         synchronized(lock) {
@@ -65,7 +67,9 @@ object DiagnosticLog {
     fun warning(message: String) = append(DiagnosticLevel.Warning, message)
     fun error(message: String) = append(DiagnosticLevel.Error, message)
 
-    fun clear() { synchronized(lock) { mutableEvents.value = emptyList(); persistLocked() } }
+    fun clear() { synchronized(lock) { mutableEvents.value = emptyList(); pendingPersist?.cancel(false); pendingPersist = null; persistLocked() } }
+
+    fun flush() { synchronized(lock) { pendingPersist?.cancel(false); pendingPersist = null; persistLocked() } }
 
     private fun append(level: DiagnosticLevel, message: String) {
         synchronized(lock) {
@@ -73,7 +77,7 @@ object DiagnosticLog {
             val previous = mutableEvents.value.lastOrNull()
             if (previous?.level == level && previous.message == message && event.timestamp - previous.timestamp < 10_000) return
             mutableEvents.value = (mutableEvents.value + event).filter { it.timestamp >= event.timestamp - RETENTION_MS }.takeLast(MAXIMUM_EVENTS)
-            persistLocked()
+            if (pendingPersist == null) pendingPersist = persistenceExecutor.schedule({ flush() }, 2, java.util.concurrent.TimeUnit.SECONDS)
         }
     }
 

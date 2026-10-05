@@ -2,7 +2,12 @@ import Foundation
 
 enum SessionLiveness {
     static let heartbeatBudget: TimeInterval = 5
-    static let heartbeatSleepBudget: TimeInterval = 45
+    static let heartbeatSleepBudget: TimeInterval = 60
+    static let idleHeartbeatInterval: TimeInterval = 15
+    static func nextPingAfterPowerChange(sleeping: Bool, now: Date) -> Date {
+        sleeping ? now.addingTimeInterval(idleHeartbeatInterval) : now
+    }
+    static func now() -> Date { Date(timeIntervalSince1970: ProcessInfo.processInfo.systemUptime) }
 
     static func ipv4Bytes(_ ip: String) -> [UInt8]? {
         let parts = ip.split(separator: ".")

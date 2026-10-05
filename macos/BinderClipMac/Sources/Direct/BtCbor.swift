@@ -57,7 +57,7 @@ public enum BtCbor {
     public static func decode(_ bytes: [UInt8]) throws -> [(String, BtValue)] {
         var parser = Parser(bytes: bytes)
         let mapHead = try parser.readHead()
-        guard mapHead.major == majorMap else {
+        guard mapHead.major == majorMap, mapHead.arg <= 23 else {
             throw BtCborError.malformed("expected map, got major \(mapHead.major)")
         }
         var fields: [(String, BtValue)] = []
@@ -66,6 +66,7 @@ public enum BtCbor {
             let keyHead = try parser.readHead()
             guard keyHead.major == majorText else { throw BtCborError.malformed("map key must be text") }
             let key = try parser.readText(keyHead.arg)
+            guard !fields.contains(where: { $0.0 == key }) else { throw BtCborError.malformed("duplicate key") }
             let valueHead = try parser.readHead()
             let value: BtValue
             switch valueHead.major {
@@ -74,7 +75,7 @@ public enum BtCbor {
             case majorText:
                 value = .text(try parser.readText(valueHead.arg))
             case majorArray:
-                guard valueHead.arg <= Int.max else { throw BtCborError.malformed("array too large") }
+                guard valueHead.arg <= 23 else { throw BtCborError.malformed("array too large") }
                 var items: [String] = []
                 items.reserveCapacity(Int(valueHead.arg))
                 for _ in 0..<valueHead.arg {
@@ -88,6 +89,7 @@ public enum BtCbor {
             }
             fields.append((key, value))
         }
+        guard parser.position == bytes.count else { throw BtCborError.malformed("trailing bytes") }
         return fields
     }
 

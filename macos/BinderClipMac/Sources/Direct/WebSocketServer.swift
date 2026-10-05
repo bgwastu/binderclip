@@ -54,7 +54,10 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
-    private let rosterManager = RosterManager()
+    private let rosterManager: RosterManager
+    private let listenPort: UInt16
+    private let bluetoothEnabled: Bool
+    var onListening: ((UInt16) -> Void)?
     private var listener: NWListener?
     private let bluetoothConnector = BluetoothConnector()
     private var pathMonitor: NWPathMonitor?
@@ -67,7 +70,9 @@ public final class WebSocketServer: @unchecked Sendable {
     private var addressDebounce: DispatchWorkItem?
     private var heartbeatTimer: DispatchSourceTimer?
     private var bluetoothRadioWatchTimer: DispatchSourceTimer?
+    private var lifecycle = TransportLifecycle()
     private var wantsListener = false
+    private var pairingAdvertisingUntil: Date?
     private var listenBackoffSeconds: TimeInterval = 1
     private var listenRestart: DispatchWorkItem?
 
@@ -86,10 +91,15 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     public var localEndpoint: DirectEndpoint {
-        DirectEndpoint(host: Self.localAddresses().first ?? "unknown", port: SyncProtocol.defaultPort)
+        DirectEndpoint(host: Self.localAddresses().first ?? "unknown", port: listenPort)
     }
 
-    public init() {
+    public convenience init() { self.init(rosterManager: RosterManager()) }
+
+    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = true) {
+        self.rosterManager = rosterManager
+        self.listenPort = port
+        self.bluetoothEnabled = bluetoothEnabled
         self.cachedDeviceName = rosterManager.localName
         self.cachedPeersSnapshot = rosterManager.peerSnapshot()
     }
@@ -128,45 +138,56 @@ public final class WebSocketServer: @unchecked Sendable {
     public func start() {
         queue.async { [weak self] in
             guard let self else { return }
-            self.rosterManager.markAllDisconnected()
-            self.updateCachedState()
-            self.publishPeers()
-            self.wantsListener = true
-            self.listenBackoffSeconds = 1
-            self.startListener()
-            self.startPathMonitor()
-            self.startAddressWatch()
-            self.startHeartbeat()
-            self.startBluetoothRadioWatch()
-            self.bluetoothConnector.start(server: self)
+            self.lifecycle.running = true
+            self.startLocked()
         }
     }
 
     public func stop() {
         queue.async { [weak self] in
             guard let self else { return }
-            self.wantsListener = false
-            self.listenRestart?.cancel()
-            self.listenRestart = nil
-            self.pathDebounce?.cancel()
-            self.pathDebounce = nil
-            self.pathMonitor?.cancel()
-            self.pathMonitor = nil
-            self.stopAddressWatch()
-            self.heartbeatTimer?.cancel()
-            self.heartbeatTimer = nil
-            self.stopBluetoothRadioWatch()
-            self.listener?.cancel()
-            self.listener = nil
-            self.bluetoothConnector.stop()
-            for session in self.activeSessions.values {
-                session.connection.cancel()
-            }
-            self.activeSessions.removeAll()
-            self.rosterManager.markAllDisconnected()
-            self.updateCachedState()
-            self.publishPeers()
+            self.lifecycle.running = false
+            self.stopLocked()
         }
+    }
+
+    public func setSystemSleeping(_ sleeping: Bool) {
+        queue.async { [weak self] in
+            guard let self, self.lifecycle.sleeping != sleeping else { return }
+            if sleeping { self.broadcastText(["type": "power", "state": "sleep"]) }
+            self.lifecycle.sleeping = sleeping
+            if sleeping { self.stopLocked() } else { self.startLocked() }
+        }
+    }
+
+    private func startLocked() {
+        guard lifecycle.active, !wantsListener else { return }
+        rosterManager.markAllDisconnected()
+        updateCachedState()
+        wantsListener = true
+        listenBackoffSeconds = 1
+        startListener()
+        startPathMonitor()
+        startAddressWatch()
+        if bluetoothEnabled { bluetoothConnector.start(server: self) }
+        publishPresence()
+    }
+
+    private func stopLocked() {
+        wantsListener = false
+        listenRestart?.cancel(); listenRestart = nil
+        pathDebounce?.cancel(); pathDebounce = nil
+        pathMonitor?.cancel(); pathMonitor = nil
+        stopAddressWatch()
+        heartbeatTimer?.cancel(); heartbeatTimer = nil
+        stopBluetoothRadioWatch()
+        listener?.cancel(); listener = nil
+        bluetoothConnector.stop()
+        for session in activeSessions.values { session.close() }
+        activeSessions.removeAll()
+        rosterManager.markAllDisconnected()
+        updateCachedState()
+        publishPeers()
     }
 
     public func resetPairingKey() {
@@ -215,20 +236,21 @@ public final class WebSocketServer: @unchecked Sendable {
             session.sendText(["type": "unpair"]) { [weak self] in
                 self?.queue.async {
                     guard let self else { return }
-                    session.connection.cancel()
-                    self.activeSessions.removeValue(forKey: id)
+                    self.handleConnectionClosed(session: session)
                 }
             }
             queue.asyncAfter(deadline: .now() + 0.75) { [weak self] in
                 guard let self, self.activeSessions[id] === session else { return }
-                session.connection.cancel()
-                self.activeSessions.removeValue(forKey: id)
+                self.handleConnectionClosed(session: session)
             }
         }
     }
 
     public func createInvite() -> URL? {
         queue.sync {
+            pairingAdvertisingUntil = SessionLiveness.now().addingTimeInterval(120)
+            updateBluetoothDemand()
+            queue.asyncAfter(deadline: .now() + 120) { [weak self] in self?.updateBluetoothDemand() }
             let endpoints = SyncProtocol.advertisedEndpoints(from: Self.localAddresses())
             guard !endpoints.isEmpty else { return nil }
             let psk = SyncProtocol.urlSafeBase64(rosterManager.groupKey)
@@ -261,7 +283,7 @@ public final class WebSocketServer: @unchecked Sendable {
             }
             let authedCount = self.activeSessions.values.filter { $0.isAuthenticated }.count
             let btAuthedCount = self.bluetoothConnector.authenticatedSessions.count
-            print("[WebSocketServer] Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions: \(text.prefix(30))")
+            print("[WebSocketServer] Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions")
             self.onLog?("Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions")
             self.broadcastText(payload, targetPeerId: targetDeviceId)
         }
@@ -305,7 +327,7 @@ public final class WebSocketServer: @unchecked Sendable {
 
             let wsOptions = NWProtocolWebSocket.Options()
             wsOptions.autoReplyPing = true
-            wsOptions.maximumMessageSize = SyncProtocol.maximumImageBytes
+            wsOptions.maximumMessageSize = SyncProtocol.maximumImageBytes + 24
             wsOptions.setClientRequestHandler(queue) { [weak self] _, _ in
                 self?.onLog?("Accepted WebSocket handshake")
                 return NWProtocolWebSocket.Response(status: .accept, subprotocol: nil)
@@ -315,7 +337,7 @@ public final class WebSocketServer: @unchecked Sendable {
             params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
             params.allowLocalEndpointReuse = true
 
-            let port = NWEndpoint.Port(rawValue: SyncProtocol.defaultPort) ?? .any
+            let port: NWEndpoint.Port = listenPort == 0 ? .any : NWEndpoint.Port(rawValue: listenPort)!
             let listener = try NWListener(using: params, on: port)
 
             listener.service = Self.makeBonjourService(
@@ -323,11 +345,12 @@ public final class WebSocketServer: @unchecked Sendable {
                 deviceName: localDeviceName
             )
 
-            listener.stateUpdateHandler = { [weak self] state in
-                guard let self else { return }
+            listener.stateUpdateHandler = { [weak self, weak listener] state in
+                guard let self, self.listener === listener, self.lifecycle.active else { return }
                 switch state {
                 case .ready:
                     self.listenBackoffSeconds = 1
+                    if let port = listener?.port { self.onListening?(port.rawValue) }
                     self.onLog?("Listening on port \(SyncProtocol.defaultPort)")
                     self.onLocalNetworkPermissionRequired?(false)
                 case .failed(let error):
@@ -371,20 +394,22 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func acceptIncoming(_ nwConnection: NWConnection) {
+        guard lifecycle.active, wantsListener else { nwConnection.forceCancel(); return }
         let session = WebSocketSession(connection: nwConnection)
         let id = ObjectIdentifier(nwConnection)
         activeSessions[id] = session
         print("[WebSocketServer] Accepting incoming connection: \(nwConnection.endpoint)")
         fflush(stdout)
 
-        nwConnection.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
-            print("[WebSocketServer] Connection \(nwConnection.endpoint) state: \(state)")
+        nwConnection.stateUpdateHandler = { [weak self, weak session] state in
+            guard let self, let session, self.lifecycle.active, self.activeSessions[id] === session else { return }
+            print("[WebSocketServer] Connection \(session.connection.endpoint) state: \(state)")
             fflush(stdout)
             switch state {
             case .ready:
                 self.bindSession(session)
                 self.scheduleAuthDeadline(session)
+                session.sendHandshake()
                 self.readNextMessage(from: session)
                 self.publishPresence()
             case .waiting:
@@ -399,15 +424,15 @@ public final class WebSocketServer: @unchecked Sendable {
             }
         }
 
+        scheduleAuthDeadline(session)
         nwConnection.start(queue: queue)
     }
 
     private func handleConnectionClosed(session: WebSocketSession) {
         let id = ObjectIdentifier(session.connection)
-        guard activeSessions.removeValue(forKey: id) != nil else { return }
-        session.authDeadline?.cancel()
-        session.authDeadline = nil
-        session.connection.cancel()
+        let wasActive = activeSessions.removeValue(forKey: id) != nil
+        session.close()
+        guard wasActive else { return }
         publishPresence()
     }
 
@@ -418,15 +443,15 @@ public final class WebSocketServer: @unchecked Sendable {
             let id = ObjectIdentifier(session.connection)
             guard self.activeSessions[id] === session, !session.isAuthenticated else { return }
             self.onLog?("Auth deadline exceeded")
-            session.connection.cancel()
+            self.handleConnectionClosed(session: session)
         }
         session.authDeadline = work
         queue.asyncAfter(deadline: .now() + SyncProtocol.authDeadline, execute: work)
     }
 
     private func usableAuthenticatedPeerIDs() -> [String] {
-        let now = Date()
-        let locals = Self.localAddresses()
+        let now = SessionLiveness.now()
+        let locals = lastLocalAddresses
         var peerIDs = activeSessions.values.compactMap { session -> String? in
             guard session.isAuthenticated, let peerID = session.peerID else { return nil }
             guard SessionLiveness.isAlive(
@@ -454,12 +479,25 @@ public final class WebSocketServer: @unchecked Sendable {
         }
         updateCachedState()
         publishPeers()
+        if lifecycle.active && !livePeerIDs.isEmpty { startHeartbeat() }
+        else { heartbeatTimer?.cancel(); heartbeatTimer = nil }
+    }
+
+    private func updateBluetoothDemand() {
+        let connectedWS = Set(activeSessions.values.compactMap { $0.isAuthenticated ? $0.peerID : nil })
+        let missingPeers = Set(rosterManager.peers.keys).subtracting(connectedWS)
+        let pairing = pairingAdvertisingUntil.map { $0 > SessionLiveness.now() } ?? false
+        let needed = bluetoothEnabled && lifecycle.active && (pairing || !missingPeers.isEmpty)
+        bluetoothConnector.setNeeded(needed)
+        if needed { startBluetoothRadioWatch() } else { stopBluetoothRadioWatch() }
     }
 
     private func readNextMessage(from session: WebSocketSession) {
+        guard lifecycle.active, activeSessions[ObjectIdentifier(session.connection)] === session else { return }
         session.connection.receiveMessage { [weak self, weak session] data, context, isComplete, error in
-            guard let self, let session else { return }
-            if error != nil {
+            guard let self, let session, self.lifecycle.active, self.activeSessions[ObjectIdentifier(session.connection)] === session else { return }
+            let opcode = (context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata)?.opcode
+            if error != nil || opcode == .close || (data == nil && context == nil && isComplete) {
                 self.handleConnectionClosed(session: session)
                 return
             }
@@ -467,13 +505,35 @@ public final class WebSocketServer: @unchecked Sendable {
             if let data, !data.isEmpty {
                 let isBinary = (context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata)?.opcode == .binary
                 if isBinary {
-                    self.handleBinaryMessage(data, from: session)
+                    do {
+                        guard let secure = session.secure else { throw SecureChannelError.invalidHandshake }
+                        self.handleBinaryMessage(try secure.open(data, kind: 2), from: session)
+                    } catch { self.handleConnectionClosed(session: session) }
                 } else {
-                    self.handleTextMessage(data, from: session)
+                    self.handleWireText(data, session: session)
                 }
             }
 
             self.readNextMessage(from: session)
+        }
+    }
+
+    private func handleWireText(_ data: Data, session: WebSocketSession) {
+        do {
+            guard data.count <= (session.isAuthenticated ? 8 * SyncProtocol.maximumTextBytes + 16_384 : 16_384),
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw SecureChannelError.invalidFrame }
+            if object["type"] as? String == "secure_reply", session.secure == nil {
+                guard let nonce = object["nonce"] as? String, let clientNonce = Data(base64Encoded: nonce),
+                      let proof = object["proof"] as? String, let proofBytes = Data(base64Encoded: proof) else { throw SecureChannelError.invalidHandshake }
+                session.secure = try session.handshake.accept(clientNonce: clientNonce, proof: proofBytes, psk: rosterManager.groupKey, transport: "ws")
+                return
+            }
+            guard object["type"] as? String == "secure", let encoded = object["data"] as? String,
+                  let packet = Data(base64Encoded: encoded), let secure = session.secure else { throw SecureChannelError.invalidFrame }
+            handleTextMessage(try secure.open(packet, kind: 1), from: session)
+        } catch {
+            onLog?("Encrypted WebSocket handshake/frame rejected; both apps must support protocol 3")
+            handleConnectionClosed(session: session)
         }
     }
 
@@ -482,7 +542,7 @@ public final class WebSocketServer: @unchecked Sendable {
               let type = json["type"] as? String else {
             return
         }
-        session.lastHeard = Date()
+        session.lastHeard = SessionLiveness.now()
 
         switch type {
         case "auth", "hello":
@@ -527,6 +587,7 @@ public final class WebSocketServer: @unchecked Sendable {
             }
 
         case "ping":
+            guard session.isAuthenticated else { return }
             session.sendText(["type": "pong", "t": json["t"] as Any])
 
         case "pong":
@@ -542,22 +603,11 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func handleAuthMessage(_ json: [String: Any], session: WebSocketSession) {
-        let token = json["token"] as? String ?? json["psk"] as? String
-        guard let token,
+        guard session.secure != nil,
               let clientID = json["deviceId"] as? String,
-              let clientName = json["deviceName"] as? String else {
-            print("[WebSocketServer] Auth failed: missing token/deviceId/deviceName")
-            session.connection.cancel()
-            return
-        }
-
-        let match = Self.pskMatches(token, groupKey: rosterManager.groupKey)
-        print("[WebSocketServer] Auth check: token=\(token.prefix(10))... match=\(match)")
-        fflush(stdout)
-        guard match else {
-            onLog?("Unauthorized peer connection rejected")
-            print("[WebSocketServer] PSK mismatch! Rejecting \(clientName)")
-            session.connection.cancel()
+              let clientName = json["deviceName"] as? String,
+              json["version"] as? Int == SyncProtocol.version else {
+            handleConnectionClosed(session: session)
             return
         }
 
@@ -588,10 +638,7 @@ public final class WebSocketServer: @unchecked Sendable {
             existingPeerID: other.peerID,
             incomingPeerID: clientID
         ) {
-            other.authDeadline?.cancel()
-            other.authDeadline = nil
-            other.connection.cancel()
-            activeSessions.removeValue(forKey: id)
+            handleConnectionClosed(session: other)
         }
 
         let platform = json["platform"] as? String ?? "Android"
@@ -615,7 +662,7 @@ public final class WebSocketServer: @unchecked Sendable {
 
     private func handleBinaryMessage(_ data: Data, from session: WebSocketSession) {
         guard session.isAuthenticated else { return }
-        session.lastHeard = Date()
+        session.lastHeard = SessionLiveness.now()
         guard let (meta, imgData) = SyncProtocol.unpackImage(data),
               let image = try? ImagePayload(id: UUID(uuidString: meta.id) ?? UUID(), mimeType: meta.mimeType, data: imgData) else {
             return
@@ -633,7 +680,7 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil) {
-        let locals = Self.localAddresses()
+        let locals = lastLocalAddresses
         for (id, session) in activeSessions where session.isAuthenticated {
             if let excludeSessionId, id == excludeSessionId { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
@@ -648,12 +695,6 @@ public final class WebSocketServer: @unchecked Sendable {
         }
     }
 
-    static func pskMatches(_ token: String, groupKey: Data) -> Bool {
-        token == SyncProtocol.urlSafeBase64(groupKey)
-            || token == groupKey.base64EncodedString()
-            || SyncProtocol.decodeBase64(token) == groupKey
-    }
-
     /// Canonical CBOR field order for frames mirrored onto the Bluetooth link.
     static func btFields(from object: [String: Any]) -> [(String, BtValue)]? {
         guard let type = object["type"] as? String else { return nil }
@@ -665,6 +706,8 @@ public final class WebSocketServer: @unchecked Sendable {
             return [("type", .text(type)), ("url", .text(url))]
         case "ping", "pong":
             return [("type", .text(type)), ("t", .uint(UInt64(object["t"] as? Int64 ?? 0)))]
+        case "power":
+            return [("type", .text(type)), ("state", .text(object["state"] as? String ?? "awake"))]
         case "unpair":
             return [("type", .text(type))]
         case "rename":
@@ -675,7 +718,7 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func broadcastBinary(_ data: Data, targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil) {
-        let locals = Self.localAddresses()
+        let locals = lastLocalAddresses
         for (id, session) in activeSessions where session.isAuthenticated {
             if let excludeSessionId, id == excludeSessionId { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
@@ -688,8 +731,9 @@ public final class WebSocketServer: @unchecked Sendable {
     /// CoreBluetooth only surfaces the state change on a *fresh* manager, so a disabled
     /// radio at launch (or one turned off later) would otherwise never recover.
     private func startBluetoothRadioWatch() {
+        guard bluetoothRadioWatchTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 2, repeating: 3)
+        timer.schedule(deadline: .now() + 15, repeating: 15, leeway: .seconds(3))
         timer.setEventHandler { [weak self] in
             self?.tickBluetoothRadioWatch()
         }
@@ -738,6 +782,7 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func handlePathUpdate(_ path: NWPath) {
+        guard lifecycle.active else { return }
         let satisfied = path.status == .satisfied
         let regained = satisfied && !lastPathSatisfied
         lastPathSatisfied = satisfied
@@ -778,7 +823,7 @@ public final class WebSocketServer: @unchecked Sendable {
             dynamicStore = store
         }
         let sampler = DispatchSource.makeTimerSource(queue: queue)
-        sampler.schedule(deadline: .now() + 2, repeating: 2)
+        sampler.schedule(deadline: .now() + 30, repeating: 30, leeway: .seconds(5))
         sampler.setEventHandler { [weak self] in
             self?.refreshAddresses(reason: "sample")
         }
@@ -802,15 +847,18 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func scheduleAddressRefresh() {
-        addressDebounce?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            self?.refreshAddresses(reason: "interfaces")
+        queue.async { [weak self] in
+            guard let self, self.lifecycle.active else { return }
+            self.addressDebounce?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.refreshAddresses(reason: "interfaces") }
+            self.addressDebounce = work
+            self.queue.asyncAfter(deadline: .now() + 0.2, execute: work)
         }
-        addressDebounce = work
-        queue.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
     private func refreshAddresses(reason: String) {
+        guard lifecycle.active else { return }
+        EnergyCounters.add("network.address.sample")
         let addresses = Self.localAddresses()
         guard addresses != lastLocalAddresses else { return }
         lastLocalAddresses = addresses
@@ -824,19 +872,20 @@ public final class WebSocketServer: @unchecked Sendable {
     private func evictSessionsMissingBind(currentLocals: [String]) {
         for session in activeSessions.values where SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: currentLocals) {
             onLog?("Evicting session bound to \(session.boundLocalAddress ?? "unknown")")
-            session.connection.cancel()
+            handleConnectionClosed(session: session)
         }
     }
 
     private func bindSession(_ session: WebSocketSession) {
         let remote = session.remoteHostString() ?? ""
-        session.boundLocalAddress = SessionLiveness.boundLocalAddress(remote: remote, localAddresses: Self.localAddresses())
-        session.lastHeard = Date()
+        session.boundLocalAddress = SessionLiveness.boundLocalAddress(remote: remote, localAddresses: lastLocalAddresses)
+        session.lastHeard = SessionLiveness.now()
     }
 
     private func startHeartbeat() {
+        guard lifecycle.active, heartbeatTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + SyncProtocol.heartbeatInterval, repeating: SyncProtocol.heartbeatInterval)
+        timer.schedule(deadline: .now() + SyncProtocol.heartbeatInterval, repeating: SyncProtocol.heartbeatInterval, leeway: .milliseconds(200))
         timer.setEventHandler { [weak self] in
             self?.tickHeartbeat()
         }
@@ -845,8 +894,9 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func tickHeartbeat() {
-        let now = Date()
-        let locals = Self.localAddresses()
+        guard lifecycle.active else { return }
+        let now = SessionLiveness.now()
+        let locals = lastLocalAddresses
         var evicted = false
         for session in activeSessions.values {
             guard session.isAuthenticated else { continue }
@@ -857,13 +907,16 @@ public final class WebSocketServer: @unchecked Sendable {
                 now: now,
                 budget: session.livenessBudget
             ) {
-                session.connection.cancel()
+                handleConnectionClosed(session: session)
                 evicted = true
                 continue
             }
+            guard session.nextPing <= now else { continue }
+            EnergyCounters.add("heartbeat.sent")
+            session.nextPing = now.addingTimeInterval(session.livenessBudget == SyncProtocol.heartbeatBudget ? SyncProtocol.heartbeatInterval : SessionLiveness.idleHeartbeatInterval)
             session.sendText([
                 "type": "ping",
-                "t": Int64(now.timeIntervalSince1970 * 1000)
+                "t": Int64(Date().timeIntervalSince1970 * 1000)
             ])
         }
         for session in bluetoothConnector.authenticatedSessions where session.isAuthenticated {
@@ -874,13 +927,17 @@ public final class WebSocketServer: @unchecked Sendable {
                 now: now,
                 budget: session.livenessBudget
             ) {
+                onLog?("Bluetooth liveness deadline exceeded (budget=\(Int(session.livenessBudget))s)")
                 session.close()
                 evicted = true
                 continue
             }
+            guard session.nextPing <= now else { continue }
+            EnergyCounters.add("heartbeat.sent")
+            session.nextPing = now.addingTimeInterval(session.livenessBudget == SyncProtocol.heartbeatBudget ? SyncProtocol.heartbeatInterval : SessionLiveness.idleHeartbeatInterval)
             session.sendFrame([
                 ("type", .text("ping")),
-                ("t", .uint(UInt64(Int64(now.timeIntervalSince1970 * 1000))))
+                ("t", .uint(UInt64(Int64(Date().timeIntervalSince1970 * 1000))))
             ])
         }
         if evicted {
@@ -910,7 +967,29 @@ public final class WebSocketServer: @unchecked Sendable {
     /// Runs on the server queue; the connector hops here from its own serial queue.
     func handleBluetoothFrame(_ fields: [(String, BtValue)], session: BluetoothSession) {
         queue.async { [weak self] in
-            self?.handleBluetoothFrameLocked(fields, session: session)
+            guard let self, self.lifecycle.active, self.bluetoothConnector.isCurrentSession(session) else { return }
+            do {
+                let type = fields.first(where: { $0.0 == "type" })?.1.valueAsText
+                if type == "secure_reply", session.secure == nil {
+                    guard let nonce = fields.first(where: { $0.0 == "nonce" })?.1.valueAsText,
+                          let clientNonce = Data(base64Encoded: nonce),
+                          let proof = fields.first(where: { $0.0 == "proof" })?.1.valueAsText,
+                          let proofBytes = Data(base64Encoded: proof) else { throw SecureChannelError.invalidHandshake }
+                    session.secure = try session.handshake.accept(clientNonce: clientNonce, proof: proofBytes, psk: self.rosterManager.groupKey, transport: "ble")
+                    return
+                }
+                guard type == "secure", let encoded = fields.first(where: { $0.0 == "data" })?.1.valueAsText,
+                      let packet = Data(base64Encoded: encoded), let secure = session.secure else { throw SecureChannelError.invalidFrame }
+                let decoded = try BtCbor.decode(Array(secure.open(packet, kind: 3)))
+                self.handleBluetoothFrameLocked(decoded, session: session)
+            } catch { self.bluetoothConnector.dropSession(session) }
+        }
+    }
+
+    func noteBluetoothProgress(_ session: BluetoothSession) {
+        queue.async { [weak self] in
+            guard let self, self.lifecycle.active, session.isAuthenticated, self.bluetoothConnector.isCurrentSession(session) else { return }
+            session.lastHeard = SessionLiveness.now()
         }
     }
 
@@ -935,12 +1014,13 @@ public final class WebSocketServer: @unchecked Sendable {
             return nil
         }
         let type = text("type") ?? ""
+        if session.isAuthenticated { session.lastHeard = SessionLiveness.now() }
         switch type {
         case "auth":
-            let token = text("psk") ?? ""
+            guard !session.isAuthenticated else { return }
             let clientID = text("deviceId") ?? ""
             let clientName = text("deviceName") ?? "Android"
-            guard Self.pskMatches(token, groupKey: rosterManager.groupKey),
+            guard session.secure != nil, uint("version") == UInt64(SyncProtocol.version),
                   rosterManager.shouldAcceptPeer(clientID, isPairingScan: false) else {
                 onLog?("Unauthorized Bluetooth connection rejected")
                 bluetoothConnector.dropSession(session)
@@ -950,20 +1030,16 @@ public final class WebSocketServer: @unchecked Sendable {
             session.peerID = clientID
             session.peerName = clientName
             session.livenessBudget = SyncProtocol.heartbeatBudget
+            session.lastHeard = SessionLiveness.now()
+            startHeartbeat()
             session.cancelAuthDeadline()
             self.bluetoothConnector.registerBluetoothMapping(btName: session.deviceName, peerID: clientID)
             // Promote pending → active so the session is visible to broadcasts and heartbeats
             // immediately instead of only after the phone's next frame.
             self.bluetoothConnector.promoteSession(session)
 
-            for other in activeSessions.values where PeerPresence.shouldCancelExtra(
-                isAuthenticated: other.isAuthenticated,
-                existingPeerID: other.peerID,
-                incomingPeerID: clientID
-            ) {
-                other.connection.cancel()
-            }
-
+            // A late fallback handshake must retain a working preferred WebSocket.
+            // Android releases Bluetooth after WebSocket's stability grace period.
             let peer = Peer(id: clientID, name: clientName, endpoint: DirectEndpoint(host: "bluetooth", port: 0), connected: true, platform: "Android")
             _ = rosterManager.addOrUpdatePeer(peer)
             publishPresence()
@@ -979,9 +1055,9 @@ public final class WebSocketServer: @unchecked Sendable {
             onLog?("Connected to \(clientName) over Bluetooth")
         case "clipboard":
             guard session.isAuthenticated, let body = text("text") else { return }
-            session.lastHeard = Date()
+            session.lastHeard = SessionLiveness.now()
             let digest = SyncProtocol.sha256Hex(body)
-            print("[WebSocketServer] BT received clipboard: \(body.prefix(30)), hash=\(digest)")
+            print("[WebSocketServer] Bluetooth clipboard received")
             guard digest != lastProcessedHash else { return }
             lastProcessedHash = digest
             DispatchQueue.main.async { [weak self] in
@@ -989,14 +1065,24 @@ public final class WebSocketServer: @unchecked Sendable {
             }
         case "openUrl":
             guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
-            session.lastHeard = Date()
-            print("[WebSocketServer] BT received openUrl: \(url)")
+            session.lastHeard = SessionLiveness.now()
+            print("[WebSocketServer] Bluetooth browser link received")
             DispatchQueue.main.async { [weak self] in
                 self?.onOpenURL?(value)
             }
+        case "ping":
+            guard session.isAuthenticated else { return }
+            session.lastHeard = SessionLiveness.now()
+            session.sendFrame([("type", .text("pong")), ("t", .uint(uint("t") ?? 0))])
+        case "pong":
+            guard session.isAuthenticated else { return }
+            session.lastHeard = SessionLiveness.now()
         case "power":
             guard session.isAuthenticated else { return }
-            session.livenessBudget = text("state") == "sleep" ? SyncProtocol.heartbeatSleepBudget : SyncProtocol.heartbeatBudget
+            session.lastHeard = SessionLiveness.now()
+            let sleeping = text("state") == "sleep"
+            session.livenessBudget = sleeping ? SyncProtocol.heartbeatSleepBudget : SyncProtocol.heartbeatBudget
+            session.nextPing = SessionLiveness.nextPingAfterPowerChange(sleeping: sleeping, now: SessionLiveness.now())
         default:
             break
         }
@@ -1006,8 +1092,10 @@ public final class WebSocketServer: @unchecked Sendable {
         switch state {
         case "sleep":
             session.livenessBudget = SyncProtocol.heartbeatSleepBudget
+            session.nextPing = SessionLiveness.nextPingAfterPowerChange(sleeping: true, now: SessionLiveness.now())
         case "awake":
             session.livenessBudget = SyncProtocol.heartbeatBudget
+            session.nextPing = SessionLiveness.nextPingAfterPowerChange(sleeping: false, now: SessionLiveness.now())
         default:
             break
         }
@@ -1056,6 +1144,7 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func publishPeers() {
+        updateBluetoothDemand()
         let snapshot = peersSnapshot()
         DispatchQueue.main.async { [weak self] in
             self?.onPeersChanged?(snapshot)
@@ -1093,21 +1182,34 @@ public final class WebSocketServer: @unchecked Sendable {
 
 private final class WebSocketSession: @unchecked Sendable {
     let connection: NWConnection
+    let handshake = SecureHandshake()
+    var secure: SecureChannel?
     var isAuthenticated: Bool = false
     var peerID: String?
     var peerName: String?
     var boundLocalAddress: String?
     var lastHeard: Date?
     var livenessBudget: TimeInterval = SyncProtocol.heartbeatBudget
+    var nextPing = SessionLiveness.now()
     var authDeadline: DispatchWorkItem?
 
     init(connection: NWConnection) {
         self.connection = connection
     }
 
+    func close() {
+        authDeadline?.cancel()
+        authDeadline = nil
+        connection.stateUpdateHandler = nil
+        connection.forceCancel()
+    }
+
     func sendText(_ object: [String: Any], onComplete: (() -> Void)? = nil) {
         do {
-            let data = try JSONSerialization.data(withJSONObject: object)
+            guard let secure else { throw SecureChannelError.invalidHandshake }
+            let plaintext = try JSONSerialization.data(withJSONObject: object)
+            let packet = try secure.seal(plaintext, kind: 1)
+            let data = try JSONSerialization.data(withJSONObject: ["type": "secure", "data": packet.base64EncodedString()])
             let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])
             connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { error in
@@ -1122,7 +1224,8 @@ private final class WebSocketSession: @unchecked Sendable {
         }
     }
 
-    func sendBinary(_ data: Data) {
+    func sendBinary(_ plaintext: Data) {
+        guard let secure, let data = try? secure.seal(plaintext, kind: 2) else { connection.forceCancel(); return }
         let metadata = NWProtocolWebSocket.Metadata(opcode: .binary)
         let context = NWConnection.ContentContext(identifier: "binary", metadata: [metadata])
         connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { error in
@@ -1130,6 +1233,13 @@ private final class WebSocketSession: @unchecked Sendable {
                 print("[WebSocketSession] sendBinary error: \(error)")
             }
         })
+    }
+
+    func sendHandshake() {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["type": "secure_hello", "version": SyncProtocol.version, "nonce": handshake.nonce.base64EncodedString()]) else { return }
+        let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+        let context = NWConnection.ContentContext(identifier: "secure-handshake", metadata: [metadata])
+        connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { _ in })
     }
 
     func remoteHostString() -> String? {

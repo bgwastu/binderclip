@@ -27,6 +27,7 @@ object ConnectionStatus {
 class ReconnectPolicy(
     private val maxDelaySeconds: Long = 16L,
 ) {
+    private var failures = 0
     var delaySeconds: Long = 1L
         private set
 
@@ -37,13 +38,15 @@ class ReconnectPolicy(
 
     fun resetBackoff() {
         delaySeconds = 1L
+        failures = 0
     }
 
     fun shouldAnnounceUnreachable(): Boolean = delaySeconds >= 8L
 
-    fun nextBackoffSeconds(): Long {
+    fun nextBackoffSeconds(interactive: Boolean = true): Long {
+        failures++
         val current = delaySeconds
-        delaySeconds = (delaySeconds * 2).coerceAtMost(maxDelaySeconds)
+        delaySeconds = (delaySeconds * 2).coerceAtMost(if (failures > 6) { if (interactive) 60L else 300L } else maxDelaySeconds)
         return current
     }
 }

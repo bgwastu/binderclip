@@ -111,12 +111,12 @@ cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
       <key>NSMenuItem</key>
       <dict>
         <key>default</key>
-        <string>Send to Phones via BinderClip</string>
+        <string>Send to Phones via BinderClip Debug</string>
       </dict>
       <key>NSMessage</key>
       <string>sendToPhones</string>
       <key>NSPortName</key>
-      <string>BinderClip</string>
+      <string>BinderClip Debug</string>
       <key>NSSendTypes</key>
       <array>
         <string>NSStringPboardType</string>

@@ -23,6 +23,8 @@ final class DiagnosticLog {
     private var events: [DiagnosticEvent] = []
     private let storageKey = "diagnostic-events-v1"
     private let maximumEvents = 2_000
+    private var pendingPersist: DispatchWorkItem?
+    private let persistenceQueue = DispatchQueue(label: "net.wastu.binderclip.diagnostics.persist", qos: .utility)
     private let retention: TimeInterval = 7 * 24 * 60 * 60
 
     private init() {
@@ -40,7 +42,7 @@ final class DiagnosticLog {
     }
 
     func clear() {
-        lock.lock(); events.removeAll(); persistLocked(); lock.unlock()
+        lock.lock(); events.removeAll(); pendingPersist?.cancel(); pendingPersist = nil; persistLocked(); lock.unlock()
         NotificationCenter.default.post(name: Self.changed, object: self)
     }
 
@@ -54,7 +56,11 @@ final class DiagnosticLog {
         events.append(DiagnosticEvent(date: Date(), level: level, message: message))
         events = events.filter { $0.date >= Date().addingTimeInterval(-retention) }
         if events.count > maximumEvents { events.removeFirst(events.count - maximumEvents) }
-        persistLocked()
+        if pendingPersist == nil {
+            let work = DispatchWorkItem { [weak self] in self?.flush() }
+            pendingPersist = work
+            persistenceQueue.asyncAfter(deadline: .now() + 2, execute: work)
+        }
         lock.unlock()
         switch level {
         case .info: logger.info("\(message, privacy: .public)")
@@ -62,6 +68,11 @@ final class DiagnosticLog {
         case .error: logger.error("\(message, privacy: .public)")
         }
         NotificationCenter.default.post(name: Self.changed, object: self)
+    }
+    func flush() {
+        lock.lock(); defer { lock.unlock() }
+        pendingPersist?.cancel(); pendingPersist = nil
+        persistLocked()
     }
     private func persistLocked() { UserDefaults.standard.set(try? JSONEncoder().encode(events), forKey: storageKey) }
 }

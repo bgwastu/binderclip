@@ -36,7 +36,7 @@ public struct ImageMetadata: Codable, Sendable, Equatable {
 }
 
 public enum SyncProtocol {
-    public static let version = 2
+    public static let version = 3
     public static let btServiceUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a73"
     public static let btPsmCharUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a74"
     public static let btWriteCharUuid = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a75"
@@ -48,7 +48,7 @@ public enum SyncProtocol {
     public static let heartbeatInterval: TimeInterval = 2
     public static let heartbeatBudget: TimeInterval = SessionLiveness.heartbeatBudget
     public static let heartbeatSleepBudget: TimeInterval = SessionLiveness.heartbeatSleepBudget
-    public static let authDeadline: TimeInterval = 2
+    public static let authDeadline: TimeInterval = 5
     public static let listenerBackoffCap: TimeInterval = 16
 
     public static func sha256Hex(_ data: Data) -> String {

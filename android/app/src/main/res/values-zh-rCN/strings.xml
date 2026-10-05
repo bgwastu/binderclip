@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">已发送至 Mac</string>
     <string name="toast_sent_image_to_mac">已将图片发送至 Mac</string>
     <string name="toast_nothing_to_send">没有可发送的内容</string>
+    <string name="root_required_title">需要 Root 权限</string>
+    <string name="root_required_desc">BinderClip 需要 KernelSU 或 Magisk 的 Root 权限才能在后台同步剪贴板。请在提示时授予权限，然后点击下方按钮。</string>
+    <string name="root_required_grant">检查 Root 权限</string>
+    <string name="bt_fallback_desc_needs_permission">请在上方授予附近设备权限，以启用蓝牙备用连接。</string>
+    <string name="clear_logs_confirm_title">清除所有日志？</string>
+    <string name="clear_logs_confirm_message">这将删除所有日志记录，且无法撤销。</string>
+    <string name="secure_connection_failed">安全连接失败。请更新 Mac 和手机上的 BinderClip，或重新配对。</string>
 </resources>

@@ -48,17 +48,19 @@ object BtCbor {
         val parser = Parser(bytes)
         val majorAndArg = parser.readHead()
         if (majorAndArg.major != MAJOR_MAP) throw CodecException("expected map, got major $majorAndArg.major")
+        if (majorAndArg.arg !in 0L..23L) throw CodecException("map too large")
         val fields = ArrayList<Pair<String, Any>>(majorAndArg.arg.toInt())
         repeat(majorAndArg.arg.toInt()) {
             val keyMajor = parser.readHead()
             if (keyMajor.major != MAJOR_TEXT) throw CodecException("map key must be text")
             val key = parser.readText(keyMajor.arg)
+            if (fields.any { it.first == key }) throw CodecException("duplicate key")
             val valueMajor = parser.readHead()
             val value: Any = when (valueMajor.major) {
                 MAJOR_UNSIGNED -> valueMajor.arg
                 MAJOR_TEXT -> parser.readText(valueMajor.arg)
                 MAJOR_ARRAY -> {
-                    if (valueMajor.arg > Int.MAX_VALUE.toLong()) throw CodecException("array too large")
+                    if (valueMajor.arg !in 0L..23L) throw CodecException("array too large")
                     val items = ArrayList<String>(valueMajor.arg.toInt())
                     repeat(valueMajor.arg.toInt()) {
                         val itemMajor = parser.readHead()
@@ -71,6 +73,7 @@ object BtCbor {
             }
             fields.add(key to value)
         }
+        if (!parser.atEnd()) throw CodecException("trailing bytes")
         return fields
     }
 
@@ -129,8 +132,10 @@ object BtCbor {
             return Head(major, arg)
         }
 
+        fun atEnd() = position == bytes.size
+
         fun readText(length: Long): String {
-            if (length > bytes.size - position) throw CodecException("truncated text")
+            if (length < 0 || length > bytes.size - position) throw CodecException("truncated text")
             val start = position
             position += length.toInt()
             return String(bytes, start, length.toInt(), Charsets.UTF_8)
@@ -164,33 +169,33 @@ object BtFrameIo {
 
     /** Incremental decoder for chunked RFCOMM reads; emits complete payloads as they arrive. */
     class Reader {
-        private var buffer = ByteArray(0)
+        private var buffer = ByteArray(4096)
+        private var start = 0
+        private var end = 0
 
         fun feed(chunk: ByteArray): List<ByteArray> {
-            val merged = ByteArray(buffer.size + chunk.size)
-            buffer.copyInto(merged)
-            chunk.copyInto(merged, buffer.size)
-            val frames = ArrayList<ByteArray>()
-            var offset = 0
-            while (true) {
-                val remaining = merged.size - offset
-                if (remaining < 4) break
-                var length = 0
-                for (index in 0 until 4) length = (length shl 8) or (merged[offset + index].toInt() and 0xFF)
-                if (length <= 0 || length > MAXIMUM_FRAME_BYTES) {
-                    reset()
-                    throw IllegalArgumentException("invalid frame length $length")
-                }
-                if (remaining < 4 + length) break
-                frames.add(merged.copyOfRange(offset + 4, offset + 4 + length))
-                offset += 4 + length
+            require(chunk.size <= MAXIMUM_FRAME_BYTES + 4) { "chunk too large" }
+            val pending = end - start
+            if (end + chunk.size > buffer.size && start > 0) {
+                buffer.copyInto(buffer, 0, start, end)
+                end = pending; start = 0
             }
-            buffer = if (offset == 0) merged else merged.copyOfRange(offset, merged.size)
+            if (end + chunk.size > buffer.size) {
+                buffer = buffer.copyOf(maxOf(end + chunk.size, minOf(buffer.size * 2, 2 * MAXIMUM_FRAME_BYTES + 8)))
+            }
+            chunk.copyInto(buffer, end); end += chunk.size
+            val frames = ArrayList<ByteArray>()
+            while (end - start >= 4) {
+                var length = 0
+                for (index in 0 until 4) length = (length shl 8) or (buffer[start + index].toInt() and 0xff)
+                if (length <= 0 || length > MAXIMUM_FRAME_BYTES) { reset(); throw IllegalArgumentException("invalid frame length") }
+                if (end - start < 4 + length) break
+                frames.add(buffer.copyOfRange(start + 4, start + 4 + length))
+                start += 4 + length
+            }
+            if (start == end) { start = 0; end = 0 }
             return frames
         }
-
-        fun reset() {
-            buffer = ByteArray(0)
-        }
+        fun reset() { start = 0; end = 0 }
     }
 }

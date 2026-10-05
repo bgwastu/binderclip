@@ -11,6 +11,10 @@ protocol BluetoothSession: AnyObject {
     var lastHeard: Date { get set }
     var livenessBudget: TimeInterval { get set }
     var reader: BtFrameIo.Reader { get set }
+    var nextPing: Date { get set }
+    var lastProgressReport: Date { get set }
+    var handshake: SecureHandshake { get }
+    var secure: SecureChannel? { get set }
 
     func sendFrame(_ fields: [(String, BtValue)])
     func scheduleAuthDeadline(_ onCancel: @escaping () -> Void)
@@ -24,13 +28,19 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
     let channel: CBL2CAPChannel
     let deviceName: String
     private let queue: DispatchQueue
-    private let writeQueue = DispatchQueue(label: "net.wastu.binderclip.ble.l2cap.write")
+    private var pendingWrites: [Data] = []
+    private var writeOffset = 0
+    private var queuedBytes = 0
     var isAuthenticated = false
     var peerID: String?
     var peerName: String?
-    var lastHeard = Date()
+    var lastHeard = SessionLiveness.now()
+    var nextPing = SessionLiveness.now()
+    var lastProgressReport = Date(timeIntervalSince1970: 0)
     var livenessBudget: TimeInterval = SyncProtocol.heartbeatBudget
     var reader = BtFrameIo.Reader()
+    let handshake = SecureHandshake()
+    var secure: SecureChannel?
     private var authDeadline: DispatchWorkItem?
     private var isClosed = false
     private let onData: (Data, BleL2capSession) -> Void
@@ -59,27 +69,37 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
     }
 
     func sendFrame(_ fields: [(String, BtValue)]) {
-        guard let payload = try? BtCbor.encode(fields),
-              let framed = try? BtFrameIo.frame(payload: payload) else { return }
-        writeQueue.async { [weak self] in
-            self?.writeNow(framed)
+        let outgoing: [(String, BtValue)]
+        if fields.first(where: { $0.0 == "type" })?.1.valueAsText == "secure_hello", secure == nil {
+            outgoing = fields
+        } else {
+            guard let secure, let plaintext = try? BtCbor.encode(fields),
+                  let packet = try? secure.seal(Data(plaintext), kind: 3) else { close(); return }
+            outgoing = [("type", .text("secure")), ("data", .text(packet.base64EncodedString()))]
+        }
+        guard let payload = try? BtCbor.encode(outgoing),
+              let framed = try? BtFrameIo.frame(payload: payload) else { close(); return }
+        queue.async { [weak self] in
+            guard let self, !self.isClosed else { return }
+            guard self.queuedBytes + framed.count <= 3_000_000 else { self.close(); return }
+            self.pendingWrites.append(Data(framed))
+            self.queuedBytes += framed.count
+            self.flushWrites()
         }
     }
 
-    private func writeNow(_ bytes: [UInt8]) {
+    private func flushWrites() {
         guard !isClosed else { return }
-        var offset = 0
-        while offset < bytes.count {
-            let slice = Array(bytes[offset...])
-            let written = slice.withUnsafeBytes { buffer -> Int in
+        while let data = pendingWrites.first, channel.outputStream.hasSpaceAvailable {
+            let written = data.withUnsafeBytes { buffer -> Int in
                 guard let base = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return -1 }
-                return channel.outputStream.write(base, maxLength: buffer.count)
+                return channel.outputStream.write(base.advanced(by: writeOffset), maxLength: data.count - writeOffset)
             }
-            if written <= 0 {
-                close()
-                return
-            }
-            offset += written
+            if written < 0 { close(); return }
+            if written == 0 { return }
+            writeOffset += written
+            queuedBytes -= written
+            if writeOffset == data.count { pendingWrites.removeFirst(); writeOffset = 0 }
         }
     }
 
@@ -99,6 +119,7 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
             guard let self, !self.isClosed else { return }
             self.isClosed = true
             self.cancelAuthDeadline()
+            self.pendingWrites.removeAll(); self.queuedBytes = 0
             self.channel.inputStream.close()
             self.channel.outputStream.close()
             self.onClose(self)
@@ -121,6 +142,8 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
                     close()
                 }
             }
+        case .hasSpaceAvailable:
+            queue.async { [weak self] in self?.flushWrites() }
         case .errorOccurred, .endEncountered:
             close()
         default:
@@ -131,7 +154,7 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
 
 /// Fallback GATT session for devices lacking L2CAP CoC support.
 final class BleGattSession: BluetoothSession {
-    var id: ObjectIdentifier { ObjectIdentifier(self) }
+    var id: ObjectIdentifier { ObjectIdentifier(central) }
     let central: CBCentral
     let deviceName: String
     private weak var manager: CBPeripheralManager?
@@ -140,12 +163,18 @@ final class BleGattSession: BluetoothSession {
     var isAuthenticated = false
     var peerID: String?
     var peerName: String?
-    var lastHeard = Date()
+    var lastHeard = SessionLiveness.now()
+    var nextPing = SessionLiveness.now()
+    var lastProgressReport = Date(timeIntervalSince1970: 0)
     var livenessBudget: TimeInterval = SyncProtocol.heartbeatBudget
     var reader = BtFrameIo.Reader()
+    let handshake = SecureHandshake()
+    var secure: SecureChannel?
     private var authDeadline: DispatchWorkItem?
     private var isClosed = false
     private var pendingOutgoing: [Data] = []
+    private var pendingIndex = 0
+    private var pendingBytes = 0
     private let onClose: (BleGattSession) -> Void
 
     init(
@@ -164,8 +193,16 @@ final class BleGattSession: BluetoothSession {
     }
 
     func sendFrame(_ fields: [(String, BtValue)]) {
-        guard let payload = try? BtCbor.encode(fields),
-              let framed = try? BtFrameIo.frame(payload: payload) else { return }
+        let outgoing: [(String, BtValue)]
+        if fields.first(where: { $0.0 == "type" })?.1.valueAsText == "secure_hello", secure == nil {
+            outgoing = fields
+        } else {
+            guard let secure, let plaintext = try? BtCbor.encode(fields),
+                  let packet = try? secure.seal(Data(plaintext), kind: 3) else { close(); return }
+            outgoing = [("type", .text("secure")), ("data", .text(packet.base64EncodedString()))]
+        }
+        guard let payload = try? BtCbor.encode(outgoing),
+              let framed = try? BtFrameIo.frame(payload: payload) else { close(); return }
         queue.async { [weak self] in
             guard let self, !self.isClosed else { return }
             self.enqueueAndSend(Data(framed))
@@ -173,6 +210,11 @@ final class BleGattSession: BluetoothSession {
     }
 
     private func enqueueAndSend(_ data: Data) {
+        guard pendingBytes + data.count <= 3_000_000 else { close(); return }
+        if pendingIndex > 1024 && pendingIndex > pendingOutgoing.count / 2 {
+            pendingOutgoing.removeFirst(pendingIndex); pendingIndex = 0
+        }
+        pendingBytes += data.count
         let chunkSize = max(20, min(central.maximumUpdateValueLength, 512))
         var offset = 0
         while offset < data.count {
@@ -185,12 +227,14 @@ final class BleGattSession: BluetoothSession {
     }
 
     func flushPending() {
+        defer { if pendingIndex == pendingOutgoing.count { pendingOutgoing.removeAll(keepingCapacity: true); pendingIndex = 0 } }
         guard let manager, !isClosed else { return }
-        while !pendingOutgoing.isEmpty {
-            let next = pendingOutgoing[0]
+        while pendingIndex < pendingOutgoing.count {
+            let next = pendingOutgoing[pendingIndex]
             let success = manager.updateValue(next, for: notifyCharacteristic, onSubscribedCentrals: [central])
             if success {
-                pendingOutgoing.removeFirst()
+                pendingIndex += 1
+                pendingBytes -= next.count
             } else {
                 break
             }
@@ -209,10 +253,13 @@ final class BleGattSession: BluetoothSession {
     }
 
     func close() {
-        guard !isClosed else { return }
-        isClosed = true
-        cancelAuthDeadline()
-        onClose(self)
+        queue.async { [weak self] in
+            guard let self, !self.isClosed else { return }
+            self.isClosed = true
+            self.pendingOutgoing.removeAll(); self.pendingBytes = 0; self.pendingIndex = 0
+            self.cancelAuthDeadline()
+            self.onClose(self)
+        }
     }
 }
 
@@ -233,6 +280,9 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     var logHandler: ((String) -> Void)?
     private var radioPowerState: CBManagerState = .unknown
     private var lastPeripheralReset: Date?
+    private var running = false
+    private var needed = false
+    private var recoveryAttempts = 0
 
     /// Exact radio state reported by the peripheral manager (unlike permission checks).
     var isBluetoothPoweredOn: Bool {
@@ -244,7 +294,9 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     /// the current manager never recovers on its own once it settles on `.poweredOff`.
     func bluetoothStateChanged() {
         queue.async { [weak self] in
-            self?.resetPeripheralIfNeeded(force: true)
+            guard let self, self.running, self.needed, self.radioPowerState != .poweredOn else { return }
+            self.recoveryAttempts = 0
+            self.resetPeripheralIfNeeded(force: true)
         }
     }
 
@@ -254,40 +306,72 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     func retryPeripheralIfOff() {
         queue.async { [weak self] in
             guard let self else { return }
-            guard self.radioPowerState != .poweredOn else { return }
-            let now = Date()
-            if let last = self.lastPeripheralReset, now.timeIntervalSince(last) < 10 { return }
+            guard self.running, self.needed, self.radioPowerState == .poweredOff else { return }
+            let now = SessionLiveness.now()
+            if let last = self.lastPeripheralReset, now.timeIntervalSince(last) < min(300, 30 * pow(2, Double(min(self.recoveryAttempts, 4)))) { return }
             self.resetPeripheralIfNeeded(force: true)
             self.lastPeripheralReset = now
+            self.recoveryAttempts += 1
         }
     }
 
     private func resetPeripheralIfNeeded(force: Bool) {
         guard force else { return }
+        EnergyCounters.add("ble.manager.created")
         manager?.stopAdvertising()
+        if publishedPSM != 0 { manager?.unpublishL2CAPChannel(publishedPSM); publishedPSM = 0 }
+        manager?.removeAllServices()
+        manager?.delegate = nil
         manager = nil
+        psmCharacteristic = nil
+        writeCharacteristic = nil
+        notifyCharacteristic = nil
+        log("Creating Bluetooth peripheral manager")
         manager = CBPeripheralManager(delegate: self, queue: queue, options: [
             CBPeripheralManagerOptionShowPowerAlertKey: true
         ])
+        log("Bluetooth peripheral initial state=\(manager?.state.rawValue ?? -1), authorization=\(CBPeripheralManager.authorization.rawValue)")
     }
 
     func start(server: WebSocketServer) {
-        self.server = server
-        self.logHandler = server.onLog
-        self.manager = CBPeripheralManager(delegate: self, queue: queue, options: [
-            CBPeripheralManagerOptionShowPowerAlertKey: true
-        ])
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.server = server
+            self.logHandler = server.onLog
+            self.running = true
+            if self.needed { self.resetPeripheralIfNeeded(force: true) }
+        }
+    }
+
+    func setNeeded(_ needed: Bool) {
+        queue.async { [weak self] in
+            guard let self, self.needed != needed else { return }
+            self.needed = needed
+            guard self.running else { return }
+            self.log("Bluetooth discovery \(needed ? "enabled" : "paused")")
+            if needed {
+                self.recoveryAttempts = 0
+                if self.manager == nil { self.resetPeripheralIfNeeded(force: true) }
+                else if self.manager?.state == .poweredOn { self.setupServiceAndAdvertise() }
+            } else { self.manager?.stopAdvertising() }
+        }
     }
 
     func stop() {
         queue.async { [weak self] in
             guard let self else { return }
+            self.running = false
             self.manager?.stopAdvertising()
             if self.publishedPSM != 0 {
                 self.manager?.unpublishL2CAPChannel(self.publishedPSM)
                 self.publishedPSM = 0
             }
             self.manager?.removeAllServices()
+            self.manager?.delegate = nil
+            self.manager = nil
+            self.psmCharacteristic = nil
+            self.writeCharacteristic = nil
+            self.notifyCharacteristic = nil
             for session in self.activeSessions.values { session.close() }
             for session in self.pendingSessions.values { session.close() }
             self.activeSessions.removeAll()
@@ -296,6 +380,10 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
             self.authenticatedPeerSnapshot.removeAll()
             self.peerStateLock.unlock()
         }
+    }
+
+    func isCurrentSession(_ session: BluetoothSession) -> Bool {
+        queue.sync { running && (activeSessions[session.id] === session || pendingSessions[session.id] === session) }
     }
 
     var authenticatedSessions: [BluetoothSession] {
@@ -329,8 +417,9 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
 
     func dropSession(_ session: BluetoothSession) {
         queue.async { [weak self] in
-            self?.pendingSessions.removeValue(forKey: session.id)
-            self?.activeSessions.removeValue(forKey: session.id)
+            guard let self else { return }
+            if self.pendingSessions[session.id] === session { self.pendingSessions.removeValue(forKey: session.id) }
+            if self.activeSessions[session.id] === session { self.activeSessions.removeValue(forKey: session.id) }
             session.close()
         }
     }
@@ -342,17 +431,23 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     // MARK: - CBPeripheralManagerDelegate
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+        guard running, manager === peripheral else { return }
         radioPowerState = peripheral.state
         guard peripheral.state == .poweredOn else {
             log("Bluetooth radio not powered on (\(peripheral.state.rawValue)) — re-enable Bluetooth in System Settings to use the fallback")
             return
         }
         log("Bluetooth radio powered on — (re)advertising BinderClip peripheral")
-        setupServiceAndAdvertise()
+        recoveryAttempts = 0
+        if needed { setupServiceAndAdvertise() }
     }
 
     private func setupServiceAndAdvertise() {
-        guard let manager, manager.state == .poweredOn else { return }
+        guard running, needed, let manager, manager.state == .poweredOn else { return }
+        if writeCharacteristic != nil, notifyCharacteristic != nil {
+            startAdvertising(manager)
+            return
+        }
         manager.removeAllServices()
 
         let serviceUUID = CBUUID(string: SyncProtocol.btServiceUuid)
@@ -388,17 +483,38 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
         manager.add(service)
 
         // Publish dynamic L2CAP Channel (application PSK authenticates the session)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["BINDERCLIP_TEST_GATT_ONLY"] == "1" {
+            log("GATT-only physical test mode; L2CAP publication disabled")
+        } else {
+            manager.publishL2CAPChannel(withEncryption: false)
+        }
+        #else
         manager.publishL2CAPChannel(withEncryption: false)
+        #endif
 
+        startAdvertising(manager)
+    }
+
+    private func startAdvertising(_ manager: CBPeripheralManager) {
+        guard running, needed, self.manager === manager else { return }
         let localName = server?.localDeviceName ?? "BinderClip Mac"
         manager.startAdvertising([
-            CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
+            CBAdvertisementDataServiceUUIDsKey: [CBUUID(string: SyncProtocol.btServiceUuid)],
             CBAdvertisementDataLocalNameKey: localName
         ])
         log("Bluetooth BLE peripheral advertising as '\(localName)'")
     }
 
+    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
+        guard running, manager === peripheral else { return }
+        if let error { log("Bluetooth advertising failed: \(error.localizedDescription)") }
+        else { log("Bluetooth advertising started") }
+        if !needed { peripheral.stopAdvertising() }
+    }
+
     func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?) {
+        guard running, manager === peripheral else { return }
         if let error {
             log("Failed to publish L2CAP channel: \(error.localizedDescription)")
             return
@@ -408,10 +524,12 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didUnpublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?) {
+        guard running, manager === peripheral, publishedPSM == PSM else { return }
         publishedPSM = 0
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        guard running, manager === peripheral else { return }
         guard let channel, error == nil else {
             log("L2CAP channel open failed: \(error?.localizedDescription ?? "unknown error")")
             return
@@ -433,6 +551,7 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        guard running, manager === peripheral else { return }
         if request.characteristic.uuid == CBUUID(string: SyncProtocol.btPsmCharUuid) {
             var psmLE = publishedPSM.littleEndian
             let data = Data(bytes: &psmLE, count: MemoryLayout<CBL2CAPPSM>.size)
@@ -448,6 +567,7 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        guard running, manager === peripheral else { return }
         for request in requests {
             if request.characteristic.uuid == CBUUID(string: SyncProtocol.btWriteCharUuid), let val = request.value {
                 let central = request.central
@@ -460,12 +580,14 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        guard running, manager === peripheral else { return }
         if characteristic.uuid == CBUUID(string: SyncProtocol.btNotifyCharUuid) {
             _ = createGattSession(for: central)
         }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+        guard running, manager === peripheral else { return }
         let id = ObjectIdentifier(central)
         if let session = activeSessions.removeValue(forKey: id) ?? pendingSessions.removeValue(forKey: id) {
             session.close()
@@ -473,6 +595,7 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
+        guard running, manager === peripheral else { return }
         for session in activeSessions.values {
             if let gatt = session as? BleGattSession { gatt.flushPending() }
         }
@@ -501,6 +624,7 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
 
     private func registerPendingSession(_ session: BluetoothSession) {
         pendingSessions[session.id] = session
+        session.sendFrame([("type", .text("secure_hello")), ("version", .uint(UInt64(SyncProtocol.version))), ("nonce", .text(session.handshake.nonce.base64EncodedString()))])
         session.scheduleAuthDeadline { [weak self] in
             self?.queue.async {
                 guard let self, self.pendingSessions[session.id] != nil else { return }
@@ -516,15 +640,19 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     /// frame — leaving it out of broadcasts/heartbeats for up to a heartbeat interval.
     func promoteSession(_ session: BluetoothSession) {
         queue.async { [weak self] in
-            guard let self, session.isAuthenticated,
-                  self.pendingSessions.removeValue(forKey: session.id) != nil else { return }
+            guard let self, self.running, session.isAuthenticated, self.pendingSessions[session.id] === session else { return }
+            self.pendingSessions.removeValue(forKey: session.id)
             self.activeSessions[session.id] = session
             if let pid = session.peerID { self.noteAuthenticatedPeer(pid) }
         }
     }
 
     private func handleIncomingBytes(_ bytes: [UInt8], session: BluetoothSession) {
-        session.lastHeard = Date()
+        let now = SessionLiveness.now()
+        if session.isAuthenticated, now.timeIntervalSince(session.lastProgressReport) >= 1 {
+            session.lastProgressReport = now
+            server?.noteBluetoothProgress(session)
+        }
         let payloads: [[UInt8]]
         do {
             payloads = try session.reader.feed(bytes)
@@ -539,9 +667,9 @@ final class BluetoothConnector: NSObject, CBPeripheralManagerDelegate {
     }
 
     private func handleSessionClosed(_ session: BluetoothSession) {
-        pendingSessions.removeValue(forKey: session.id)
-        let removed = activeSessions.removeValue(forKey: session.id)
-        if let pid = session.peerID { notePeerDropped(pid) }
+        if pendingSessions[session.id] === session { pendingSessions.removeValue(forKey: session.id) }
+        let removed = activeSessions[session.id] === session ? activeSessions.removeValue(forKey: session.id) : nil
+        if let pid = session.peerID, !activeSessions.values.contains(where: { $0.isAuthenticated && $0.peerID == pid }) { notePeerDropped(pid) }
         if removed != nil || session.isAuthenticated {
             server?.bluetoothSessionClosed(session)
         }

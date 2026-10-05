@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">Envoyé au Mac</string>
     <string name="toast_sent_image_to_mac">Image envoyée au Mac</string>
     <string name="toast_nothing_to_send">Rien à envoyer</string>
+    <string name="root_required_title">Accès root requis</string>
+    <string name="root_required_desc">BinderClip nécessite un accès root via KernelSU ou Magisk pour synchroniser le presse-papiers en arrière-plan. Accordez cet accès à la demande, puis appuyez ci-dessous.</string>
+    <string name="root_required_grant">Vérifier les accès root</string>
+    <string name="bt_fallback_desc_needs_permission">Autorisez les appareils à proximité ci-dessus pour activer la connexion de secours Bluetooth.</string>
+    <string name="clear_logs_confirm_title">Effacer tous les journaux ?</string>
+    <string name="clear_logs_confirm_message">Toutes les entrées seront supprimées. Cette action est irréversible.</string>
+    <string name="secure_connection_failed">Échec de la connexion sécurisée. Mettez à jour BinderClip sur le Mac et le téléphone, ou associez-les à nouveau.</string>
 </resources>

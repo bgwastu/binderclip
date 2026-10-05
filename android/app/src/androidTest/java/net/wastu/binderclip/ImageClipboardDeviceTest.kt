@@ -1,6 +1,9 @@
 package net.wastu.binderclip
 
 import android.content.ClipboardManager
+import android.graphics.Bitmap
+import android.graphics.Color
+import java.io.ByteArrayOutputStream
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,17 +16,26 @@ import org.junit.runner.RunWith
 class ImageClipboardDeviceTest {
     @Test fun writesAnImageUriThatTheAppCanReadBack() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val original = context.resources.openRawResource(R.mipmap.ic_launcher_foreground).use { ImagePayload(mimeType = "image/png", data = it.readBytes()) }
+        val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GREEN) }
+        val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
+        bitmap.recycle()
+        val original = ImagePayload(mimeType = "image/png", data = bytes)
         val clipboard = context.getSystemService(ClipboardManager::class.java)
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
-                ImageClipboard.write(activity, clipboard, original)
-                val restored = ImageClipboard.read(activity, clipboard)
-
-                assertNotNull(restored)
-                assertEquals(original.sha256, restored?.sha256)
-                assertEquals("image/png", restored?.mimeType)
+                val previous = clipboard.primaryClip
+                val previousImage = ImageClipboard.read(activity, clipboard)
+                try {
+                    ImageClipboard.write(activity, clipboard, original)
+                    val restored = ImageClipboard.read(activity, clipboard)
+                    assertNotNull(restored)
+                    assertEquals(original.sha256, restored?.sha256)
+                    assertEquals("image/png", restored?.mimeType)
+                } finally {
+                    if (previousImage != null) ImageClipboard.write(activity, clipboard, previousImage)
+                    else if (previous != null) clipboard.setPrimaryClip(previous) else clipboard.clearPrimaryClip()
+                }
             }
         }
     }

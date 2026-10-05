@@ -25,13 +25,13 @@ data class ImageMetadata(
 )
 
 object SyncProtocol {
-    const val VERSION = 2
+    const val VERSION = 3
     const val DEFAULT_PORT = 39421
     const val MAXIMUM_TEXT_BYTES = 1_048_576
     const val MAXIMUM_IMAGE_BYTES = 32 * 1024 * 1024
     const val HEARTBEAT_INTERVAL_MS = 2_000L
     const val HEARTBEAT_BUDGET_MS = 5_000L
-    const val HEARTBEAT_SLEEP_BUDGET_MS = 45_000L
+    const val HEARTBEAT_SLEEP_BUDGET_MS = 60_000L
     const val AUTH_DEADLINE_MS = 2_000L
     const val CONNECT_TIMEOUT_SECONDS = 8L
     const val BT_SERVICE_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a73"

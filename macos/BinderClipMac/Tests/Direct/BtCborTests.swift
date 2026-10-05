@@ -133,4 +133,10 @@ final class BtCborTests: XCTestCase {
         XCTAssertThrowsError(try reader.feed([0x00, 0x17, 0x00, 0x00])) // 1_500_001
         XCTAssertThrowsError(try BtFrameIo.frame(payload: Array(repeating: 0, count: BtFrameIo.maximumFrameBytes + 1)))
     }
+    func testRejectsOversizedMapsDuplicateKeysAndTrailingInput() {
+        XCTAssertThrowsError(try BtCbor.decode([0xbb] + Array(repeating: 0xff, count: 8)))
+        XCTAssertThrowsError(try BtCbor.decode([0xa2, 0x61, 0x74, 0x61, 0x61, 0x61, 0x74, 0x61, 0x62]))
+        XCTAssertThrowsError(try BtCbor.decode([0xa0, 0x00]))
+    }
+
 }

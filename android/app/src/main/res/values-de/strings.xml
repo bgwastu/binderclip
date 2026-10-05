@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">An Mac gesendet</string>
     <string name="toast_sent_image_to_mac">Bild an Mac gesendet</string>
     <string name="toast_nothing_to_send">Nichts zu senden</string>
+    <string name="root_required_title">Root-Zugriff erforderlich</string>
+    <string name="root_required_desc">BinderClip benötigt Root-Zugriff über KernelSU oder Magisk, um die Zwischenablage im Hintergrund zu synchronisieren. Erlaube den Zugriff bei der Aufforderung und tippe dann unten.</string>
+    <string name="root_required_grant">Root-Zugriff prüfen</string>
+    <string name="bt_fallback_desc_needs_permission">Erlaube oben den Zugriff auf Geräte in der Nähe, um Bluetooth als Ausweichverbindung zu aktivieren.</string>
+    <string name="clear_logs_confirm_title">Alle Protokolle löschen?</string>
+    <string name="clear_logs_confirm_message">Dadurch werden alle Protokolleinträge gelöscht. Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="secure_connection_failed">Sichere Verbindung fehlgeschlagen. Aktualisiere BinderClip auf Mac und Smartphone oder kopple sie erneut.</string>
 </resources>

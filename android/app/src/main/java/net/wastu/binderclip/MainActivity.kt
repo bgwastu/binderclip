@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         when (result) {
             is io.github.g00fy2.quickie.QRResult.QRSuccess -> {
                 val uri = result.content.rawValue
-                android.util.Log.i("BinderClip", "QR Scanned successfully: $uri")
+                android.util.Log.i("BinderClip", "Pairing QR scanned successfully")
                 if (!uri.isNullOrBlank()) {
                     pair(uri)
                 }
@@ -269,7 +269,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
             return
         }
-        android.util.Log.i("BinderClip", "Pairing with URI: $uri")
+        android.util.Log.i("BinderClip", "Pairing invitation received")
         val macName = SyncProtocol.parsePairingUrl(uri)?.deviceName?.takeIf { it.isNotBlank() }
         Toast.makeText(this, macName ?: "Connecting…", Toast.LENGTH_SHORT).show()
         ContextCompat.startForegroundService(

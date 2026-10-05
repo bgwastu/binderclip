@@ -108,4 +108,11 @@
     <string name="toast_sent_to_mac">Enviado a Mac</string>
     <string name="toast_sent_image_to_mac">Imagen enviada a Mac</string>
     <string name="toast_nothing_to_send">Nada para enviar</string>
+    <string name="root_required_title">Se requiere acceso root</string>
+    <string name="root_required_desc">BinderClip necesita acceso root mediante KernelSU o Magisk para sincronizar el portapapeles en segundo plano. Concede el acceso cuando se solicite y luego pulsa abajo.</string>
+    <string name="root_required_grant">Comprobar acceso root</string>
+    <string name="bt_fallback_desc_needs_permission">Concede arriba el permiso de dispositivos cercanos para habilitar la conexión alternativa por Bluetooth.</string>
+    <string name="clear_logs_confirm_title">¿Borrar todos los registros?</string>
+    <string name="clear_logs_confirm_message">Se eliminarán todas las entradas del registro. Esta acción no se puede deshacer.</string>
+    <string name="secure_connection_failed">Error de conexión segura. Actualiza BinderClip en el Mac y el teléfono, o vuelve a emparejarlos.</string>
 </resources>

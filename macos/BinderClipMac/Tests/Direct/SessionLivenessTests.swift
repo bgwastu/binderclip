@@ -42,7 +42,7 @@ final class SessionLivenessTests: XCTestCase {
         XCTAssertFalse(SessionLiveness.isAlive(
             boundLocal: bound,
             currentLocals: locals,
-            lastHeard: now.addingTimeInterval(-46),
+            lastHeard: now.addingTimeInterval(-SessionLiveness.heartbeatSleepBudget - 1),
             now: now,
             budget: SessionLiveness.heartbeatSleepBudget
         ))

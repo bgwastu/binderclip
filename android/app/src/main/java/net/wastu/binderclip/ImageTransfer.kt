@@ -11,6 +11,7 @@ import java.util.UUID
 
 data class ImagePayload(val id: String = UUID.randomUUID().toString(), val mimeType: String, val data: ByteArray) {
     val sha256: String = MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
+        .also { EnergyCounters.add("image.hash.bytes", data.size.toLong()) }
 
     init {
         require(mimeType in ALLOWED_MIME_TYPES && data.isNotEmpty() && data.size <= MAXIMUM_BYTES) { "Unsupported image" }

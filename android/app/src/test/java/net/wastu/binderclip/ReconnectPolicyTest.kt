@@ -65,4 +65,16 @@ class ReconnectPolicyTest {
         assertEquals("Studio", ConnectionStatus.label(ConnectionPhase.Connected, "Studio"))
         assertEquals("Connecting…", ConnectionStatus.label(ConnectionPhase.Connecting, "Studio"))
     }
+    @Test
+    fun prolongedAbsenceUsesLongerBackgroundCap() {
+        val background = ReconnectPolicy()
+        repeat(20) { background.nextBackoffSeconds(interactive = false) }
+        assertEquals(300L, background.nextBackoffSeconds(interactive = false))
+        background.resetBackoff()
+        assertEquals(1L, background.nextBackoffSeconds(interactive = false))
+        val awake = ReconnectPolicy()
+        repeat(20) { awake.nextBackoffSeconds(interactive = true) }
+        assertEquals(60L, awake.nextBackoffSeconds(interactive = true))
+    }
+
 }

@@ -30,13 +30,14 @@ class WebSocketClient(
     private val onRosterChanged: (List<RememberedPeer>) -> Unit,
     private val onDisconnected: () -> Unit,
     private val onUnpaired: () -> Unit,
+    private val onRemoteSleep: () -> Unit = {},
+    private val onProtocolFailure: (() -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "BinderClipWS"
     }
 
     private val httpClient = OkHttpClient.Builder()
-        .pingInterval(15, TimeUnit.SECONDS)
         .connectTimeout(SyncProtocol.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(false)
@@ -54,6 +55,8 @@ class WebSocketClient(
     @Volatile private var generation = 0
     private val openedWithoutAuth = AtomicInteger(0)
     private val reportedFailure = AtomicBoolean(false)
+    private val secureChannels = ConcurrentHashMap<WebSocket, SecureChannel>()
+    private val sendLock = Any()
     private val raceAuthClaimed = AtomicBoolean(false)
     private val policy = ReconnectPolicy()
     @Volatile private var lastHeardMs = 0L
@@ -64,6 +67,7 @@ class WebSocketClient(
     @Volatile private var interactive = true
     @Volatile private var pairingScan = false
     @Volatile private var reconnectSuppressed = false
+    @Volatile private var remoteSleepUntilMs = 0L
 
     fun isConnected(): Boolean = isConnected.get()
     fun connectedEndpoint(): String? = activeEndpoint
@@ -75,13 +79,22 @@ class WebSocketClient(
     /// WebSocket (NSD rediscovery, network changes, UI visibility, etc.). User-initiated
     /// reconnect (force) still works.
     fun setReconnectSuppressed(suppressed: Boolean) {
+        val changed = reconnectSuppressed != suppressed
         reconnectSuppressed = suppressed
+        if (changed) executor.execute {
+            if (suppressed) cancelPendingReconnect()
+            else if (!isConnected.get() && !isConnecting.get()) scheduleReconnectBackoff()
+        }
     }
 
     fun setInteractive(value: Boolean) {
         if (interactive == value) return
         interactive = value
-        executor.execute { sendPowerLocked() }
+        executor.execute {
+            if (value) remoteSleepUntilMs = 0L
+            sendPowerLocked()
+            if (isConnected.get()) startHeartbeatWatch()
+        }
     }
 
     fun pair(uriString: String) {
@@ -122,6 +135,7 @@ class WebSocketClient(
     }
 
     fun forceReconnect() {
+        remoteSleepUntilMs = 0L
         requestConnect(force = true, resetBackoff = true)
     }
 
@@ -131,7 +145,7 @@ class WebSocketClient(
 
     private fun requestConnect(force: Boolean, resetBackoff: Boolean) {
         executor.execute {
-            if (reconnectSuppressed && !force) return@execute
+            if ((reconnectSuppressed || android.os.SystemClock.elapsedRealtime() < remoteSleepUntilMs) && !force) return@execute
             val psk = store.groupKey ?: return@execute
             val endpoints = getEndpoints()
             if (endpoints.isEmpty()) {
@@ -162,7 +176,6 @@ class WebSocketClient(
         onDisconnected()
         onStatus("Connecting…")
 
-        val pskBase64 = SyncProtocol.urlSafeBase64(psk)
         val localId = store.deviceId
         val localName = deviceNameProvider()
 
@@ -192,27 +205,46 @@ class WebSocketClient(
                         }
                     }
                     openedWithoutAuth.incrementAndGet()
-                    Log.d(TAG, "Socket opened to $endpoint, sending auth")
-                    val authJson = JSONObject().apply {
-                        put("type", "auth")
-                        put("token", pskBase64)
-                        put("deviceId", localId)
-                        put("deviceName", localName)
-                        put("platform", "Android")
-                        put("version", SyncProtocol.VERSION)
-                        put("pairing", pairingScan)
-                    }
-                    webSocket.send(authJson.toString())
+                    Log.d(TAG, "Socket opened; waiting for encrypted handshake")
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     if (myGeneration != generation) return
-                    handleTextMessage(webSocket, endpoint, text, myGeneration)
+                    try {
+                        require(text.length <= if (isConnected.get() && activeSocket === webSocket) 8 * SyncProtocol.MAXIMUM_TEXT_BYTES + 16_384 else 16_384)
+                        val objectJson = JSONObject(text)
+                        if (objectJson.optString("type") == "secure_hello" && !secureChannels.containsKey(webSocket)) {
+                            require(objectJson.optInt("version") == SyncProtocol.VERSION)
+                            val serverNonce = java.util.Base64.getDecoder().decode(objectJson.getString("nonce"))
+                            val clientNonce = SecureChannel.randomNonce()
+                            val channel = SecureChannel(psk, serverNonce, clientNonce, "ws")
+                            secureChannels[webSocket] = channel
+                            webSocket.send(JSONObject().put("type", "secure_reply")
+                                .put("nonce", java.util.Base64.getEncoder().encodeToString(clientNonce))
+                                .put("proof", java.util.Base64.getEncoder().encodeToString(SecureChannel.proof(psk, serverNonce, clientNonce, "ws"))).toString())
+                            sendSecureText(webSocket, JSONObject().put("type", "auth").put("deviceId", localId)
+                                .put("deviceName", localName).put("platform", "Android").put("version", SyncProtocol.VERSION)
+                                .put("pairing", pairingScan).toString())
+                        } else {
+                            require(objectJson.optString("type") == "secure")
+                            val channel = secureChannels[webSocket] ?: error("Missing encrypted session")
+                            val packet = java.util.Base64.getDecoder().decode(objectJson.getString("data"))
+                            val plaintext = channel.open(packet, 1).toString(Charsets.UTF_8)
+                            handleTextMessage(webSocket, endpoint, plaintext, myGeneration)
+                        }
+                    } catch (_: Exception) {
+                        onProtocolFailure?.invoke() ?: onFailure("Secure connection failed. Update both apps or pair again.")
+                        webSocket.cancel()
+                    }
                 }
 
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     if (myGeneration != generation) return
-                    handleBinaryMessage(webSocket, bytes)
+                    try {
+                        val channel = secureChannels[webSocket] ?: error("Missing encrypted session")
+                        require(isConnected.get() && activeSocket === webSocket)
+                        handleBinaryMessage(webSocket, channel.open(bytes.toByteArray(), 2).toByteString())
+                    } catch (_: Exception) { webSocket.cancel() }
                 }
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -278,9 +310,8 @@ class WebSocketClient(
                 }
                 activeSocket = webSocket
                 activeEndpoint = endpoint
-                lastConnectedMs = System.currentTimeMillis()
+                lastConnectedMs = android.os.SystemClock.elapsedRealtime()
                 isConnecting.set(false)
-                policy.resetBackoff()
                 reportedFailure.set(true)
                 pairingScan = false
 
@@ -320,7 +351,7 @@ class WebSocketClient(
 
             "clipboard" -> {
                 val clipText = json.optString("text")
-                Log.i(TAG, "Received clipboard text from server: $clipText")
+                Log.d(TAG, "Received clipboard text (${clipText.length} characters)")
                 if (clipText.isNotEmpty()) {
                     onText(clipText)
                 }
@@ -328,7 +359,7 @@ class WebSocketClient(
 
             "openUrl" -> {
                 val url = json.optString("url")
-                Log.i(TAG, "Received openUrl from server: $url")
+                Log.d(TAG, "Received browser link")
                 if (url.isNotEmpty()) {
                     onOpenUrl(url)
                 }
@@ -349,10 +380,12 @@ class WebSocketClient(
 
             "ping" -> {
                 val t = json.optLong("t", System.currentTimeMillis())
-                webSocket.send("""{"type":"pong","t":$t}""")
+                sendSecureText(webSocket, """{"type":"pong","t":$t}""")
             }
 
             "pong" -> {}
+
+            "power" -> if (json.optString("state") == "sleep") onRemoteSleep()
 
             "unpair" -> {
                 applyRemoteUnpair()
@@ -384,6 +417,7 @@ class WebSocketClient(
 
     private fun markActiveDeadIfNeeded(webSocket: WebSocket, endpoint: String, reason: String, resetBackoff: Boolean) {
         candidateSockets.remove(endpoint)
+        secureChannels.remove(webSocket)
         if (webSocket == activeSocket) {
             Log.w(TAG, "Active connection closed: $reason")
             stopHeartbeatWatch()
@@ -405,8 +439,14 @@ class WebSocketClient(
         }
     }
 
-    fun sendText(text: String, hash: String = SyncProtocol.sha256Hex(text)) {
-        val socket = activeSocket ?: return
+    private fun sendSecureText(socket: WebSocket, text: String): Boolean = synchronized(sendLock) {
+        val channel = secureChannels[socket] ?: return false
+        val packet = channel.seal(text.toByteArray(Charsets.UTF_8), 1)
+        socket.send(JSONObject().put("type", "secure").put("data", java.util.Base64.getEncoder().encodeToString(packet)).toString())
+    }
+
+    fun sendText(text: String, hash: String = SyncProtocol.sha256Hex(text)): Boolean {
+        val socket = activeSocket ?: return false
         val payload = JSONObject().apply {
             put("type", "clipboard")
             put("eventId", UUID.randomUUID().toString())
@@ -415,7 +455,7 @@ class WebSocketClient(
             put("hash", hash)
             put("timestamp", System.currentTimeMillis())
         }
-        socket.send(payload.toString())
+        return sendSecureText(socket, payload.toString())
     }
 
     fun sendRename(deviceId: String, name: String) {
@@ -425,7 +465,7 @@ class WebSocketClient(
             put("id", deviceId)
             put("name", name)
         }
-        socket.send(payload.toString())
+        sendSecureText(socket, payload.toString())
     }
 
     fun sendOpenUrl(url: String, targetDeviceId: String? = null) {
@@ -439,14 +479,25 @@ class WebSocketClient(
                 put("targetDeviceId", targetDeviceId)
             }
         }
-        socket.send(payload.toString())
+        sendSecureText(socket, payload.toString())
     }
 
-    fun sendImage(image: ImagePayload) {
-        val socket = activeSocket ?: return
+    fun sendImage(image: ImagePayload): Boolean {
+        val socket = activeSocket ?: return false
         val packet = SyncProtocol.packImage(image, store.deviceId)
-        socket.send(packet.toByteString())
-        onTransferStatus("Sent image (${image.mimeType})")
+        val queued = synchronized(sendLock) {
+            val channel = secureChannels[socket] ?: return false
+            socket.send(channel.seal(packet, 2).toByteString())
+        }
+        if (queued) onTransferStatus("Sent image (${image.mimeType})")
+        return queued
+    }
+
+    fun shutdown() {
+        close()
+        executor.shutdownNow()
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
     }
 
     fun close() {
@@ -484,6 +535,7 @@ class WebSocketClient(
     }
 
     private fun closeCandidateSockets() {
+        secureChannels.clear()
         for ((_, sock) in candidateSockets) {
             sock.cancel()
         }
@@ -500,14 +552,21 @@ class WebSocketClient(
         if (reconnectSuppressed) return
         cancelPendingReconnect()
         if (reset) policy.resetBackoff()
-        val delay = if (immediate) 0L else policy.nextBackoffSeconds()
+        val delay = if (immediate) 0L else policy.nextBackoffSeconds(interactive)
+        val sleepingDelay = ((remoteSleepUntilMs - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L) + 999) / 1000
+        val jitter = if (delay > 1) java.util.concurrent.ThreadLocalRandom.current().nextLong(delay / 5 + 1) else 0L
         reconnectTask = executor.schedule({
             requestConnect(force = false, resetBackoff = false)
-        }, delay, TimeUnit.SECONDS)
+        }, maxOf(delay + jitter, sleepingDelay), TimeUnit.SECONDS)
+    }
+
+    fun deferReconnect(durationMs: Long) {
+        remoteSleepUntilMs = android.os.SystemClock.elapsedRealtime() + durationMs
+        executor.execute { scheduleReconnectBackoff() }
     }
 
     private fun noteActivity() {
-        lastHeardMs = System.currentTimeMillis()
+        lastHeardMs = android.os.SystemClock.elapsedRealtime()
     }
 
     private fun startHeartbeatWatch() {
@@ -515,14 +574,15 @@ class WebSocketClient(
         noteActivity()
         heartbeatWatch = executor.scheduleWithFixedDelay({
             if (!isConnected.get()) return@scheduleWithFixedDelay
-            if (SessionLiveness.isAlive(null, emptyList(), lastHeardMs, System.currentTimeMillis(), livenessBudgetMs())) {
+            if (SessionLiveness.isAlive(null, emptyList(), lastHeardMs, android.os.SystemClock.elapsedRealtime(), livenessBudgetMs())) {
+                if (android.os.SystemClock.elapsedRealtime() - lastConnectedMs > 30_000) policy.resetBackoff()
                 return@scheduleWithFixedDelay
             }
             val socket = activeSocket ?: return@scheduleWithFixedDelay
             Log.w(TAG, "Heartbeat timeout")
             socket.cancel()
-            markActiveDeadIfNeeded(socket, activeEndpoint ?: "", "heartbeat timeout", resetBackoff = true)
-        }, SyncProtocol.HEARTBEAT_INTERVAL_MS, SyncProtocol.HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS)
+            markActiveDeadIfNeeded(socket, activeEndpoint ?: "", "heartbeat timeout", resetBackoff = false)
+        }, PowerPolicy.heartbeatMs(interactive), PowerPolicy.heartbeatMs(interactive), TimeUnit.MILLISECONDS)
     }
 
     private fun stopHeartbeatWatch() {
@@ -547,11 +607,11 @@ class WebSocketClient(
     }
 
     private fun livenessBudgetMs(): Long =
-        if (interactive) SyncProtocol.HEARTBEAT_BUDGET_MS else SyncProtocol.HEARTBEAT_SLEEP_BUDGET_MS
+        PowerPolicy.budgetMs(interactive)
 
     private fun sendPowerLocked() {
         val socket = activeSocket ?: return
         val state = if (interactive) "awake" else "sleep"
-        socket.send("""{"type":"power","state":"$state"}""")
+        sendSecureText(socket, """{"type":"power","state":"$state"}""")
     }
 }

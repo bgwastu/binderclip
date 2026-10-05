@@ -42,6 +42,6 @@ class SessionLivenessTest {
         val locals = listOf("192.168.60.249", "100.96.0.2")
         val now = 1_000_000L
         assertTrue(SessionLiveness.isAlive(bound, locals, now - 30_000L, now, SyncProtocol.HEARTBEAT_SLEEP_BUDGET_MS))
-        assertFalse(SessionLiveness.isAlive(bound, locals, now - 46_000L, now, SyncProtocol.HEARTBEAT_SLEEP_BUDGET_MS))
+        assertFalse(SessionLiveness.isAlive(bound, locals, now - SyncProtocol.HEARTBEAT_SLEEP_BUDGET_MS - 1, now, SyncProtocol.HEARTBEAT_SLEEP_BUDGET_MS))
     }
 }
