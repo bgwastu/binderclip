@@ -25,7 +25,7 @@ class TransportDeviceTest {
     @Test fun encryptedClipboardRoundTripWithPairedMac() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("hardwareRoundTrip") == "true")
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val clipboard = AppClipboard(context)
         val status = File(context.filesDir, "device-test-stage.txt")
         val expected = InstrumentationRegistry.getArguments().getString("expectedTransport") ?: "NETWORK"
         val bluetooth = expected == "BLUETOOTH"

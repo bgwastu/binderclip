@@ -56,6 +56,8 @@ jobs:
         with:
           fetch-depth: 0
       - run: swift test --package-path macos/BinderClipMac
+      - run: ./macos/debug-install.sh --no-launch
+      - run: python3 scripts/verify-debug-artifacts.py --mac "$HOME/Applications/BinderClip Debug.app"
 
   android:
     needs: detect-changes
@@ -69,4 +71,5 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./android/gradlew -p android test
+      - run: ./android/gradlew -p android testDebugUnitTest assembleDebug assembleDebugAndroidTest lintDebug
+      - run: python3 scripts/verify-debug-artifacts.py --android android/app/build

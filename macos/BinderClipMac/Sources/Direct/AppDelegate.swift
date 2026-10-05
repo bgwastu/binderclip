@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private let logWindow = LogWindowController()
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private lazy var updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
+        startingUpdater: !AppProfile.current.isDebug,
         updaterDelegate: self,
         userDriverDelegate: nil
     )
@@ -52,9 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     private var sleepObservers: [NSObjectProtocol] = []
     private var waitingForUserWake = false
+    private lazy var debugClipboardWindow = DebugClipboardWindow(board: clipboard.pasteboard) { [weak self] in self?.clipboard.sendCurrentClipboard() }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        _ = updaterController
+        if !AppProfile.current.isDebug { _ = updaterController }
         statusMenu.delegate = self
         statusMenu.autoenablesItems = false
         statusItem.isVisible = true
@@ -70,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
         }
         transport.onOpenURL = { [weak self] url in
+            if AppProfile.current.isDebug { self?.clipboard.applyRemote(url.absoluteString); return }
             NSWorkspace.shared.open(url)
             let msg = L10n.tr("opened_link_in_browser")
             self?.notifyIncoming(title: "BinderClip", body: msg)
@@ -127,10 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         #if DEBUG
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             if let invite = self?.transport.createInvite() {
-                let debugDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("net.wastu.binderclip", isDirectory: true)
+                let debugDir = AppProfile.current.stateDirectory
                 try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
                 try? invite.absoluteString.write(to: debugDir.appendingPathComponent("debug-invite.txt"), atomically: true, encoding: .utf8)
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: debugDir.appendingPathComponent("debug-invite.txt").path)
                 print("[BinderClip Debug] Pairing code written to Application Support")
             }
         }
@@ -154,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     func menuWillOpen(_ menu: NSMenu) {
         isStatusMenuOpen = true
-        cachedActiveTab = activeBrowserTab()
+        cachedActiveTab = AppProfile.current.isDebug ? nil : activeBrowserTab()
         renderMenu()
         menuNeedsRebuild = false
     }
@@ -196,18 +198,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private func updateStatusIcon() {
         guard let button = statusItem.button else { return }
         button.image = binderClipStatusIcon()
-        button.title = ""
-        button.imagePosition = .imageOnly
+        button.title = AppProfile.current.isDebug ? "D" : ""
+        button.imagePosition = AppProfile.current.isDebug ? .imageLeft : .imageOnly
         let hasConnectedPeers = peers.contains(where: \.connected)
         button.appearsDisabled = !hasConnectedPeers && !isTransferring
         if isTransferring {
-            button.toolTip = "BinderClip: \(status)"
+            button.toolTip = "\(AppProfile.current.displayName): \(status)"
         } else if hasConnectedPeers {
-            button.toolTip = "BinderClip: \(L10n.tr("status_connected"))"
+            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_connected"))"
         } else if peers.isEmpty {
-            button.toolTip = "BinderClip: \(L10n.tr("listening"))"
+            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("listening"))"
         } else {
-            button.toolTip = "BinderClip: \(L10n.tr("status_waiting_for_device"))"
+            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_waiting_for_device"))"
         }
     }
 
@@ -275,6 +277,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
         menu.addItem(.separator())
 
+        if AppProfile.current.isDebug {
+            let item = NSMenuItem(title: "Private Debug Clipboard…", action: #selector(showDebugClipboard), keyEquivalent: "d")
+            item.target = self; menu.addItem(item)
+            let bluetooth = NSMenuItem(title: "Bluetooth Testing (Shared Radio)", action: #selector(toggleDebugBluetooth), keyEquivalent: "")
+            bluetooth.target = self
+            bluetooth.state = transport.isBluetoothEnabled ? .on : .off
+            menu.addItem(bluetooth)
+        }
+
         let pair = NSMenuItem(title: L10n.tr("add_device"), action: #selector(showPairing), keyEquivalent: "n")
         pair.target = self
         menu.addItem(pair)
@@ -321,6 +332,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         menu.addItem(NSMenuItem(title: L10n.tr("quit_binderclip"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
+    @objc private func showDebugClipboard() { debugClipboardWindow.show() }
+
+    @objc private func toggleDebugBluetooth() {
+        transport.setDebugBluetoothEnabled(!transport.isBluetoothEnabled)
+    }
+
     private func binderClipStatusIcon() -> NSImage? {
         let resource = Bundle.main.url(forResource: "BinderClipMenuIcon", withExtension: "svg")
             ?? Bundle.module.url(forResource: "BinderClipMenuIcon", withExtension: "svg")
@@ -336,10 +353,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     private func renderPendingPermissions(into menu: NSMenu) {
         var hasPendingPermission = false
-        if !transport.isBluetoothPoweredOn {
+        if transport.isBluetoothEnabled && !transport.isBluetoothPoweredOn {
             let item = NSMenuItem(title: L10n.tr("enable_bluetooth"), action: #selector(openBluetoothSettings), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
-        } else if transport.isBluetoothPermissionDenied {
+        } else if transport.isBluetoothEnabled && transport.isBluetoothPermissionDenied {
             let item = NSMenuItem(title: L10n.tr("allow_bluetooth"), action: #selector(openBluetoothPermissionGuide), keyEquivalent: "")
             item.target = self; menu.addItem(item); hasPendingPermission = true
         }
@@ -363,7 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         more.autoenablesItems = false
 
         let loginStatus = SMAppService.mainApp.status
-        if loginStatus != .enabled {
+        if !AppProfile.current.isDebug && loginStatus != .enabled {
             let needsApproval = loginStatus == .requiresApproval
             let login = NSMenuItem(
                 title: needsApproval ? L10n.tr("allow_launch_at_login") : L10n.tr("enable_launch_at_login"),
@@ -406,6 +423,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         #endif
         let updates = NSMenuItem(title: updatesTitle, action: #selector(checkForUpdates), keyEquivalent: "")
         updates.target = self
+        updates.isEnabled = !AppProfile.current.isDebug
         more.addItem(updates)
         return more
     }
@@ -568,7 +586,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     @objc private func sendClipboardToPeer(_ sender: NSMenuItem) {
         guard let peerID = sender.representedObject as? String else { return }
         let peerName = peers.first(where: { $0.id == peerID })?.name ?? "device"
-        switch ClipboardClassifier.read(from: NSPasteboard.general) {
+        switch ClipboardClassifier.read(from: clipboard.pasteboard) {
         case .text(let text):
             transport.sendClipboard(text, targetDeviceId: peerID)
             ToastHUD.shared.show(message: L10n.tr("sent_clipboard_to_peer", peerName), icon: "doc.on.clipboard.fill")
@@ -625,6 +643,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     }
 
     @objc private func enableLaunchAtLogin() {
+        guard !AppProfile.current.isDebug else { return }
         let currentStatus = SMAppService.mainApp.status
         if currentStatus == .requiresApproval {
             SMAppService.openSystemSettingsLoginItems()
@@ -710,10 +729,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     }
 
     @objc private func checkForUpdates() {
+        guard !AppProfile.current.isDebug else { return }
         updaterController.checkForUpdates(nil)
     }
 
     func feedURLString(for updater: SPUUpdater) -> String? {
+        guard !AppProfile.current.isDebug else { return nil }
         let base = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String
             ?? "https://github.com/bgwastu/BinderClip/releases/latest/download/appcast.xml"
         let timestamp = Int(Date().timeIntervalSince1970)

@@ -24,7 +24,7 @@ class ShareReceiverActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         DiagnosticLog.initialize(this)
 
-        if (!RootClipboardBridge.isAvailable()) {
+        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
             Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
             finish()
             return

@@ -4,14 +4,17 @@ import CryptoKit
 final class ClipboardBridge {
     var onLocalText: ((String) -> Void)?
     var onLocalImage: ((ImagePayload) -> Void)?
-    private let pasteboard = NSPasteboard.general
+    let pasteboard: NSPasteboard
     private var changeCount: Int
     private var echo = ClipboardEchoFilter()
     private var timer: Timer?
     private var syncActive = false
     private var running = false
 
-    init() { changeCount = pasteboard.changeCount }
+    init(pasteboard: NSPasteboard = AppProfile.current.pasteboard) {
+        self.pasteboard = pasteboard
+        changeCount = pasteboard.changeCount
+    }
 
     var isAccessDenied: Bool {
         guard #available(macOS 15.4, *) else { return false }
@@ -74,6 +77,7 @@ final class ClipboardBridge {
     }
 
     func sendCurrentClipboard() {
+        changeCount = pasteboard.changeCount
         switch ClipboardClassifier.read(from: pasteboard) {
         case .text(let text):
             guard text.utf8.count <= SyncProtocol.maximumTextBytes else { DiagnosticLog.shared.error("Clipboard text is too large"); return }

@@ -126,11 +126,13 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissionRevision += 1 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); DiagnosticLog.initialize(this)
-        if (RootClipboardBridge.isAvailable()) {
+        super.onCreate(savedInstanceState)
+        check(packageName == AppProfile.current.applicationId)
+        DiagnosticLog.initialize(this)
+        if ((AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
             startService(BinderClipService.ACTION_START)
         }
-        intent?.dataString?.takeIf { it.startsWith("binderclip://") }?.let(::pair)
+        intent?.dataString?.takeIf { it.startsWith(AppProfile.current.pairingScheme + "://") }?.let(::pair)
         setContent {
             BinderClipTheme {
                 val state by AppRuntime.state.collectAsState()
@@ -235,7 +237,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshRootAccess() {
-        val granted = RootClipboardBridge.isAvailable()
+        val granted = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
         AppRuntime.state.value = AppRuntime.state.value.copy(rootAvailable = granted)
         if (granted) {
             RootClipboardBridge.ensureAutostart(this)
@@ -245,7 +247,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent); setIntent(intent); intent.dataString?.takeIf { it.startsWith("binderclip://") }
+        super.onNewIntent(intent); setIntent(intent); intent.dataString?.takeIf { it.startsWith(AppProfile.current.pairingScheme + "://") }
             ?.let(::pair)
     }
 
@@ -265,7 +267,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pair(uri: String) {
-        if (!RootClipboardBridge.isAvailable()) {
+        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
             Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
             return
         }
@@ -371,7 +373,7 @@ private fun BinderClipScreen(
                         tint = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("BinderClip", fontWeight = FontWeight.SemiBold)
+                    Text(AppProfile.current.displayName, fontWeight = FontWeight.SemiBold)
                 }
             },
             actions = {
@@ -401,6 +403,7 @@ private fun BinderClipScreen(
                 contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                if (AppProfile.current.isDebug) item { DebugClipboardPanel() }
                 item {
                     PairedDevicesHeader(phase = state.connectionPhase, onReconnect = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)

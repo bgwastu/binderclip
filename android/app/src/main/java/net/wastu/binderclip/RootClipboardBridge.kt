@@ -37,7 +37,7 @@ object RootClipboardBridge {
 
     private val suPaths = listOf("su", "/system/bin/su", "/system/xbin/su", "/data/adb/ksu/bin/su")
 
-    fun isAvailable(): Boolean = runCatching {
+    fun isAvailable(): Boolean = !AppProfile.current.isDebug && runCatching {
         suPaths.any { path ->
             runCatching {
                 val process = ProcessBuilder(path, "-c", "id -u").redirectErrorStream(true).start()
@@ -49,6 +49,7 @@ object RootClipboardBridge {
     }.getOrDefault(false)
 
     fun enableBackgroundAccess(context: Context): Boolean {
+        if (AppProfile.current.isDebug) return true
         val pkg = shellQuote(context.packageName)
         val userId = getUserId()
 
@@ -74,6 +75,7 @@ object RootClipboardBridge {
     }
 
     fun revokeBackgroundAccess(context: Context) {
+        if (AppProfile.current.isDebug) return
         val pkg = shellQuote(context.packageName)
         val userId = getUserId()
         runRootCommand("pm revoke --user $userId $pkg $BACKGROUND_CLIPBOARD_PERMISSION")
@@ -85,7 +87,7 @@ object RootClipboardBridge {
     fun hasBackgroundAccess(context: Context): Boolean =
         context.checkSelfPermission(BACKGROUND_CLIPBOARD_PERMISSION) == PackageManager.PERMISSION_GRANTED
 
-    fun read(context: Context, clipboard: ClipboardManager): Clip? = runCatching {
+    fun read(context: Context, clipboard: AppClipboard): Clip? = runCatching {
         val clip = clipboard.primaryClip ?: return null
         val item = clip.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return null
         val imageMime = clip.description?.filterMimeTypes("image/*")
@@ -127,6 +129,7 @@ object RootClipboardBridge {
 
     /** Doze whitelist, background appops, notifications grant, and adb boot script — no manual OEM autostart UI. */
     fun ensureAutostart(context: Context) {
+        if (AppProfile.current.isDebug) return
         if (!isAvailable()) return
         val packageName = ServiceAutostart.requireSafePackageName(context.packageName)
         applyKeepAlivePrivileges(packageName)
@@ -138,10 +141,11 @@ object RootClipboardBridge {
     }
 
     fun syncKeepAlive(context: Context, paired: Boolean) {
+        if (AppProfile.current.isDebug) return
         if (!isAvailable()) return
         if (paired) {
             ensureAutostart(context)
-        } else if (removeBootScript()) {
+        } else if (removeBootScript(context.packageName)) {
             DiagnosticLog.info("Removed root boot keep-alive")
         }
     }
@@ -159,8 +163,8 @@ object RootClipboardBridge {
             ServiceAutostart.bootScript(packageName).toByteArray(Charsets.UTF_8),
             android.util.Base64.NO_WRAP,
         )
-        val servicePath = "${ServiceAutostart.SERVICE_D_DIR}/${ServiceAutostart.BOOT_SCRIPT_NAME}"
-        val bootCompletedPath = "${ServiceAutostart.BOOT_COMPLETED_D_DIR}/${ServiceAutostart.BOOT_SCRIPT_NAME}"
+        val servicePath = "${ServiceAutostart.SERVICE_D_DIR}/${ServiceAutostart.bootScriptName(packageName)}"
+        val bootCompletedPath = "${ServiceAutostart.BOOT_COMPLETED_D_DIR}/${ServiceAutostart.bootScriptName(packageName)}"
         val installed = runRootCommand(
             "mkdir -p ${ServiceAutostart.SERVICE_D_DIR} && " +
                 "printf '%s' $encoded | base64 -d > $servicePath && chmod 755 $servicePath",
@@ -173,9 +177,9 @@ object RootClipboardBridge {
         return installed
     }
 
-    private fun removeBootScript(): Boolean = runRootCommand(
-        "rm -f ${ServiceAutostart.SERVICE_D_DIR}/${ServiceAutostart.BOOT_SCRIPT_NAME} " +
-            "${ServiceAutostart.BOOT_COMPLETED_D_DIR}/${ServiceAutostart.BOOT_SCRIPT_NAME}",
+    private fun removeBootScript(packageName: String): Boolean = runRootCommand(
+        "rm -f ${ServiceAutostart.SERVICE_D_DIR}/${ServiceAutostart.bootScriptName(packageName)} " +
+            "${ServiceAutostart.BOOT_COMPLETED_D_DIR}/${ServiceAutostart.bootScriptName(packageName)}",
     )
 
     private fun runRootCommand(command: String, logFailure: Boolean = true): Boolean = runCatching {

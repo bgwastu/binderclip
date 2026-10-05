@@ -56,7 +56,7 @@ public final class WebSocketServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
     private let rosterManager: RosterManager
     private let listenPort: UInt16
-    private let bluetoothEnabled: Bool
+    private var bluetoothEnabled: Bool
     var onListening: ((UInt16) -> Void)?
     private var listener: NWListener?
     private let bluetoothConnector = BluetoothConnector()
@@ -94,14 +94,33 @@ public final class WebSocketServer: @unchecked Sendable {
         DirectEndpoint(host: Self.localAddresses().first ?? "unknown", port: listenPort)
     }
 
-    public convenience init() { self.init(rosterManager: RosterManager()) }
+    public convenience init() {
+        let profile = AppProfile.current
+        self.init(rosterManager: RosterManager(), bluetoothEnabled: profile.bluetoothEnabledByDefault || profile.defaults.bool(forKey: "debug-bluetooth-enabled"))
+    }
 
-    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = true) {
+    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = AppProfile.current.bluetoothEnabledByDefault) {
         self.rosterManager = rosterManager
         self.listenPort = port
         self.bluetoothEnabled = bluetoothEnabled
         self.cachedDeviceName = rosterManager.localName
         self.cachedPeersSnapshot = rosterManager.peerSnapshot()
+    }
+
+    public var isBluetoothEnabled: Bool { queue.sync { bluetoothEnabled } }
+
+    /// Opt-in debug acceptance mode. Disabling stops only this app's peripheral manager.
+    public func setDebugBluetoothEnabled(_ enabled: Bool) {
+        guard AppProfile.current.isDebug else { return }
+        queue.async { [weak self] in
+            guard let self, self.bluetoothEnabled != enabled else { return }
+            self.bluetoothEnabled = enabled
+            AppProfile.current.defaults.set(enabled, forKey: "debug-bluetooth-enabled")
+            if self.lifecycle.active && enabled { self.bluetoothConnector.start(server: self) }
+            if !enabled { self.bluetoothConnector.stop() }
+            self.updateBluetoothDemand()
+            self.publishPresence()
+        }
     }
 
     public func peersSnapshot() -> [Peer] {
@@ -1127,7 +1146,7 @@ public final class WebSocketServer: @unchecked Sendable {
     static func makeBonjourService(deviceID: String, deviceName: String) -> NWListener.Service {
         NWListener.Service(
             name: deviceName,
-            type: "_binderclip._tcp",
+            type: AppProfile.current.bonjourType,
             txtRecord: NWTXTRecord(bonjourTXTRecords(
                 deviceID: deviceID,
                 deviceName: deviceName,

@@ -15,7 +15,7 @@ sealed interface LocalClipboardContent {
  * to text: Android would turn a copied file into its display name.
  */
 object ClipboardClassifier {
-    fun read(context: Context, clipboard: ClipboardManager): LocalClipboardContent {
+    fun read(context: Context, clipboard: AppClipboard): LocalClipboardContent {
         val clip = clipboard.primaryClip ?: return LocalClipboardContent.Unsupported
         val item = clip.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return LocalClipboardContent.Unsupported
 

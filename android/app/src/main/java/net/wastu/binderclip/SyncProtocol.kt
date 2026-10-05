@@ -26,7 +26,7 @@ data class ImageMetadata(
 
 object SyncProtocol {
     const val VERSION = 3
-    const val DEFAULT_PORT = 39421
+    val DEFAULT_PORT = AppProfile.current.port
     const val MAXIMUM_TEXT_BYTES = 1_048_576
     const val MAXIMUM_IMAGE_BYTES = 32 * 1024 * 1024
     const val HEARTBEAT_INTERVAL_MS = 2_000L
@@ -34,10 +34,10 @@ object SyncProtocol {
     const val HEARTBEAT_SLEEP_BUDGET_MS = 60_000L
     const val AUTH_DEADLINE_MS = 2_000L
     const val CONNECT_TIMEOUT_SECONDS = 8L
-    const val BT_SERVICE_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a73"
-    const val BT_PSM_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a74"
-    const val BT_WRITE_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a75"
-    const val BT_NOTIFY_CHAR_UUID = "7d3e0f5a-9b1c-4e8d-a6f2-0c4b8d1e5a76"
+    val BT_SERVICE_UUID = AppProfile.current.bluetoothUuid(1)
+    val BT_PSM_CHAR_UUID = AppProfile.current.bluetoothUuid(2)
+    val BT_WRITE_CHAR_UUID = AppProfile.current.bluetoothUuid(3)
+    val BT_NOTIFY_CHAR_UUID = AppProfile.current.bluetoothUuid(4)
 
     fun orderedConnectEndpoints(
         lastGood: String?,
@@ -117,9 +117,9 @@ object SyncProtocol {
 
     /** Only reject a discovered Mac when both identities are known and differ; missing ids keep
      *  legacy accept behavior so older Mac builds stay reachable. */
-    fun shouldAcceptDiscoveredMac(pairedPeerId: String?, advertisedId: String?): Boolean {
-        if (advertisedId.isNullOrBlank()) return true
-        if (pairedPeerId.isNullOrBlank()) return true
+    fun shouldAcceptDiscoveredMac(pairedPeerId: String?, advertisedId: String?, profile: AppProfile = AppProfile.current): Boolean {
+        if (advertisedId.isNullOrBlank()) return !profile.isDebug
+        if (pairedPeerId.isNullOrBlank()) return !profile.isDebug
         return advertisedId == pairedPeerId
     }
 
@@ -132,9 +132,10 @@ object SyncProtocol {
         }
     }
 
-    fun parsePairingUrl(uriString: String): PairingInfo? = runCatching {
+    fun parsePairingUrl(uriString: String, profile: AppProfile = AppProfile.current): PairingInfo? = runCatching {
         val trimmed = uriString.trim()
-        if (!trimmed.startsWith("binderclip://", ignoreCase = true)) return null
+        val uri = java.net.URI(trimmed)
+        if (!uri.scheme.equals(profile.pairingScheme, ignoreCase = true) || uri.host != "pair") return null
 
         val queryPart = trimmed.substringAfter("?", "")
         if (queryPart.isEmpty()) return null
@@ -176,7 +177,7 @@ object SyncProtocol {
         )
     }.getOrNull()
 
-    fun createPairingUrl(deviceId: String, deviceName: String, psk: String, endpoints: List<String>): String {
+    fun createPairingUrl(deviceId: String, deviceName: String, psk: String, endpoints: List<String>, profile: AppProfile = AppProfile.current): String {
         val query = buildString {
             append("v=").append(URLEncoder.encode(VERSION.toString(), "UTF-8"))
             append("&id=").append(URLEncoder.encode(deviceId, "UTF-8"))
@@ -184,7 +185,7 @@ object SyncProtocol {
             append("&psk=").append(URLEncoder.encode(psk, "UTF-8"))
             append("&endpoints=").append(URLEncoder.encode(endpoints.joinToString(","), "UTF-8"))
         }
-        return "binderclip://pair?$query"
+        return "${profile.pairingScheme}://pair?$query"
     }
 
     fun packImage(image: ImagePayload, originId: String): ByteArray {

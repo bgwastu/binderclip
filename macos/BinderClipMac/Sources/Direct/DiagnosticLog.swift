@@ -19,7 +19,7 @@ final class DiagnosticLog {
     static let changed = Notification.Name("net.wastu.binderclip.diagnosticsChanged")
 
     private let lock = NSLock()
-    private let logger = Logger(subsystem: "net.wastu.binderclip", category: "Diagnostics")
+    private let logger = Logger(subsystem: AppProfile.current.bundleID, category: "Diagnostics")
     private var events: [DiagnosticEvent] = []
     private let storageKey = "diagnostic-events-v1"
     private let maximumEvents = 2_000
@@ -28,7 +28,7 @@ final class DiagnosticLog {
     private let retention: TimeInterval = 7 * 24 * 60 * 60
 
     private init() {
-        events = (try? JSONDecoder().decode([DiagnosticEvent].self, from: UserDefaults.standard.data(forKey: storageKey) ?? Data()))?
+        events = (try? JSONDecoder().decode([DiagnosticEvent].self, from: AppProfile.current.defaults.data(forKey: storageKey) ?? Data()))?
             .filter { $0.date >= Date().addingTimeInterval(-retention) }.suffix(maximumEvents).map { $0 } ?? []
     }
 
@@ -74,5 +74,5 @@ final class DiagnosticLog {
         pendingPersist?.cancel(); pendingPersist = nil
         persistLocked()
     }
-    private func persistLocked() { UserDefaults.standard.set(try? JSONEncoder().encode(events), forKey: storageKey) }
+    private func persistLocked() { AppProfile.current.defaults.set(try? JSONEncoder().encode(events), forKey: storageKey) }
 }

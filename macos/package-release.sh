@@ -74,6 +74,7 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>net.wastu.binderclip</string>
+  <key>BinderClipEnvironment</key><string>production</string>
   <key>CFBundleName</key><string>BinderClip</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>

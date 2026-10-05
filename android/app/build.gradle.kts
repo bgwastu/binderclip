@@ -79,10 +79,13 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["pairingScheme"] = "binderclip-debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "BinderClip (Debug)"
         }
         release {
+            manifestPlaceholders["pairingScheme"] = "binderclip"
             manifestPlaceholders["appLabel"] = "BinderClip"
             isMinifyEnabled = true
             proguardFiles(

@@ -15,10 +15,10 @@ final class SecureChannel {
     private var received: UInt64 = 0
     static let maximumPlaintext = SyncProtocol.maximumImageBytes
 
-    init(psk: Data, serverNonce: Data, clientNonce: Data, transport: String, server: Bool) throws {
+    init(psk: Data, serverNonce: Data, clientNonce: Data, transport: String, server: Bool, profile: AppProfile = .current) throws {
         guard psk.count == 32, serverNonce.count == 32, clientNonce.count == 32,
               transport == "ws" || transport == "ble" else { throw SecureChannelError.invalidHandshake }
-        let contextData = Data("BinderClip/v3/\(transport)".utf8)
+        let contextData = Data("\(profile.cryptoDomain)/\(transport)".utf8)
         context = contextData
         let salt = serverNonce + clientNonce
         func derive(_ direction: String) -> SymmetricKey {
@@ -29,8 +29,8 @@ final class SecureChannel {
         receiveKey = derive(server ? "c2s" : "s2c")
     }
 
-    static func proof(psk: Data, serverNonce: Data, clientNonce: Data, transport: String) -> Data {
-        Data(HMAC<SHA256>.authenticationCode(for: Data("BinderClip/v3/\(transport)/proof".utf8) + serverNonce + clientNonce,
+    static func proof(psk: Data, serverNonce: Data, clientNonce: Data, transport: String, profile: AppProfile = .current) -> Data {
+        Data(HMAC<SHA256>.authenticationCode(for: Data("\(profile.cryptoDomain)/\(transport)/proof".utf8) + serverNonce + clientNonce,
             using: SymmetricKey(data: psk)))
     }
 
@@ -64,18 +64,20 @@ final class SecureChannel {
 final class SecureHandshake {
     let nonce: Data
     private var consumed = false
-    init() {
+    private let profile: AppProfile
+    init(profile: AppProfile = .current) {
+        self.profile = profile
         var bytes = [UInt8](repeating: 0, count: 32)
         precondition(SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess)
         nonce = Data(bytes)
     }
     func accept(clientNonce: Data, proof: Data, psk: Data, transport: String) throws -> SecureChannel {
         guard !consumed, clientNonce.count == 32, proof.count == 32, psk.count == 32 else { throw SecureChannelError.invalidHandshake }
-        let transcript = Data("BinderClip/v3/\(transport)/proof".utf8) + nonce + clientNonce
+        let transcript = Data("\(profile.cryptoDomain)/\(transport)/proof".utf8) + nonce + clientNonce
         guard HMAC<SHA256>.isValidAuthenticationCode(proof, authenticating: transcript, using: SymmetricKey(data: psk)) else {
             throw SecureChannelError.invalidHandshake
         }
         consumed = true
-        return try SecureChannel(psk: psk, serverNonce: nonce, clientNonce: clientNonce, transport: transport, server: true)
+        return try SecureChannel(psk: psk, serverNonce: nonce, clientNonce: clientNonce, transport: transport, server: true, profile: profile)
     }
 }

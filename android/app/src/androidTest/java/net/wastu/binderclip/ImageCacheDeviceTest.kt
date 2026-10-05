@@ -21,7 +21,7 @@ class ImageCacheDeviceTest {
     @Test fun largeImageIsCachedAndMutationBehindSameUriIsDelivered() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("hardwareImageCache") == "true")
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val clipboard = AppClipboard(context)
         val stage = File(context.filesDir, "device-test-stage.txt")
         val ack = File(context.filesDir, "device-test-ack.txt")
         val observeSeconds = InstrumentationRegistry.getArguments().getString("cacheObserveSeconds")?.toIntOrNull()?.coerceIn(70, 600) ?: 70

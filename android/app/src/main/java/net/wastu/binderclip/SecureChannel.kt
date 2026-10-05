@@ -9,8 +9,8 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /** Matches CryptoKit HKDF-SHA256 and AES-256-GCM. No application-level cleartext fallback. */
-class SecureChannel(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArray, transport: String, server: Boolean = false) {
-    private val context = "BinderClip/v3/$transport".toByteArray(Charsets.UTF_8)
+class SecureChannel(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArray, transport: String, server: Boolean = false, profile: AppProfile = AppProfile.current) {
+    private val context = "${profile.cryptoDomain}/$transport".toByteArray(Charsets.UTF_8)
     private val sendKey: ByteArray
     private val receiveKey: ByteArray
     private var sent = 0L
@@ -49,8 +49,8 @@ class SecureChannel(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArr
         private fun hmac(key: ByteArray, bytes: ByteArray) = Mac.getInstance("HmacSHA256").run {
             init(SecretKeySpec(key, "HmacSHA256")); doFinal(bytes)
         }
-        fun proof(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArray, transport: String): ByteArray =
-            hmac(psk, "BinderClip/v3/$transport/proof".toByteArray() + serverNonce + clientNonce)
+        fun proof(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArray, transport: String, profile: AppProfile = AppProfile.current): ByteArray =
+            hmac(psk, "${profile.cryptoDomain}/$transport/proof".toByteArray() + serverNonce + clientNonce)
         fun validProof(psk: ByteArray, serverNonce: ByteArray, clientNonce: ByteArray, transport: String, proof: ByteArray) =
             MessageDigest.isEqual(proof(psk, serverNonce, clientNonce, transport), proof)
     }

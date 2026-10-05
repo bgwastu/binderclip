@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- The private debug clipboard needs neither privileged clipboard access nor boot integration. -->
+    <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND" tools:node="remove" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <application>
+        <receiver android:name="net.wastu.binderclip.BootReceiver" android:enabled="false" tools:replace="android:enabled" />
+    </application>
 </manifest>

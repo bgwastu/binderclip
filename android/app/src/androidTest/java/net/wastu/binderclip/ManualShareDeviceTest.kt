@@ -23,7 +23,7 @@ class ManualShareDeviceTest {
     @Test fun shareSheetServicesAndBrowserLinkNotification() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("hardwareManualShare") == "true")
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val clipboard = AppClipboard(context)
         val notifications = context.getSystemService(NotificationManager::class.java)
         val status = File(context.filesDir, "device-test-stage.txt")
         val bluetooth = InstrumentationRegistry.getArguments().getString("expectedTransport") == "BLUETOOTH"

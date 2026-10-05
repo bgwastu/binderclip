@@ -43,8 +43,7 @@ final class PrivateStateStore: @unchecked Sendable {
     private let file: URL
 
     static func applicationSupportDirectory() -> URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("net.wastu.binderclip", isDirectory: true)
+        AppProfile.current.stateDirectory
     }
 
     init(directory: URL = applicationSupportDirectory()) {
@@ -86,7 +85,7 @@ final class RosterManager: @unchecked Sendable {
     private(set) var peers: [String: Peer] = [:]
     private var unpairedIDs: Set<String> = []
 
-    init(stateDirectory: URL = PrivateStateStore.applicationSupportDirectory(), defaults: UserDefaults = .standard) {
+    init(stateDirectory: URL = PrivateStateStore.applicationSupportDirectory(), defaults: UserDefaults = AppProfile.current.defaults) {
         self.secureStore = PrivateStateStore(directory: stateDirectory)
         self.defaults = defaults
         if let savedName = defaults.string(forKey: "device.custom_name")?.trimmingCharacters(in: .whitespacesAndNewlines),

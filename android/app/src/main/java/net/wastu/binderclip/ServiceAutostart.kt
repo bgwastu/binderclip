@@ -4,7 +4,9 @@ import android.content.Intent
 
 /** Boot and root keep-alive policy for the persistent sync service. */
 object ServiceAutostart {
-    const val BOOT_SCRIPT_NAME = "binderclip.sh"
+    fun bootScriptName(packageName: String): String =
+        if (requireSafePackageName(packageName) == AppProfile.debug.applicationId) AppProfile.debug.bootScriptName
+        else { require(packageName == AppProfile.production.applicationId); AppProfile.production.bootScriptName }
     const val SERVICE_D_DIR = "/data/adb/service.d"
     const val BOOT_COMPLETED_D_DIR = "/data/adb/boot-completed.d"
 
@@ -15,8 +17,8 @@ object ServiceAutostart {
         "com.htc.intent.action.QUICKBOOT_POWERON",
     )
 
-    fun shouldStart(action: String?, paired: Boolean): Boolean =
-        paired && action != null && action in BOOT_ACTIONS
+    fun shouldStart(action: String?, paired: Boolean, profile: AppProfile = AppProfile.current): Boolean =
+        !profile.isDebug && paired && action != null && action in BOOT_ACTIONS
 
     fun requireSafePackageName(packageName: String): String {
         val pkg = packageName.trim()
@@ -33,7 +35,7 @@ object ServiceAutostart {
         |#!/system/bin/sh
         |# BinderClip: start the sync service after boot. Installed only after the owner grants su.
         |PKG='{{PKG}}'
-        |SVC="{{$}}PKG/.BinderClipService"
+        |SVC="{{$}}PKG/net.wastu.binderclip.BinderClipService"
         |
         |while [ "{{$}}(getprop sys.boot_completed)" != "1" ]; do
         |  sleep 1

@@ -158,6 +158,7 @@ class BluetoothLink(
      *  caller can fall back to guiding the user. */
     @Suppress("DEPRECATION")
     fun requestEnable(): Boolean {
+        if (!AppProfile.current.canEnableBluetoothRadio) return false
         val adapter = adapter() ?: return false
         retry.failed(android.os.SystemClock.elapsedRealtime())
         return try {

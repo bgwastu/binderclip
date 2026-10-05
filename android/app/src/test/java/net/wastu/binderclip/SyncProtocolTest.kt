@@ -50,7 +50,7 @@ class SyncProtocolTest {
     fun parsePreservesPlusInLegacyPsk() {
         val psk = "abc+def/ghi="
         val url = "binderclip://pair?v=2&id=mac&name=Mac&psk=$psk&endpoints=192.168.1.1:39421"
-        val parsed = SyncProtocol.parsePairingUrl(url)
+        val parsed = SyncProtocol.parsePairingUrl(url, AppProfile.production)
         assertEquals(psk, parsed?.psk)
     }
 
@@ -117,13 +117,13 @@ class SyncProtocolTest {
     @Test
     fun discoveredMacIdentityFiltering() {
         // Both ids known and equal -> accept.
-        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-1"))
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-1", AppProfile.production))
         // Both known but different -> reject foreign BinderClip Mac.
-        assertFalse(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-2"))
+        assertFalse(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "mac-2", AppProfile.production))
         // Legacy Mac without TXT id -> keep legacy accept behavior.
-        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", null))
-        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", ""))
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", null, AppProfile.production))
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac("mac-1", "", AppProfile.production))
         // No stored peer id -> cannot verify, keep legacy accept behavior.
-        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac(null, "mac-1"))
+        assertTrue(SyncProtocol.shouldAcceptDiscoveredMac(null, "mac-1", AppProfile.production))
     }
 }

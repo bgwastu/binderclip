@@ -38,7 +38,7 @@ object ImageClipboard {
         DiagnosticLog.error("Could not read shared image: ${it.message ?: "unsupported content"}")
     }.getOrNull()
 
-    fun read(context: Context, clipboard: ClipboardManager): ImagePayload? = runCatching {
+    fun read(context: Context, clipboard: AppClipboard): ImagePayload? = runCatching {
         val clip = clipboard.primaryClip ?: return null
         val mime = clip.description.filterMimeTypes("image/*")
             ?.firstOrNull { it in ImagePayload.ALLOWED_MIME_TYPES } ?: return null
@@ -52,7 +52,7 @@ object ImageClipboard {
         DiagnosticLog.warning("Could not read clipboard image: ${it.message ?: "unsupported content"}")
     }.getOrNull()
 
-    fun write(context: Context, clipboard: ClipboardManager, image: ImagePayload) {
+    fun write(context: Context, clipboard: AppClipboard, image: ImagePayload) {
         val directory = File(context.cacheDir, "clipboard-images").apply { mkdirs() }
         directory.listFiles()?.forEach { it.delete() }
         val extension = when (image.mimeType) {

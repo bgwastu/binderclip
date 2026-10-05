@@ -118,12 +118,13 @@ final class PairingWindow: NSObject, NSWindowDelegate {
         }
         expiresAt = Date().addingTimeInterval(300)
         #if DEBUG
-        DiagnosticLog.shared.info("Pairing URL generated: \(url.absoluteString)")
-        print("[BinderClip Debug] Pairing URL: \(url.absoluteString)")
+        DiagnosticLog.shared.info("Pairing invitation generated")
+        print("[BinderClip Debug] Pairing invitation saved privately")
         fflush(stdout)
-        let debugDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("net.wastu.binderclip", isDirectory: true)
+        let debugDir = AppProfile.current.stateDirectory
         try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
         try? url.absoluteString.write(to: debugDir.appendingPathComponent("debug-invite.txt"), atomically: true, encoding: .utf8)
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: debugDir.appendingPathComponent("debug-invite.txt").path)
         #endif
         updateCountdown()
         stopTimer()

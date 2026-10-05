@@ -24,3 +24,9 @@ Thanks to [ClipRelay](https://github.com/geekflyer/cliprelay) for the initial im
 ## Protocol 3 update
 
 Update Mac and Android together. Older builds cannot connect to protocol 3; existing pairing keys can be reused. Application data is encrypted even though the underlying WebSocket uses `ws://`. See [the protocol design](docs/secure-protocol.md) and [battery validation](docs/battery-validation.md) for behavior, limits, and measurements still needed.
+
+## Production and debug
+
+Debug installs beside production on both platforms and pairs only with debug. It has independent keys, storage, discovery, and authentication. Production identifiers and its protocol-3 wire format are retained. Debug uses a private test clipboard, with text/image controls on Android and **Private Debug Clipboard…** in the Mac menu; automatic debug transfers never read or write the system clipboard. Debug Android needs no root and neither debug app starts at boot/login or checks production updates.
+
+Use `./macos/debug-install.sh` and the Android `assembleDebug` APK for development. The Mac installer replaces only debug. See [isolation and migration](docs/debug-isolation.md) and [debug device tests](scripts/device-tests/README.md). Both apps share hardware resources; use dedicated acceptance devices for system-clipboard, radio, Doze, and battery tests.

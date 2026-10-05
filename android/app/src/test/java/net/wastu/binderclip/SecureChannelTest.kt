@@ -7,16 +7,16 @@ class SecureChannelTest {
     private val key = ByteArray(32) { it.toByte() }
     private val serverNonce = ByteArray(32) { (it + 32).toByte() }
     private val clientNonce = ByteArray(32) { (it + 64).toByte() }
-    private fun client(transport: String = "ws") = SecureChannel(key, serverNonce, clientNonce, transport)
-    private fun server(transport: String = "ws") = SecureChannel(key, serverNonce, clientNonce, transport, true)
+    private fun client(transport: String = "ws", profile: AppProfile = AppProfile.current) = SecureChannel(key, serverNonce, clientNonce, transport, profile = profile)
+    private fun server(transport: String = "ws", profile: AppProfile = AppProfile.current) = SecureChannel(key, serverNonce, clientNonce, transport, true, profile)
     private fun ByteArray.hex() = joinToString("") { "%02x".format(it) }
 
     @Test fun matchesIndependentHkdfAesGcmVector() {
         assertEquals("b9abb92d08dd27dba1745c700a84a78b8efa3401ae67adc77861930c3e3c9c32",
-            SecureChannel.proof(key, serverNonce, clientNonce, "ws").hex())
-        val packet = client().seal("clipboard test".toByteArray(), 1)
+            SecureChannel.proof(key, serverNonce, clientNonce, "ws", AppProfile.production).hex())
+        val packet = client(profile = AppProfile.production).seal("clipboard test".toByteArray(), 1)
         assertEquals("0000000000000001c2e436814e014e917c288cdd7d717c5a4edacd534996a94da470fe5a988b", packet.hex())
-        assertEquals("clipboard test", server().open(packet, 1).toString(Charsets.UTF_8))
+        assertEquals("clipboard test", server(profile = AppProfile.production).open(packet, 1).toString(Charsets.UTF_8))
     }
     @Test fun tamperingDoesNotAdvanceReceiveCounter() {
         val packet = client().seal("copy".toByteArray(), 1)

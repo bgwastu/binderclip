@@ -10,7 +10,6 @@ SCRIPT_DIR="${0:A:h}"
 PACKAGE_DIR="$SCRIPT_DIR/BinderClipMac"
 APP_NAME="BinderClip Debug.app"
 BUNDLE_ID="net.wastu.binderclip.debug.mb"
-PROD_BUNDLE_ID="net.wastu.binderclip"
 OLD_DEBUG_BUNDLE_IDS=(
   "net.wastu.binderclip.debug"
   "net.wastu.binderclip.debug.v2"
@@ -91,6 +90,7 @@ cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>BinderClipEnvironment</key><string>debug</string>
   <key>CFBundleName</key><string>BinderClip Debug</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -103,7 +103,7 @@ cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
   <string>BinderClip syncs clipboard text over Bluetooth when Wi-Fi and mesh are unavailable.</string>
   <key>NSBonjourServices</key>
   <array>
-    <string>_binderclip._tcp</string>
+    <string>_binderclip-dbg._tcp</string>
   </array>
   <key>NSServices</key>
   <array>
@@ -133,8 +133,7 @@ PLIST
 
 codesign --force --deep --sign - "$STAGING_PATH" >/dev/null
 
-print "Stopping production BinderClip and the previous debug app..."
-quit_bundle "$PROD_BUNDLE_ID"
+print "Stopping only the previous debug app..."
 quit_bundle "$BUNDLE_ID"
 for old_id in "${OLD_DEBUG_BUNDLE_IDS[@]}"; do
   quit_bundle "$old_id"

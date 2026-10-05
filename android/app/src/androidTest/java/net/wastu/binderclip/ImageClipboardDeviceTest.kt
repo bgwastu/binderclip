@@ -20,7 +20,7 @@ class ImageClipboardDeviceTest {
         val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
         bitmap.recycle()
         val original = ImagePayload(mimeType = "image/png", data = bytes)
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val clipboard = AppClipboard(context)
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->

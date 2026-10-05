@@ -73,7 +73,7 @@ class DeviceStore(context: Context) {
             return RememberedPeer(
                 name = prefs.getString("peer_name", "Mac") ?: "Mac",
                 host = host,
-                port = prefs.getInt("peer_port", 39_421),
+                port = prefs.getInt("peer_port", SyncProtocol.DEFAULT_PORT),
                 deviceId = prefs.getString("peer_id", "") ?: "",
                 platform = prefs.getString("peer_platform", "macOS") ?: "macOS",
                 connected = false
@@ -121,7 +121,7 @@ class DeviceStore(context: Context) {
                     if (id.isBlank()) continue
                     add(RememberedPeer(
                         name = item.optString("name", "Device"), host = item.optString("host"),
-                        port = item.optInt("port", 39_421), deviceId = id,
+                        port = item.optInt("port", SyncProtocol.DEFAULT_PORT), deviceId = id,
                         platform = item.optString("platform", "Android"), connected = false,
                     ))
                 }
@@ -180,7 +180,7 @@ class DeviceStore(context: Context) {
 
     /** When true, automatically copy text and images received from Mac to this device's clipboard. */
     /** Bluetooth Classic fallback for text/links; on by default, engages only off-Wi-Fi. */
-    fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", true)
+    fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", AppProfile.current.bluetoothEnabledByDefault)
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
 
     /** Suppress transient toasts shown for clipboard copy/receive/send by default. */
@@ -191,7 +191,8 @@ class DeviceStore(context: Context) {
 
     private fun keyAlias(): String {
         val userId = android.os.Process.myUid() / 100000
-        return if (userId == 0) KEY_ALIAS else "$KEY_ALIAS.u$userId"
+        val base = if (AppProfile.current.isDebug) "${BuildConfig.APPLICATION_ID}.group-key" else KEY_ALIAS
+        return if (userId == 0) base else "$base.u$userId"
     }
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

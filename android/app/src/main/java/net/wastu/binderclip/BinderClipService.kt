@@ -65,19 +65,19 @@ object AppRuntime {
 /** The only Android background component: a resilient WebSocket sync foreground service. */
 class BinderClipService : Service() {
     companion object {
-        const val ACTION_START = "net.wastu.binderclip.START"
-        const val ACTION_PAIR = "net.wastu.binderclip.PAIR"
-        const val ACTION_UNPAIR = "net.wastu.binderclip.UNPAIR"
-        const val ACTION_SEND_CURRENT = "net.wastu.binderclip.SEND_CURRENT"
-        const val ACTION_COPY_PENDING = "net.wastu.binderclip.COPY_PENDING"
-        const val ACTION_UI_VISIBLE = "net.wastu.binderclip.UI_VISIBLE"
-        const val ACTION_SET_SYNC_TOASTS = "net.wastu.binderclip.SET_SYNC_TOASTS"
-        const val ACTION_SET_BT_FALLBACK = "net.wastu.binderclip.SET_BT_FALLBACK"
-        const val ACTION_REFRESH_CAPABILITIES = "net.wastu.binderclip.REFRESH_CAPABILITIES"
-        const val ACTION_REMOVE_MEMBER = "net.wastu.binderclip.REMOVE_MEMBER"
-        const val ACTION_UPDATE_DEVICE_NAME = "net.wastu.binderclip.UPDATE_DEVICE_NAME"
-        const val ACTION_SEND_SHARED = "net.wastu.binderclip.SEND_SHARED"
-        const val ACTION_SEARCH_RECONNECT = "net.wastu.binderclip.SEARCH_RECONNECT"
+        val ACTION_START = "${BuildConfig.APPLICATION_ID}.START"
+        val ACTION_PAIR = "${BuildConfig.APPLICATION_ID}.PAIR"
+        val ACTION_UNPAIR = "${BuildConfig.APPLICATION_ID}.UNPAIR"
+        val ACTION_SEND_CURRENT = "${BuildConfig.APPLICATION_ID}.SEND_CURRENT"
+        val ACTION_COPY_PENDING = "${BuildConfig.APPLICATION_ID}.COPY_PENDING"
+        val ACTION_UI_VISIBLE = "${BuildConfig.APPLICATION_ID}.UI_VISIBLE"
+        val ACTION_SET_SYNC_TOASTS = "${BuildConfig.APPLICATION_ID}.SET_SYNC_TOASTS"
+        val ACTION_SET_BT_FALLBACK = "${BuildConfig.APPLICATION_ID}.SET_BT_FALLBACK"
+        val ACTION_REFRESH_CAPABILITIES = "${BuildConfig.APPLICATION_ID}.REFRESH_CAPABILITIES"
+        val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
+        val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
+        val ACTION_SEND_SHARED = "${BuildConfig.APPLICATION_ID}.SEND_SHARED"
+        val ACTION_SEARCH_RECONNECT = "${BuildConfig.APPLICATION_ID}.SEARCH_RECONNECT"
         const val EXTRA_MEMBER_ID = "member_id"
         const val EXTRA_TARGET_DEVICE_ID = "target_device_id"
         const val EXTRA_DEVICE_NAME = "device_name"
@@ -91,7 +91,7 @@ class BinderClipService : Service() {
 
         fun startFromBackground(context: Context) {
             DiagnosticLog.initialize(context)
-            if (!RootClipboardBridge.isAvailable()) {
+            if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
                 DiagnosticLog.info("BinderClipService not started: root unavailable")
                 return
             }
@@ -113,7 +113,7 @@ class BinderClipService : Service() {
 
     private lateinit var store: DeviceStore
     private lateinit var client: WebSocketClient
-    private lateinit var clipboard: ClipboardManager
+    private lateinit var clipboard: AppClipboard
     private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     @Volatile private var stopping = false
     private lateinit var nsdManager: NsdManager
@@ -194,13 +194,13 @@ class BinderClipService : Service() {
         super.onCreate()
         DiagnosticLog.initialize(this)
         store = DeviceStore(this)
-        rootAvailable = RootClipboardBridge.isAvailable()
+        rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
         if (!rootAvailable) {
             publishRootBlockedState()
             stopSelf()
             return
         }
-        clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard = AppClipboard(this)
         ImageClipboard.clearStale(this)
         nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
 
@@ -348,7 +348,7 @@ class BinderClipService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!::client.isInitialized) {
-            rootAvailable = RootClipboardBridge.isAvailable()
+            rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
             if (!rootAvailable) {
                 publishRootBlockedState()
                 return START_NOT_STICKY
@@ -432,7 +432,7 @@ class BinderClipService : Service() {
             }
 
             ACTION_REFRESH_CAPABILITIES -> runServiceWork {
-                rootAvailable = RootClipboardBridge.isAvailable()
+                rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
                 if (stopping) return@runServiceWork
                 if (!rootAvailable) {
                     automaticClipboardEnabled = false
@@ -675,7 +675,7 @@ class BinderClipService : Service() {
 
     private fun applyRootClipboardAutomation() {
         if (stopping) return
-        rootAvailable = RootClipboardBridge.isAvailable()
+        rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
         if (!rootAvailable) {
             automaticClipboardEnabled = false
             stopBackgroundPolling()
@@ -823,7 +823,7 @@ class BinderClipService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle("BinderClip")
+            .setContentTitle(AppProfile.current.displayName)
             .setContentText(statusText)
             .setContentIntent(pending)
             .setOngoing(true)
@@ -887,7 +887,7 @@ class BinderClipService : Service() {
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {}
             override fun onServiceFound(service: NsdServiceInfo) {
-                if (!service.serviceType.contains("_binderclip._tcp")) return
+                if (service.serviceType.trimEnd('.') != AppProfile.current.bonjourType) return
                 runCatching {
                     if (Build.VERSION.SDK_INT >= 34) {
                         val infoCallback = object : NsdManager.ServiceInfoCallback {
@@ -923,7 +923,7 @@ class BinderClipService : Service() {
             }
         }
         nsdDiscoveryListener = listener
-        runCatching { nsdManager.discoverServices("_binderclip._tcp.", NsdManager.PROTOCOL_DNS_SD, listener) }
+        runCatching { nsdManager.discoverServices(AppProfile.current.bonjourType + ".", NsdManager.PROTOCOL_DNS_SD, listener) }
             .onSuccess { nsdLog("NSD discovery started") }
     }
 
