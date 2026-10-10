@@ -1,15 +1,11 @@
 package net.wastu.binderclip
 
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.concurrent.TimeUnit
 
 /**
- * Optional root integration. It never reads a clipboard through a forged system identity.
- * After the owner approves BinderClip in KernelSU or Magisk, it grants background clipboard
+ * Root setup. It never reads a clipboard through a forged system identity.
+ * After the owner approves BinderClip in KernelSU or Magisk, it attempts to grant background clipboard
  * access and can install a late-start boot script so the sync service comes back after reboot
  * without opening the app.
  */
@@ -39,12 +35,7 @@ object RootClipboardBridge {
 
     fun isAvailable(): Boolean = !AppProfile.current.isDebug && runCatching {
         suPaths.any { path ->
-            runCatching {
-                val process = ProcessBuilder(path, "-c", "id -u").redirectErrorStream(true).start()
-                val output = BufferedReader(InputStreamReader(process.inputStream)).readText().trim()
-                process.waitFor(3, TimeUnit.SECONDS) && process.exitValue() == 0 &&
-                    output.lines().any { it.trim() == "0" || it.contains("uid=0(") }
-            }.getOrDefault(false)
+            RootCommandRunner.succeeds(listOf(path, "-c", "test \"\$(id -u)\" = 0"), timeoutMs = 3_000)
         }
     }.getOrDefault(false)
 
@@ -53,7 +44,8 @@ object RootClipboardBridge {
         val pkg = shellQuote(context.packageName)
         val userId = getUserId()
 
-        // Grant permission targeting the active user/space and fallback to global
+        // This is an AOSP signature permission; only ROMs that allow the grant will succeed.
+        // Target the active user/space first, then try the ROM's default-user command.
         runRootCommand("pm grant --user $userId $pkg $BACKGROUND_CLIPBOARD_PERMISSION")
         runRootCommand("pm grant $pkg $BACKGROUND_CLIPBOARD_PERMISSION")
 
@@ -69,7 +61,7 @@ object RootClipboardBridge {
 
         val granted = hasBackgroundAccess(context)
         if (!granted) {
-            DiagnosticLog.warning("Background clipboard permission not granted after root commands (userId=$userId)")
+            DiagnosticLog.warning("Background clipboard permission not granted; READ_CLIPBOARD AppOp alone does not grant background access (userId=$userId)")
         }
         return granted
     }
@@ -84,6 +76,8 @@ object RootClipboardBridge {
         runRootCommand("cmd appops set $pkg READ_CLIPBOARD default")
     }
 
+    // ClipboardService checks this permission/focus before checking the READ_CLIPBOARD AppOp.
+    // A successful `appops set ... allow` is not evidence of background clipboard access.
     fun hasBackgroundAccess(context: Context): Boolean =
         context.checkSelfPermission(BACKGROUND_CLIPBOARD_PERMISSION) == PackageManager.PERMISSION_GRANTED
 
@@ -132,7 +126,7 @@ object RootClipboardBridge {
         if (AppProfile.current.isDebug) return
         if (!isAvailable()) return
         val packageName = ServiceAutostart.requireSafePackageName(context.packageName)
-        applyKeepAlivePrivileges(packageName)
+        applyKeepAlivePrivileges(packageName, getUserId())
         when {
             !runRootCommand("test -d /data/adb", logFailure = false) -> {}
             installBootScript(packageName) -> DiagnosticLog.info("Installed root boot keep-alive")
@@ -150,17 +144,15 @@ object RootClipboardBridge {
         }
     }
 
-    private fun applyKeepAlivePrivileges(packageName: String) {
-        runRootCommand("dumpsys deviceidle whitelist +$packageName", logFailure = false)
-        runRootCommand("cmd deviceidle whitelist +$packageName", logFailure = false)
-        runRootCommand("cmd appops set $packageName RUN_ANY_IN_BACKGROUND allow", logFailure = false)
-        runRootCommand("cmd appops set $packageName RUN_IN_BACKGROUND allow", logFailure = false)
-        runRootCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS", logFailure = false)
+    private fun applyKeepAlivePrivileges(packageName: String, userId: Int) {
+        ServiceAutostart.keepAliveCommands(packageName, userId).forEach {
+            runRootCommand(it, logFailure = false)
+        }
     }
 
     private fun installBootScript(packageName: String): Boolean {
         val encoded = android.util.Base64.encodeToString(
-            ServiceAutostart.bootScript(packageName).toByteArray(Charsets.UTF_8),
+            ServiceAutostart.bootScript(packageName, getUserId()).toByteArray(Charsets.UTF_8),
             android.util.Base64.NO_WRAP,
         )
         val servicePath = "${ServiceAutostart.SERVICE_D_DIR}/${ServiceAutostart.bootScriptName(packageName)}"
@@ -184,12 +176,7 @@ object RootClipboardBridge {
 
     private fun runRootCommand(command: String, logFailure: Boolean = true): Boolean = runCatching {
         for (path in suPaths) {
-            val success = runCatching {
-                val process = ProcessBuilder(path, "-c", command).redirectErrorStream(true).start()
-                val output = BufferedReader(InputStreamReader(process.inputStream)).readText()
-                val finished = process.waitFor(5, TimeUnit.SECONDS)
-                finished && process.exitValue() == 0
-            }.getOrDefault(false)
+            val success = RootCommandRunner.succeeds(listOf(path, "-c", command), timeoutMs = 5_000)
             if (success) return true
         }
         if (logFailure) DiagnosticLog.warning("Root command failed ($command)")
