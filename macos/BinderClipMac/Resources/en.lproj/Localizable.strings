@@ -92,3 +92,22 @@
 "log_copy" = "Copy";
 "log_close" = "Close";
 "log_no_events" = "$ No events yet.";
+
+"transfer_kind_file" = "file";
+"transfer_kind_image" = "image";
+"transfer_offering" = "Preparing %@…";
+"transfer_receiving" = "Receiving %@…";
+"transfer_sending" = "Sending %@ (%d%%)";
+"transfer_verifying" = "Verifying %@…";
+"transfer_sent" = "Sent %@";
+"transfer_received" = "Received %@";
+"transfer_declined" = "Transfer declined; check the receiving device";
+"transfer_failed" = "Transfer failed; check file size and available storage";
+"transfer_invalid" = "Transfer failed integrity or sequence validation";
+"transfer_paused" = "Transfer paused; reconnecting…";
+"share_error_file" = "Couldn’t queue file. Limit: 100 MiB (clipboard images: 30 MiB). Check access and free space.";
+"received_files" = "Received Files";
+"send_file" = "Send File…";
+"file_connection_required" = "Files need Wi-Fi or mesh and updated apps on both devices.";
+"file_picker_help" = "Choose up to eight files, at most 100 MiB each.";
+"file_received_format" = "Received file: %@";

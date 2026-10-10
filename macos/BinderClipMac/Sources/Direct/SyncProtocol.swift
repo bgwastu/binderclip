@@ -24,6 +24,7 @@ public struct ImageMetadata: Codable, Sendable, Equatable {
     public let hash: String
     public let originId: String
     public let size: Int
+    var clipboard: ClipboardStamp? = nil
 
     public init(id: String, mimeType: String, hash: String, originId: String, size: Int) {
         self.type = "image"
@@ -152,14 +153,15 @@ public enum SyncProtocol {
         return PairingInfo(version: v, deviceId: id, deviceName: name, psk: psk, endpoints: endpoints)
     }
 
-    public static func packImage(image: ImagePayload, originId: String) -> Data {
-        let meta = ImageMetadata(
+    static func packImage(image: ImagePayload, originId: String, clipboard: ClipboardStamp? = nil) -> Data {
+        var meta = ImageMetadata(
             id: image.id.uuidString,
             mimeType: image.mimeType,
             hash: image.sha256,
             originId: originId,
             size: image.data.count
         )
+        meta.clipboard = clipboard
         guard let metaJson = try? JSONEncoder().encode(meta) else {
             return Data()
         }
@@ -179,6 +181,9 @@ public enum SyncProtocol {
         guard packet.count >= metaEnd else { return nil }
 
         let metaData = packet.subdata(in: metaStart..<metaEnd)
+        if let json = try? JSONSerialization.jsonObject(with: metaData) as? [String: Any], let raw = json["clipboard"] {
+            guard let fields = raw as? [String: Any], (try? ClipboardStamp.parse(fields)) != nil else { return nil }
+        }
         guard let meta = try? JSONDecoder().decode(ImageMetadata.self, from: metaData) else {
             return nil
         }

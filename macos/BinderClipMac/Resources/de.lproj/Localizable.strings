@@ -89,3 +89,22 @@
 "log_copy" = "Kopieren";
 "log_close" = "Schließen";
 "log_no_events" = "$ Noch keine Ereignisse.";
+
+"transfer_kind_file" = "Datei";
+"transfer_kind_image" = "Bild";
+"transfer_offering" = "%@ wird vorbereitet…";
+"transfer_receiving" = "%@ wird empfangen…";
+"transfer_sending" = "%@ wird gesendet (%d%%)";
+"transfer_verifying" = "%@ wird überprüft…";
+"transfer_sent" = "%@ gesendet";
+"transfer_received" = "%@ empfangen";
+"transfer_declined" = "Übertragung abgelehnt; Empfangsgerät prüfen";
+"transfer_failed" = "Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen";
+"transfer_invalid" = "Integritäts- oder Reihenfolgeprüfung fehlgeschlagen";
+"transfer_paused" = "Übertragung pausiert; Verbindung wird wiederhergestellt…";
+"share_error_file" = "Datei konnte nicht vorgemerkt werden. Limit: 100 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.";
+"received_files" = "Empfangene Dateien";
+"send_file" = "Datei senden…";
+"file_connection_required" = "Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.";
+"file_picker_help" = "Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.";
+"file_received_format" = "Datei empfangen: %@";

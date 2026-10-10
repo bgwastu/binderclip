@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">¿Borrar todos los registros?</string>
     <string name="clear_logs_confirm_message">Se eliminarán todas las entradas del registro. Esta acción no se puede deshacer.</string>
     <string name="secure_connection_failed">Error de conexión segura. Actualiza BinderClip en el Mac y el teléfono, o vuelve a emparejarlos.</string>
+
+    <string name="transfer_kind_file">archivo</string>
+    <string name="transfer_kind_image">imagen</string>
+    <string name="transfer_offering">Preparando %1$s…</string>
+    <string name="transfer_receiving">Recibiendo %1$s…</string>
+    <string name="transfer_sending">Enviando %1$s (%2$d%%)</string>
+    <string name="transfer_sent">%1$s enviado</string>
+    <string name="transfer_received">%1$s recibido</string>
+    <string name="transfer_declined">Transferencia rechazada; revisa el dispositivo receptor</string>
+    <string name="transfer_failed">Transferencia fallida; revisa el tamaño y el espacio disponible</string>
+    <string name="transfer_invalid">Falló la validación de integridad o secuencia</string>
+    <string name="transfer_paused">Transferencia pausada; reconectando…</string>
+    <string name="transfer_update_required">Actualiza ambas aplicaciones para compartir archivos e imágenes grandes</string>
+    <string name="share_error_file">No se pudo poner el archivo en cola. Límite: 100 MiB (imágenes del portapapeles: 30 MiB). Revisa el acceso y el espacio.</string>
+    <string name="received_files">Archivos recibidos</string>
+    <string name="send_file">Enviar archivo…</string>
+    <string name="file_connection_required">Los archivos requieren Wi-Fi o mesh y ambas aplicaciones actualizadas.</string>
+    <string name="file_picker_help">Elige hasta ocho archivos de un máximo de 100 MiB cada uno.</string>
+    <string name="file_received">Archivo recibido</string>
+    <string name="received_files_help">Guarda los archivos donde quieras. Permanecen aquí hasta que los elimines.</string>
+    <string name="received_files_empty">Aún no hay archivos recibidos</string>
+    <string name="file_save">Guardar como…</string>
+    <string name="file_open">Abrir</string>
+    <string name="file_delete">Eliminar</string>
+    <string name="file_saved">Archivo guardado</string>
+    <string name="file_save_failed">No se pudo guardar. Prueba otra ubicación.</string>
+    <string name="file_open_failed">Ninguna aplicación puede abrir este archivo. Usa Guardar como.</string>
 </resources>

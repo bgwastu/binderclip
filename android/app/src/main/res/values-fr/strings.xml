@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">Effacer tous les journaux ?</string>
     <string name="clear_logs_confirm_message">Toutes les entrées seront supprimées. Cette action est irréversible.</string>
     <string name="secure_connection_failed">Échec de la connexion sécurisée. Mettez à jour BinderClip sur le Mac et le téléphone, ou associez-les à nouveau.</string>
+
+    <string name="transfer_kind_file">fichier</string>
+    <string name="transfer_kind_image">image</string>
+    <string name="transfer_offering">Préparation de %1$s…</string>
+    <string name="transfer_receiving">Réception de %1$s…</string>
+    <string name="transfer_sending">Envoi de %1$s (%2$d%%)</string>
+    <string name="transfer_sent">%1$s envoyé</string>
+    <string name="transfer_received">%1$s reçu</string>
+    <string name="transfer_declined">Transfert refusé ; vérifiez l’appareil destinataire</string>
+    <string name="transfer_failed">Échec du transfert ; vérifiez la taille et l’espace disponible</string>
+    <string name="transfer_invalid">Échec de la validation de l’intégrité ou de la séquence</string>
+    <string name="transfer_paused">Transfert en pause ; reconnexion…</string>
+    <string name="transfer_update_required">Mettez à jour les deux applications pour partager des fichiers et de grandes images</string>
+    <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 100 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
+    <string name="received_files">Fichiers reçus</string>
+    <string name="send_file">Envoyer un fichier…</string>
+    <string name="file_connection_required">Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.</string>
+    <string name="file_picker_help">Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.</string>
+    <string name="file_received">Fichier reçu</string>
+    <string name="received_files_help">Enregistrez les fichiers à l’endroit de votre choix. Ils restent ici jusqu’à leur suppression.</string>
+    <string name="received_files_empty">Aucun fichier reçu</string>
+    <string name="file_save">Enregistrer sous…</string>
+    <string name="file_open">Ouvrir</string>
+    <string name="file_delete">Supprimer</string>
+    <string name="file_saved">Fichier enregistré</string>
+    <string name="file_save_failed">Impossible d’enregistrer le fichier. Essayez un autre emplacement.</string>
+    <string name="file_open_failed">Aucune application ne peut ouvrir ce fichier. Utilisez Enregistrer sous.</string>
 </resources>

@@ -89,3 +89,22 @@
 "log_copy" = "Salin";
 "log_close" = "Tutup";
 "log_no_events" = "$ Belum ada log peristiwa.";
+
+"transfer_kind_file" = "file";
+"transfer_kind_image" = "gambar";
+"transfer_offering" = "Menyiapkan %@…";
+"transfer_receiving" = "Menerima %@…";
+"transfer_sending" = "Mengirim %@ (%d%%)";
+"transfer_verifying" = "Memverifikasi %@…";
+"transfer_sent" = "%@ terkirim";
+"transfer_received" = "%@ diterima";
+"transfer_declined" = "Transfer ditolak; periksa perangkat penerima";
+"transfer_failed" = "Transfer gagal; periksa ukuran file dan ruang penyimpanan";
+"transfer_invalid" = "Validasi integritas atau urutan transfer gagal";
+"transfer_paused" = "Transfer dijeda; menghubungkan kembali…";
+"share_error_file" = "File gagal masuk antrean. Batas: 100 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.";
+"received_files" = "File Diterima";
+"send_file" = "Kirim File…";
+"file_connection_required" = "File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.";
+"file_picker_help" = "Pilih hingga delapan file, masing-masing maksimal 100 MiB.";
+"file_received_format" = "File diterima: %@";

@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">Hapus semua log?</string>
     <string name="clear_logs_confirm_message">Ini menghapus semua entri log. Tindakan ini tidak dapat dibatalkan.</string>
     <string name="secure_connection_failed">Koneksi aman gagal. Perbarui BinderClip di Mac dan ponsel, atau pasangkan kembali.</string>
+
+    <string name="transfer_kind_file">file</string>
+    <string name="transfer_kind_image">gambar</string>
+    <string name="transfer_offering">Menyiapkan %1$s…</string>
+    <string name="transfer_receiving">Menerima %1$s…</string>
+    <string name="transfer_sending">Mengirim %1$s (%2$d%%)</string>
+    <string name="transfer_sent">%1$s terkirim</string>
+    <string name="transfer_received">%1$s diterima</string>
+    <string name="transfer_declined">Transfer ditolak; periksa perangkat penerima</string>
+    <string name="transfer_failed">Transfer gagal; periksa ukuran file dan ruang penyimpanan</string>
+    <string name="transfer_invalid">Validasi integritas atau urutan transfer gagal</string>
+    <string name="transfer_paused">Transfer dijeda; menghubungkan kembali…</string>
+    <string name="transfer_update_required">Perbarui kedua aplikasi untuk berbagi file dan gambar besar</string>
+    <string name="share_error_file">File gagal masuk antrean. Batas: 100 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.</string>
+    <string name="received_files">File Diterima</string>
+    <string name="send_file">Kirim File…</string>
+    <string name="file_connection_required">File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.</string>
+    <string name="file_picker_help">Pilih hingga delapan file, masing-masing maksimal 100 MiB.</string>
+    <string name="file_received">File diterima</string>
+    <string name="received_files_help">Simpan file ke lokasi pilihan Anda. File tetap di sini hingga dihapus.</string>
+    <string name="received_files_empty">Belum ada file diterima</string>
+    <string name="file_save">Simpan Sebagai…</string>
+    <string name="file_open">Buka</string>
+    <string name="file_delete">Hapus</string>
+    <string name="file_saved">File disimpan</string>
+    <string name="file_save_failed">File gagal disimpan. Coba lokasi lain.</string>
+    <string name="file_open_failed">Tidak ada aplikasi untuk membuka file ini. Gunakan Simpan Sebagai.</string>
 </resources>

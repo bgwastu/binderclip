@@ -89,3 +89,22 @@
 "log_copy" = "Copiar";
 "log_close" = "Fechar";
 "log_no_events" = "$ Nenhum evento ainda.";
+
+"transfer_kind_file" = "arquivo";
+"transfer_kind_image" = "imagem";
+"transfer_offering" = "Preparando %@…";
+"transfer_receiving" = "Recebendo %@…";
+"transfer_sending" = "Enviando %@ (%d%%)";
+"transfer_verifying" = "Verificando %@…";
+"transfer_sent" = "%@ enviado";
+"transfer_received" = "%@ recebido";
+"transfer_declined" = "Transferência recusada; verifique o dispositivo receptor";
+"transfer_failed" = "Falha na transferência; verifique o tamanho e o espaço disponível";
+"transfer_invalid" = "Falha na validação de integridade ou sequência";
+"transfer_paused" = "Transferência pausada; reconectando…";
+"share_error_file" = "Não foi possível colocar o arquivo na fila. Limite: 100 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.";
+"received_files" = "Arquivos recebidos";
+"send_file" = "Enviar arquivo…";
+"file_connection_required" = "Arquivos exigem Wi-Fi ou mesh e aplicativos atualizados nos dois dispositivos.";
+"file_picker_help" = "Escolha até oito arquivos de no máximo 100 MiB cada.";
+"file_received_format" = "Arquivo recebido: %@";

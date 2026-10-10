@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">すべてのログを削除しますか？</string>
     <string name="clear_logs_confirm_message">すべてのログが削除されます。この操作は取り消せません。</string>
     <string name="secure_connection_failed">安全な接続に失敗しました。MacとスマートフォンのBinderClipを更新するか、再度ペアリングしてください。</string>
+
+    <string name="transfer_kind_file">ファイル</string>
+    <string name="transfer_kind_image">画像</string>
+    <string name="transfer_offering">%1$sを準備中…</string>
+    <string name="transfer_receiving">%1$sを受信中…</string>
+    <string name="transfer_sending">%1$sを送信中（%2$d%%）</string>
+    <string name="transfer_sent">%1$sを送信しました</string>
+    <string name="transfer_received">%1$sを受信しました</string>
+    <string name="transfer_declined">転送が拒否されました。受信端末を確認してください</string>
+    <string name="transfer_failed">転送に失敗しました。サイズと空き容量を確認してください</string>
+    <string name="transfer_invalid">転送の整合性または順序の検証に失敗しました</string>
+    <string name="transfer_paused">転送を一時停止しました。再接続中…</string>
+    <string name="transfer_update_required">ファイルや大きな画像を共有するには両方のアプリを更新してください</string>
+    <string name="share_error_file">ファイルを待機列に追加できませんでした。上限は100 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。</string>
+    <string name="received_files">受信ファイル</string>
+    <string name="send_file">ファイルを送信…</string>
+    <string name="file_connection_required">ファイルにはWi-Fiまたはmesh接続と、両端末のアプリの更新が必要です。</string>
+    <string name="file_picker_help">最大8個、各100 MiB以下のファイルを選択してください。</string>
+    <string name="file_received">ファイルを受信しました</string>
+    <string name="received_files_help">保存先を選んで保存できます。削除するまでここに保持されます。</string>
+    <string name="received_files_empty">受信ファイルはありません</string>
+    <string name="file_save">名前を付けて保存…</string>
+    <string name="file_open">開く</string>
+    <string name="file_delete">削除</string>
+    <string name="file_saved">ファイルを保存しました</string>
+    <string name="file_save_failed">保存できませんでした。別の場所を選んでください。</string>
+    <string name="file_open_failed">このファイルを開けるアプリがありません。名前を付けて保存を使用してください。</string>
 </resources>

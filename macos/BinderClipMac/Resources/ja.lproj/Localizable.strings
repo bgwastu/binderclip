@@ -89,3 +89,22 @@
 "log_copy" = "コピー";
 "log_close" = "閉じる";
 "log_no_events" = "$ イベントログはありません。";
+
+"transfer_kind_file" = "ファイル";
+"transfer_kind_image" = "画像";
+"transfer_offering" = "%@を準備中…";
+"transfer_receiving" = "%@を受信中…";
+"transfer_sending" = "%@を送信中（%d%%）";
+"transfer_verifying" = "%@を検証中…";
+"transfer_sent" = "%@を送信しました";
+"transfer_received" = "%@を受信しました";
+"transfer_declined" = "転送が拒否されました。受信端末を確認してください";
+"transfer_failed" = "転送に失敗しました。サイズと空き容量を確認してください";
+"transfer_invalid" = "転送の整合性または順序の検証に失敗しました";
+"transfer_paused" = "転送を一時停止しました。再接続中…";
+"share_error_file" = "ファイルを待機列に追加できませんでした。上限は100 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。";
+"received_files" = "受信ファイル";
+"send_file" = "ファイルを送信…";
+"file_connection_required" = "ファイルにはWi-Fiまたはmesh接続と、両端末のアプリの更新が必要です。";
+"file_picker_help" = "最大8個、各100 MiB以下のファイルを選択してください。";
+"file_received_format" = "受信ファイル：%@";

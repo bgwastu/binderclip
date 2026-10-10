@@ -89,3 +89,22 @@
 "log_copy" = "Копировать";
 "log_close" = "Закрыть";
 "log_no_events" = "$ Событий пока нет.";
+
+"transfer_kind_file" = "файл";
+"transfer_kind_image" = "изображение";
+"transfer_offering" = "Подготовка: %@…";
+"transfer_receiving" = "Получение %@…";
+"transfer_sending" = "Отправка %@ (%d%%)";
+"transfer_verifying" = "Проверка %@…";
+"transfer_sent" = "%@ отправлен";
+"transfer_received" = "%@ получен";
+"transfer_declined" = "Передача отклонена; проверьте принимающее устройство";
+"transfer_failed" = "Ошибка передачи; проверьте размер файла и свободное место";
+"transfer_invalid" = "Ошибка проверки целостности или порядка передачи";
+"transfer_paused" = "Передача приостановлена; повторное подключение…";
+"share_error_file" = "Не удалось добавить файл в очередь. Лимит: 100 MiB (изображения буфера: 30 MiB). Проверьте доступ и свободное место.";
+"received_files" = "Полученные файлы";
+"send_file" = "Отправить файл…";
+"file_connection_required" = "Для файлов нужны Wi-Fi или mesh и обновлённые приложения на обоих устройствах.";
+"file_picker_help" = "Выберите до восьми файлов размером не более 100 MiB каждый.";
+"file_received_format" = "Получен файл: %@";

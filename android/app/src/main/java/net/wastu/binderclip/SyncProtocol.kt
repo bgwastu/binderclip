@@ -22,6 +22,7 @@ data class ImageMetadata(
     val hash: String,
     val originId: String,
     val size: Int,
+    internal val clipboard: ClipboardStamp? = null,
 )
 
 object SyncProtocol {
@@ -188,7 +189,7 @@ object SyncProtocol {
         return "${profile.pairingScheme}://pair?$query"
     }
 
-    fun packImage(image: ImagePayload, originId: String): ByteArray {
+    internal fun packImage(image: ImagePayload, originId: String, clipboard: ClipboardStamp? = null): ByteArray {
         val hash = sha256Hex(image.data)
         val json = JSONObject().apply {
             put("type", "image")
@@ -197,6 +198,7 @@ object SyncProtocol {
             put("hash", hash)
             put("originId", originId)
             put("size", image.data.size)
+            clipboard?.let { put("clipboard", it.putInto(JSONObject())) }
         }
         val metaBytes = json.toString().toByteArray(Charsets.UTF_8)
         val buffer = ByteBuffer.allocate(4 + metaBytes.size + image.data.size)
@@ -221,7 +223,8 @@ object SyncProtocol {
             mimeType = json.getString("mimeType"),
             hash = json.getString("hash"),
             originId = json.optString("originId", ""),
-            size = json.getInt("size")
+            size = json.getInt("size"),
+            clipboard = if (json.has("clipboard")) requireNotNull(ClipboardStamp.parse(json.getJSONObject("clipboard"))) else null
         )
         val imageData = ByteArray(packet.size - 4 - headerLen)
         buffer.get(imageData)

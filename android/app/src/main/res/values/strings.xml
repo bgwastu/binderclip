@@ -117,4 +117,31 @@
     <string name="toast_sent_image_to_mac">Sent image to Mac</string>
     <string name="toast_nothing_to_send">Nothing to send</string>
     <string name="secure_connection_failed">Secure connection failed. Update BinderClip on your Mac and phone, or pair again.</string>
+
+    <string name="transfer_kind_file">file</string>
+    <string name="transfer_kind_image">image</string>
+    <string name="transfer_offering">Preparing %1$s…</string>
+    <string name="transfer_receiving">Receiving %1$s…</string>
+    <string name="transfer_sending">Sending %1$s (%2$d%%)</string>
+    <string name="transfer_sent">Sent %1$s</string>
+    <string name="transfer_received">Received %1$s</string>
+    <string name="transfer_declined">Transfer declined; check the receiving device</string>
+    <string name="transfer_failed">Transfer failed; check file size and available storage</string>
+    <string name="transfer_invalid">Transfer failed integrity or sequence validation</string>
+    <string name="transfer_paused">Transfer paused; reconnecting…</string>
+    <string name="transfer_update_required">Update both apps to share files and large images</string>
+    <string name="share_error_file">Couldn’t queue file. Limit: 100 MiB (clipboard images: 30 MiB). Check access and free space.</string>
+    <string name="received_files">Received Files</string>
+    <string name="send_file">Send File…</string>
+    <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
+    <string name="file_picker_help">Choose up to eight files, at most 100 MiB each.</string>
+    <string name="file_received">File received</string>
+    <string name="received_files_help">Save files to a location you choose. Files remain here until you delete them.</string>
+    <string name="received_files_empty">No received files yet</string>
+    <string name="file_save">Save As…</string>
+    <string name="file_open">Open</string>
+    <string name="file_delete">Delete</string>
+    <string name="file_saved">File saved</string>
+    <string name="file_save_failed">Couldn’t save file. Try another location.</string>
+    <string name="file_open_failed">No app can open this file. Use Save As instead.</string>
 </resources>

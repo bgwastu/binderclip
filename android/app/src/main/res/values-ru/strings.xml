@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">Удалить все журналы?</string>
     <string name="clear_logs_confirm_message">Все записи журнала будут удалены. Это действие нельзя отменить.</string>
     <string name="secure_connection_failed">Не удалось установить защищённое соединение. Обновите BinderClip на Mac и телефоне или выполните сопряжение заново.</string>
+
+    <string name="transfer_kind_file">файл</string>
+    <string name="transfer_kind_image">изображение</string>
+    <string name="transfer_offering">Подготовка: %1$s…</string>
+    <string name="transfer_receiving">Получение %1$s…</string>
+    <string name="transfer_sending">Отправка %1$s (%2$d%%)</string>
+    <string name="transfer_sent">%1$s отправлен</string>
+    <string name="transfer_received">%1$s получен</string>
+    <string name="transfer_declined">Передача отклонена; проверьте принимающее устройство</string>
+    <string name="transfer_failed">Ошибка передачи; проверьте размер файла и свободное место</string>
+    <string name="transfer_invalid">Ошибка проверки целостности или порядка передачи</string>
+    <string name="transfer_paused">Передача приостановлена; повторное подключение…</string>
+    <string name="transfer_update_required">Обновите оба приложения для передачи файлов и больших изображений</string>
+    <string name="share_error_file">Не удалось добавить файл в очередь. Лимит: 100 MiB (изображения буфера: 30 MiB). Проверьте доступ и свободное место.</string>
+    <string name="received_files">Полученные файлы</string>
+    <string name="send_file">Отправить файл…</string>
+    <string name="file_connection_required">Для файлов нужны Wi-Fi или mesh и обновлённые приложения на обоих устройствах.</string>
+    <string name="file_picker_help">Выберите до восьми файлов размером не более 100 MiB каждый.</string>
+    <string name="file_received">Файл получен</string>
+    <string name="received_files_help">Сохраните файлы в выбранное место. Они остаются здесь до удаления.</string>
+    <string name="received_files_empty">Полученных файлов пока нет</string>
+    <string name="file_save">Сохранить как…</string>
+    <string name="file_open">Открыть</string>
+    <string name="file_delete">Удалить</string>
+    <string name="file_saved">Файл сохранён</string>
+    <string name="file_save_failed">Не удалось сохранить файл. Выберите другое место.</string>
+    <string name="file_open_failed">Нет приложения для открытия файла. Используйте Сохранить как.</string>
 </resources>

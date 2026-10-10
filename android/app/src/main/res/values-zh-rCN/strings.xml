@@ -119,4 +119,31 @@
     <string name="clear_logs_confirm_title">清除所有日志？</string>
     <string name="clear_logs_confirm_message">这将删除所有日志记录，且无法撤销。</string>
     <string name="secure_connection_failed">安全连接失败。请更新 Mac 和手机上的 BinderClip，或重新配对。</string>
+
+    <string name="transfer_kind_file">文件</string>
+    <string name="transfer_kind_image">图片</string>
+    <string name="transfer_offering">正在准备%1$s…</string>
+    <string name="transfer_receiving">正在接收%1$s…</string>
+    <string name="transfer_sending">正在发送%1$s（%2$d%%）</string>
+    <string name="transfer_sent">%1$s已发送</string>
+    <string name="transfer_received">%1$s已接收</string>
+    <string name="transfer_declined">传输被拒绝，请检查接收设备</string>
+    <string name="transfer_failed">传输失败，请检查文件大小和可用空间</string>
+    <string name="transfer_invalid">传输完整性或顺序验证失败</string>
+    <string name="transfer_paused">传输已暂停，正在重新连接…</string>
+    <string name="transfer_update_required">请更新两端应用以共享文件和大图片</string>
+    <string name="share_error_file">无法将文件加入队列。上限为100 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。</string>
+    <string name="received_files">已接收的文件</string>
+    <string name="send_file">发送文件…</string>
+    <string name="file_connection_required">文件传输需要Wi-Fi或mesh连接，且两端应用均已更新。</string>
+    <string name="file_picker_help">最多选择八个文件，每个不超过100 MiB。</string>
+    <string name="file_received">已收到文件</string>
+    <string name="received_files_help">将文件保存到您选择的位置。文件会保留在这里，直到您删除它们。</string>
+    <string name="received_files_empty">尚未收到文件</string>
+    <string name="file_save">另存为…</string>
+    <string name="file_open">打开</string>
+    <string name="file_delete">删除</string>
+    <string name="file_saved">文件已保存</string>
+    <string name="file_save_failed">无法保存文件，请尝试其他位置。</string>
+    <string name="file_open_failed">没有应用可以打开此文件，请使用另存为。</string>
 </resources>

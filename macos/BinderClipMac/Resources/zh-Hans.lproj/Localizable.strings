@@ -89,3 +89,22 @@
 "log_copy" = "复制";
 "log_close" = "关闭";
 "log_no_events" = "$ 暂无事件日志。";
+
+"transfer_kind_file" = "文件";
+"transfer_kind_image" = "图片";
+"transfer_offering" = "正在准备%@…";
+"transfer_receiving" = "正在接收%@…";
+"transfer_sending" = "正在发送%@（%d%%）";
+"transfer_verifying" = "正在验证%@…";
+"transfer_sent" = "%@已发送";
+"transfer_received" = "%@已接收";
+"transfer_declined" = "传输被拒绝，请检查接收设备";
+"transfer_failed" = "传输失败，请检查文件大小和可用空间";
+"transfer_invalid" = "传输完整性或顺序验证失败";
+"transfer_paused" = "传输已暂停，正在重新连接…";
+"share_error_file" = "无法将文件加入队列。上限为100 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。";
+"received_files" = "已接收的文件";
+"send_file" = "发送文件…";
+"file_connection_required" = "文件传输需要Wi-Fi或mesh连接，且两端应用均已更新。";
+"file_picker_help" = "最多选择八个文件，每个不超过100 MiB。";
+"file_received_format" = "已收到文件：%@";
