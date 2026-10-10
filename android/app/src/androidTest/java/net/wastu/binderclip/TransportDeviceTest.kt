@@ -103,11 +103,21 @@ class TransportDeviceTest {
                 }
                 stage("passed")
             } catch (error: Throwable) {
+                val checkpoint = DeviceStore(context).clipboardCheckpoint()
+                val head = checkpoint?.optJSONObject("head")
+                val actualImage = ImageClipboard.read(context, clipboard)
                 File(context.filesDir, "device-test-failure.json").writeText(org.json.JSONObject()
                     .put("transport", AppRuntime.state.value.transportType.name)
                     .put("connected", AppRuntime.state.value.peer?.connected == true)
                     .put("interactive", context.getSystemService(android.os.PowerManager::class.java).isInteractive)
                     .put("outgoingStillOnClipboard", clipboard.primaryClip?.getItemAt(0)?.text?.toString() == androidText)
+                    .put("actualImageIsOutgoing", actualImage?.sha256 == outgoing.sha256)
+                    .put("actualImageIsIncoming", actualImage?.sha256 == incoming.sha256)
+                    .put("versionKind", head?.optString("clipKind"))
+                    .put("versionTime", head?.optLong("clipTime"))
+                    .put("versionCounter", head?.optLong("clipCounter"))
+                    .put("versionIsOutgoingImage", head?.optString("clipHash") == outgoing.sha256)
+                    .put("versionIsIncomingImage", head?.optString("clipHash") == incoming.sha256)
                     .toString())
                 stage("failed")
                 throw error
