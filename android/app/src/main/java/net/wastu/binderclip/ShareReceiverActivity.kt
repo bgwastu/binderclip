@@ -2,129 +2,99 @@ package net.wastu.binderclip
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.provider.OpenableColumns
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-sealed interface SharedPayload {
-    data class Image(val value: ImagePayload) : SharedPayload
-    data class Text(val value: String) : SharedPayload
-}
-
-object SharedPayloadCache {
-    private val images = LinkedHashMap<String, ImagePayload>()
-
-    @Synchronized fun put(image: ImagePayload): String {
-        val id = java.util.UUID.randomUUID().toString()
-        images[id] = image
-        return id
-    }
-
-    @Synchronized fun take(id: String?): ImagePayload? = images.remove(id)
-}
-
-/** Native Android share-sheet endpoint; sends to the paired Mac. */
 class ShareReceiverActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DiagnosticLog.initialize(this)
-
-        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
-            Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
-            finish()
-            return
+        val progress = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            addView(ProgressBar(this@ShareReceiverActivity))
+            addView(TextView(this@ShareReceiverActivity).apply { setText(R.string.share_sending) })
         }
-
-        val payload = when (intent.action) {
-            Intent.ACTION_SEND -> {
-                val extraText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }
-                val extraStream = if (android.os.Build.VERSION.SDK_INT >= 33) {
-                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                } else {
-                    @Suppress("DEPRECATION") intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-                }
-                val intentType = intent.type?.lowercase()
-
-                when {
-                    extraText != null && (intentType == null || intentType == "text/plain" || !intentType.startsWith("image/") || extraStream == null) -> {
-                        SharedPayload.Text(extraText)
-                    }
-                    extraStream != null && (intentType == null || intentType.startsWith("image/") || intentType == "*/*") -> {
-                        ImageClipboard.readUri(this, extraStream, intentType)?.let(SharedPayload::Image)
-                            ?: extraText?.let(SharedPayload::Text)
-                    }
-                    intent.clipData != null && intent.clipData!!.itemCount > 0 -> {
-                        val item = intent.clipData!!.getItemAt(0)
-                        val clipText = item.text?.toString()?.takeIf { it.isNotBlank() }
-                        val clipUri = item.uri
-                        when {
-                            clipText != null -> SharedPayload.Text(clipText)
-                            clipUri != null -> ImageClipboard.readUri(this, clipUri, intentType)?.let(SharedPayload::Image)
-                            else -> null
-                        }
-                    }
-                    extraText != null -> SharedPayload.Text(extraText)
-                    else -> null
-                }
+        setContentView(progress)
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { importShare() }.getOrDefault(R.string.share_error_unsupported) }
+            if (result != null) {
+                Toast.makeText(this@ShareReceiverActivity, result, Toast.LENGTH_LONG).show()
+                finish()
+                return@launch
             }
-            else -> null
-        }
-
-        if (payload == null) {
-            Log.w("BinderClip", "Share sheet did not provide supported content")
-            DiagnosticLog.error("Could not read shared content")
-            Toast.makeText(this, getString(R.string.share_error_unsupported), Toast.LENGTH_SHORT).show()
+            try {
+                ContextCompat.startForegroundService(this@ShareReceiverActivity,
+                    Intent(this@ShareReceiverActivity, BinderClipService::class.java).setAction(BinderClipService.ACTION_SEND_SHARED))
+                Toast.makeText(this@ShareReceiverActivity, R.string.share_queued, Toast.LENGTH_SHORT).show()
+            } catch (_: RuntimeException) {
+                DiagnosticLog.warning("Could not start share delivery")
+                Toast.makeText(this@ShareReceiverActivity, R.string.share_error_delivery, Toast.LENGTH_LONG).show()
+            }
             finish()
-            return
         }
-
-        if (DeviceStore(this).groupKey == null) {
-            Toast.makeText(this, getString(R.string.tile_not_paired), Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
-        if (payload is SharedPayload.Image && AppRuntime.state.value.transportType !in setOf(TransportType.LAN, TransportType.MESH)) {
-            Toast.makeText(this, getString(R.string.share_error_image_connection), Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
-
-        sendPayload(payload)
     }
 
-    private fun sendPayload(payload: SharedPayload) {
-        Log.i("BinderClip", "Accepted shared ${if (payload is SharedPayload.Image) "image" else "text"} for Mac")
-        if (payload is SharedPayload.Text) {
-            val queued = runCatching { DeviceStore(this).enqueueShare(payload.value) }.getOrDefault(false)
-            if (!queued) {
-                Toast.makeText(this, getString(R.string.share_error_queue_full), Toast.LENGTH_LONG).show()
-                finish()
-                return
+    private fun importShare(): Int? {
+        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) return R.string.root_required_title
+        val deviceStore = DeviceStore(this)
+        val peerId = deviceStore.peer?.deviceId?.takeIf { it.isNotBlank() }
+        if (deviceStore.groupKey == null || peerId == null) return R.string.tile_not_paired
+        if (intent.action !in setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) return R.string.share_error_unsupported
+        val explicitStreams: List<Uri> = if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
+            if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            else @Suppress("DEPRECATION") (intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty())
+        } else {
+            val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            else @Suppress("DEPRECATION") intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            listOfNotNull(uri)
+        }
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+            ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()?.takeIf { it.isNotBlank() }
+        // Explicit streams are documents, even when their MIME type is text/plain.
+        // A browser thumbnail in ClipData must not take precedence over a URL share.
+        if (explicitStreams.isEmpty() && text != null) {
+            return if (runCatching { deviceStore.enqueueShare(text) }.getOrDefault(false)) null else R.string.share_error_queue_full
+        }
+        val streams = explicitStreams.ifEmpty {
+            intent.clipData?.let { clip -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }.orEmpty()
+        }.distinct()
+        if (streams.isEmpty()) return R.string.share_error_unsupported
+        if (streams.size > 8) return R.string.file_picker_help
+        val transfers = FileTransferStore.forContext(this)
+        val staged = ArrayList<String>()
+        return try {
+            for (uri in streams) {
+                require(uri.scheme == "content" && uri.authority != "$packageName.images")
+                val mime = (contentResolver.getType(uri) ?: intent.type)?.substringBefore(';')?.trim()?.lowercase()
+                    ?.takeIf { it.matches(Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")) && it.length <= 127 } ?: "application/octet-stream"
+                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                } ?: "file"
+                val kind = if (!intent.getBooleanExtra("share_as_file", false) && mime in ImagePayload.ALLOWED_MIME_TYPES) "image" else "file"
+                val transfer = contentResolver.openInputStream(uri)?.use { transfers.stage(peerId, name, mime, kind, it) }
+                    ?: error("Unreadable shared content")
+                staged += transfer.metadata.id
             }
+            if (DeviceStore(this).groupKey == null || DeviceStore(this).peer?.deviceId != peerId) {
+                staged.forEach(transfers::removeOutgoing)
+                R.string.tile_not_paired
+            } else null
+        } catch (_: Exception) {
+            staged.forEach(transfers::removeOutgoing)
+            DiagnosticLog.warning("Shared file import failed")
+            R.string.share_error_file
         }
-        val serviceIntent = Intent(this, BinderClipService::class.java).apply {
-            action = BinderClipService.ACTION_SEND_SHARED
-            if (payload is SharedPayload.Image) {
-                putExtra(BinderClipService.EXTRA_SHARED_IMAGE_ID, SharedPayloadCache.put(payload.value))
-            }
-        }
-        try {
-            ContextCompat.startForegroundService(this, serviceIntent)
-        } catch (error: RuntimeException) {
-            SharedPayloadCache.take(serviceIntent.getStringExtra(BinderClipService.EXTRA_SHARED_IMAGE_ID))
-            DiagnosticLog.warning("Could not start share delivery: ${error.javaClass.simpleName}")
-            Toast.makeText(this, getString(R.string.share_error_delivery), Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
-        Toast.makeText(
-            this,
-            if (payload is SharedPayload.Text) getString(R.string.share_queued) else getString(R.string.share_sending),
-            Toast.LENGTH_SHORT,
-        ).show()
-        finish()
     }
 }

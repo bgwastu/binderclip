@@ -4,6 +4,7 @@ import Darwin
 import Foundation
 import Network
 import SystemConfiguration
+import UniformTypeIdentifiers
 
 public enum PeerTransportType: String, Sendable {
     case lan = "LAN"
@@ -14,9 +15,12 @@ public enum PeerTransportType: String, Sendable {
 
 public final class WebSocketServer: @unchecked Sendable {
     public var onClipboard: ((String) -> Void)?
+    var onPrepareClipboardSync: (() -> Void)?
     public var onOpenURL: ((URL) -> Void)?
     public var onImage: ((ImagePayload) -> Void)?
+    public var onFile: ((URL) -> Void)?
     public var onTransferStatus: ((String) -> Void)?
+    var onTransferProgress: ((TransferProgress) -> Void)?
     public var onPeersChanged: (([Peer]) -> Void)?
     public var onLog: ((String) -> Void)?
     public var onLocalNetworkPermissionRequired: ((Bool) -> Void)?
@@ -54,6 +58,10 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
+    private let transferQueue = DispatchQueue(label: "net.wastu.binderclip.file-transfers", qos: .utility)
+    private let transferStore: FileTransferStore
+    private var transferSessions: [ObjectIdentifier: ChunkedTransferSession] = [:]
+    public var receivedFilesDirectory: URL { transferStore.receivedDirectory }
     private let rosterManager: RosterManager
     private let listenPort: UInt16
     private var bluetoothEnabled: Bool
@@ -77,7 +85,11 @@ public final class WebSocketServer: @unchecked Sendable {
     private var listenRestart: DispatchWorkItem?
 
     private var activeSessions: [ObjectIdentifier: WebSocketSession] = [:]
-    private var lastProcessedHash: String = ""
+    private let clipboardOrdering: ClipboardOrdering
+    private let clipboardCheckpointURL: URL
+    private var clipboardText: String?
+    private var clipboardImage: ImagePayload?
+    private var clipboardEventSnapshot: String?
     private var lastBluetoothPoweredOn: Bool?
 
     private let stateLock = NSLock()
@@ -96,11 +108,18 @@ public final class WebSocketServer: @unchecked Sendable {
 
     public convenience init() {
         let profile = AppProfile.current
-        self.init(rosterManager: RosterManager(), bluetoothEnabled: profile.bluetoothEnabledByDefault || profile.defaults.bool(forKey: "debug-bluetooth-enabled"))
+        self.init(rosterManager: RosterManager(), bluetoothEnabled: profile.bluetoothEnabledByDefault || profile.defaults.bool(forKey: "debug-bluetooth-enabled"),
+            receivedDirectory: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.appendingPathComponent(profile.displayName, isDirectory: true))
     }
 
-    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = AppProfile.current.bluetoothEnabledByDefault) {
+    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = AppProfile.current.bluetoothEnabledByDefault, receivedDirectory: URL? = nil) {
         self.rosterManager = rosterManager
+        self.transferStore = FileTransferStore(root: rosterManager.stateDirectory.appendingPathComponent("file-transfers", isDirectory: true),
+            receivedDirectory: receivedDirectory ?? rosterManager.stateDirectory.appendingPathComponent("received-files", isDirectory: true))
+        self.clipboardCheckpointURL = rosterManager.stateDirectory.appendingPathComponent("clipboard-state.json")
+        let checkpoint = (try? Data(contentsOf: clipboardCheckpointURL)).flatMap { try? JSONDecoder().decode(ClipboardCheckpoint.self, from: $0) }
+        self.clipboardOrdering = ClipboardOrdering(localID: rosterManager.localID, checkpoint: checkpoint)
+        self.clipboardEventSnapshot = checkpoint?.head.event
         self.listenPort = port
         self.bluetoothEnabled = bluetoothEnabled
         self.cachedDeviceName = rosterManager.localName
@@ -203,6 +222,10 @@ public final class WebSocketServer: @unchecked Sendable {
         listener?.cancel(); listener = nil
         bluetoothConnector.stop()
         for session in activeSessions.values { session.close() }
+        transferQueue.async { [weak self] in
+            self?.transferSessions.values.forEach { $0.close() }
+            self?.transferSessions.removeAll()
+        }
         activeSessions.removeAll()
         rosterManager.markAllDisconnected()
         updateCachedState()
@@ -215,6 +238,8 @@ public final class WebSocketServer: @unchecked Sendable {
             let sessions = Array(self.activeSessions.values)
             self.notifyUnpairAndDrop(sessions)
             _ = self.rosterManager.rotateGroupKey()
+            self.clearClipboardPairing()
+            self.clearFilePairing()
             self.updateCachedState()
             self.publishPeers()
             self.onLog?("New pairing key generated")
@@ -226,6 +251,8 @@ public final class WebSocketServer: @unchecked Sendable {
             guard let self else { return }
             let sessions = Array(self.activeSessions.values)
             self.rosterManager.forgetAllPeers()
+            self.clearClipboardPairing()
+            self.clearFilePairing()
             self.notifyUnpairAndDrop(sessions)
             self.updateCachedState()
             self.publishPeers()
@@ -237,6 +264,8 @@ public final class WebSocketServer: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self else { return }
             self.rosterManager.forgetPeer(id: peerID)
+            if self.rosterManager.peers.isEmpty { self.clearClipboardPairing() }
+            self.clearFilePairing(peerID: peerID)
             let sessions = self.activeSessions.values.filter { $0.peerID == peerID }
             self.notifyUnpairAndDrop(Array(sessions))
             self.updateCachedState()
@@ -283,28 +312,42 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     public func sendClipboard(_ text: String, targetDeviceId: String? = nil) {
-        let hash = SyncProtocol.sha256Hex(text)
+        recordClipboard(text: text, image: nil, bootstrap: false, force: true, targetPeerID: targetDeviceId)
+    }
+
+    func observeClipboard(text: String, bootstrap: Bool) {
+        recordClipboard(text: text, image: nil, bootstrap: bootstrap, force: !bootstrap)
+    }
+
+    func observeClipboard(image: ImagePayload, bootstrap: Bool) {
+        recordClipboard(text: nil, image: image, bootstrap: bootstrap, force: !bootstrap)
+    }
+
+    func observeEmptyClipboard(bootstrap: Bool = false) {
         queue.async { [weak self] in
             guard let self else { return }
-            guard hash != self.lastProcessedHash else { return }
-            self.lastProcessedHash = hash
-
-            var payload: [String: Any] = [
-                "type": "clipboard",
-                "eventId": UUID().uuidString,
-                "originId": self.localDeviceID,
-                "text": text,
-                "hash": hash,
-                "timestamp": Int64(Date().timeIntervalSince1970 * 1000)
-            ]
-            if let targetDeviceId {
-                payload["targetDeviceId"] = targetDeviceId
+            self.clipboardText = nil; self.clipboardImage = nil
+            if self.clipboardOrdering.observe(kind: "empty", hash: SyncProtocol.sha256Hex(Data()), bootstrap: bootstrap) != nil {
+                self.saveClipboardCheckpoint()
+                self.broadcastText(self.clipboardState())
             }
-            let authedCount = self.activeSessions.values.filter { $0.isAuthenticated }.count
-            let btAuthedCount = self.bluetoothConnector.authenticatedSessions.count
-            print("[WebSocketServer] Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions")
-            self.onLog?("Broadcasting clipboard to \(authedCount) ws and \(btAuthedCount) bt sessions")
-            self.broadcastText(payload, targetPeerId: targetDeviceId)
+        }
+    }
+
+    private func recordClipboard(text: String?, image: ImagePayload?, bootstrap: Bool, force: Bool, targetPeerID: String? = nil) {
+        guard text == nil || text!.utf8.count <= SyncProtocol.maximumTextBytes else { return }
+        queue.async { [weak self] in
+            guard let self else { return }
+            let kind = image == nil ? "text" : "image"
+            let hash = image?.sha256 ?? SyncProtocol.sha256Hex(text ?? "")
+            let stamp = self.clipboardOrdering.observe(kind: kind, hash: hash, force: force, bootstrap: bootstrap)
+            self.clipboardText = text; self.clipboardImage = image
+            guard let stamp else { return }
+            self.saveClipboardCheckpoint()
+            // Initial content has an unknown copy time. Exchange it during catch-up instead of
+            // publishing it as a new copy when the application happens to start.
+            guard !bootstrap || stamp.time > 0 else { return }
+            self.broadcastClipboard(stamp, targetPeerID: targetPeerID)
         }
     }
 
@@ -325,15 +368,226 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     public func sendImage(_ image: ImagePayload, targetDeviceId: String? = nil) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            guard image.sha256 != self.lastProcessedHash else { return }
-            self.lastProcessedHash = image.sha256
+        recordClipboard(text: nil, image: image, bootstrap: false, force: true, targetPeerID: targetDeviceId)
+    }
 
-            let packet = SyncProtocol.packImage(image: image, originId: self.localDeviceID)
-            guard !packet.isEmpty else { return }
-            self.broadcastBinary(packet, targetPeerId: targetDeviceId)
-            self.onTransferStatus?("Sent image (\(image.mimeType))")
+    public func canSendFile(to peerID: String) -> Bool {
+        queue.sync { activeSessions.values.contains { $0.isAuthenticated && $0.peerID == peerID && $0.chunkedTransfers } }
+    }
+
+    public func sendFile(_ url: URL, targetDeviceID: String) {
+        queue.async { [weak self] in
+            guard let self, let session = self.activeSessions.values.first(where: {
+                $0.isAuthenticated && $0.peerID == targetDeviceID && $0.chunkedTransfers
+            }) else { return }
+            let id = ObjectIdentifier(session.connection)
+            self.transferQueue.async {
+                do {
+                    let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey, .contentTypeKey])
+                    guard values.isRegularFile == true, values.isSymbolicLink != true,
+                          let size = values.fileSize, size <= FileTransferProtocol.maximumFileBytes else { throw FileTransferError.invalidMetadata }
+                    let input = try FileHandle(forReadingFrom: url)
+                    defer { try? input.close() }
+                    _ = try self.transferStore.stage(peerID: targetDeviceID, name: url.lastPathComponent,
+                        mimeType: values.contentType?.preferredMIMEType ?? "application/octet-stream", kind: "file", input: input)
+                    self.transferSessions[id]?.pump()
+                } catch { self.transferStatus(L10n.tr("share_error_file")) }
+            }
+        }
+    }
+
+    private func transferStatus(_ status: String) { DispatchQueue.main.async { [weak self] in self?.onTransferStatus?(status) } }
+
+    private func clearFilePairing(peerID: String? = nil) {
+        transferQueue.async { [weak self] in
+            guard let self else { return }
+            let ids = self.transferSessions.filter { peerID == nil || $0.value.peerID == peerID }.map(\.key)
+            for id in ids { self.transferSessions.removeValue(forKey: id)?.close() }
+            self.transferStore.clearPairing(peerID: peerID)
+        }
+    }
+
+    private func broadcastImage(_ image: ImagePayload, targetPeerID: String? = nil, excluding peerID: String? = nil, clipboard: ClipboardStamp? = nil) {
+        for session in activeSessions.values where session.isAuthenticated {
+            guard !SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: lastLocalAddresses) else { continue }
+            guard session.peerID != peerID, targetPeerID == nil || session.peerID == targetPeerID else { continue }
+            if session.chunkedTransfers, let remoteID = session.peerID {
+                let id = ObjectIdentifier(session.connection)
+                transferQueue.async { [weak self] in
+                    guard let self else { return }
+                    do {
+                        _ = try self.transferStore.stageImage(peerID: remoteID, image: image, clipboard: clipboard)
+                        self.transferSessions[id]?.pump()
+                    } catch { self.transferStatus(L10n.tr("transfer_failed")) }
+                }
+            } else { session.sendBinary(SyncProtocol.packImage(image: image, originId: localDeviceID, clipboard: clipboard)) }
+        }
+    }
+
+    private func attachTransfers(_ session: WebSocketSession, peerID: String) {
+        let id = ObjectIdentifier(session.connection)
+        transferQueue.async { [weak self, weak session] in
+            guard let self, let session else { return }
+            let engine = ChunkedTransferSession(peerID: peerID, store: self.transferStore, queue: self.transferQueue,
+                sendText: { [weak self, weak session] object in
+                    self?.queue.async { [weak self, weak session] in
+                        guard let self, let session, self.activeSessions[id] === session else { return }
+                        session.sendText(object)
+                    }
+                }, sendBinary: { [weak self, weak session] data in
+                    self?.queue.async { [weak self, weak session] in
+                        guard let self, let session, self.activeSessions[id] === session else { return }
+                        session.sendBinary(data)
+                    }
+                }, disconnect: { [weak self, weak session] in
+                    self?.queue.async { [weak self, weak session] in
+                        guard let session else { return }
+                        self?.handleConnectionClosed(session: session)
+                    }
+                }, onImage: { [weak self] image in
+                    self?.queue.async { [weak self] in self?.receivedClipboard(text: nil, image: image, stamp: nil, peerID: peerID, reply: { _ in }) }
+                }, onFile: { [weak self] file in
+                    DispatchQueue.main.async { self?.onFile?(file.file) }
+                }, onStatus: { [weak self] status in self?.transferStatus(status) },
+                onProgress: { [weak self] progress in
+                    DispatchQueue.main.async { self?.onTransferProgress?(progress) }
+                }, onOrderedImage: { [weak self, weak session] image, stamp in
+                    self?.queue.async { [weak self, weak session] in
+                        guard let self, let session, self.activeSessions[id] === session else { return }
+                        self.receivedClipboard(text: nil, image: image, stamp: stamp, peerID: peerID, reply: { session.sendText($0) })
+                    }
+                })
+            self.transferSessions[id] = engine
+            engine.pump()
+        }
+    }
+
+    private func withCurrentClipboard(_ work: @escaping () -> Void) {
+        guard let prepare = onPrepareClipboardSync else { work(); return }
+        DispatchQueue.main.async { [weak self] in
+            prepare()
+            self?.queue.async(execute: work)
+        }
+    }
+
+    private func clearClipboardPairing() {
+        clipboardOrdering.reset(); clipboardText = nil; clipboardImage = nil
+        stateLock.lock(); clipboardEventSnapshot = nil; stateLock.unlock()
+        try? FileManager.default.removeItem(at: clipboardCheckpointURL)
+    }
+
+    private func saveClipboardCheckpoint() {
+        stateLock.lock(); clipboardEventSnapshot = clipboardOrdering.head?.event; stateLock.unlock()
+        guard let value = clipboardOrdering.checkpoint, let data = try? JSONEncoder().encode(value) else { return }
+        do {
+            try FileManager.default.createDirectory(at: clipboardCheckpointURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: clipboardCheckpointURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: clipboardCheckpointURL.path)
+        } catch { onLog?("Could not save clipboard version") }
+    }
+
+    private func isCurrentClipboardEvent(_ event: String) -> Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return clipboardEventSnapshot == event
+    }
+
+    private func clipboardState() -> [String: Any] {
+        var json: [String: Any] = ["type": "clipboard_state"]
+        if let head = clipboardOrdering.head { json.merge(head.fields) { _, new in new } }
+        let available = clipboardOrdering.head?.kind == "empty" ||
+            (clipboardText.map(SyncProtocol.sha256Hex) == clipboardOrdering.head?.hash && clipboardText != nil) ||
+            (clipboardImage?.sha256 == clipboardOrdering.head?.hash && clipboardImage != nil)
+        json["clipAvailable"] = available ? 1 : 0
+        return json
+    }
+
+    private func broadcastClipboard(_ stamp: ClipboardStamp, targetPeerID: String? = nil, excluding peerID: String? = nil) {
+        if stamp.kind == "text", let text = clipboardText, SyncProtocol.sha256Hex(text) == stamp.hash {
+            var payload = stamp.fields
+            payload.merge(["type": "clipboard", "text": text, "hash": stamp.hash, "eventId": stamp.event,
+                           "originId": stamp.origin, "timestamp": stamp.time]) { _, new in new }
+            broadcastText(payload, targetPeerId: targetPeerID, excludePeerID: peerID)
+        } else if stamp.kind == "image", let image = clipboardImage, image.sha256 == stamp.hash {
+            broadcastImage(image, targetPeerID: targetPeerID, excluding: peerID, clipboard: stamp)
+        } else {
+            broadcastText(clipboardState(), targetPeerId: targetPeerID, excludePeerID: peerID)
+        }
+    }
+
+    private func sendClipboardSnapshot(peerID: String, images: Bool, reply: ([String: Any]) -> Void) {
+        guard let head = clipboardOrdering.head else { reply(clipboardState()); return }
+        if head.kind == "text", let text = clipboardText, SyncProtocol.sha256Hex(text) == head.hash {
+            var json = head.fields; json["type"] = "clipboard"; json["text"] = text
+            reply(json)
+        } else if head.kind == "image", images, let image = clipboardImage, image.sha256 == head.hash {
+            broadcastImage(image, targetPeerID: peerID, clipboard: head)
+        } else { reply(clipboardState()) }
+    }
+
+    private func handleClipboardControl(_ json: [String: Any], peerID: String, images: Bool, reply: @escaping ([String: Any]) -> Void) {
+        withCurrentClipboard { [weak self] in
+            guard let self, self.rosterManager.peers[peerID] != nil else { return }
+            if json["type"] as? String == "clipboard_request" {
+                if json["requestEvent"] as? String == self.clipboardOrdering.head?.event {
+                    self.sendClipboardSnapshot(peerID: peerID, images: images, reply: reply)
+                } else { reply(self.clipboardState()) }
+                return
+            }
+            guard let remote = try? ClipboardStamp.parse(json) else {
+                self.sendClipboardSnapshot(peerID: peerID, images: images, reply: reply)
+                return
+            }
+            if remote == self.clipboardOrdering.head {
+                if self.clipboardState()["clipAvailable"] as? Int == 0 && (json["clipAvailable"] as? Int ?? 1) == 1 && remote.kind != "empty" {
+                    if images || remote.kind == "text" { reply(["type": "clipboard_request", "requestEvent": remote.event]) }
+                } else { reply(self.clipboardState()) }
+                return
+            }
+            if let local = self.clipboardOrdering.head, local >= remote {
+                self.sendClipboardSnapshot(peerID: peerID, images: images, reply: reply)
+            } else if remote.kind == "empty" || remote.fingerprint == self.clipboardOrdering.head?.fingerprint {
+                self.clipboardOrdering.receive(remote)
+                if remote.kind == "empty" { self.clipboardText = nil; self.clipboardImage = nil }
+                self.saveClipboardCheckpoint()
+                self.broadcastText(self.clipboardState(), excludePeerID: peerID)
+                if remote.kind != "empty", self.clipboardState()["clipAvailable"] as? Int == 0,
+                   (json["clipAvailable"] as? Int ?? 1) == 1, images || remote.kind == "text" {
+                    reply(["type": "clipboard_request", "requestEvent": remote.event])
+                } else { reply(self.clipboardState()) }
+            } else if (json["clipAvailable"] as? Int ?? 1) == 1 && (images || remote.kind == "text") {
+                reply(["type": "clipboard_request", "requestEvent": remote.event])
+            }
+        }
+    }
+
+    private func receivedClipboard(text: String?, image: ImagePayload?, stamp: ClipboardStamp?, peerID: String, reply: @escaping ([String: Any]) -> Void) {
+        guard text == nil || text!.utf8.count <= SyncProtocol.maximumTextBytes else { return }
+        let hash = image?.sha256 ?? SyncProtocol.sha256Hex(text ?? "")
+        let kind = image == nil ? "text" : "image"
+        guard stamp == nil || (stamp?.hash == hash && stamp?.kind == kind) else { return }
+        withCurrentClipboard { [weak self] in
+            guard let self, self.rosterManager.peers[peerID] != nil else { return }
+            let accepted: ClipboardStamp
+            let changed: Bool
+            let missingPayload = self.clipboardText == nil && self.clipboardImage == nil
+            if let stamp {
+                changed = self.clipboardOrdering.receive(stamp) || missingPayload
+                guard self.clipboardOrdering.head == stamp else { reply(self.clipboardState()); return }
+                accepted = stamp
+            } else {
+                guard let fresh = self.clipboardOrdering.observe(kind: kind, hash: hash, force: true, origin: peerID) else { return }
+                accepted = fresh; changed = true
+            }
+            self.clipboardText = text; self.clipboardImage = image
+            self.saveClipboardCheckpoint()
+            if changed {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isCurrentClipboardEvent(accepted.event) else { return }
+                    if let image { self.onImage?(image) } else if let text { self.onClipboard?(text) }
+                }
+                self.broadcastClipboard(accepted, excluding: peerID)
+            } else { self.broadcastText(self.clipboardState(), excludePeerID: peerID) }
+            reply(self.clipboardState())
         }
     }
 
@@ -450,6 +704,7 @@ public final class WebSocketServer: @unchecked Sendable {
     private func handleConnectionClosed(session: WebSocketSession) {
         let id = ObjectIdentifier(session.connection)
         let wasActive = activeSessions.removeValue(forKey: id) != nil
+        transferQueue.async { [weak self] in self?.transferSessions.removeValue(forKey: id)?.close() }
         session.close()
         guard wasActive else { return }
         publishPresence()
@@ -568,16 +823,17 @@ public final class WebSocketServer: @unchecked Sendable {
             handleAuthMessage(json, session: session)
 
         case "clipboard":
-            guard session.isAuthenticated else { return }
-            if let text = json["text"] as? String {
-                let hash = json["hash"] as? String ?? SyncProtocol.sha256Hex(text)
-                guard hash != lastProcessedHash else { return }
-                lastProcessedHash = hash
-                DispatchQueue.main.async { [weak self] in
-                    self?.onClipboard?(text)
-                }
-                broadcastText(json, excludeSessionId: ObjectIdentifier(session.connection))
+            guard session.isAuthenticated, let peerID = session.peerID, let text = json["text"] as? String else { return }
+            guard let stamp = try? ClipboardStamp.parse(json) else {
+                if session.clipboardSync && json["shared"] as? Int != 1 { return }
+                receivedClipboard(text: text, image: nil, stamp: nil, peerID: peerID, reply: { session.sendText($0) })
+                return
             }
+            receivedClipboard(text: text, image: nil, stamp: stamp, peerID: peerID, reply: { session.sendText($0) })
+
+        case "clipboard_state", "clipboard_request":
+            guard session.isAuthenticated, session.clipboardSync, let peerID = session.peerID else { return }
+            handleClipboardControl(json, peerID: peerID, images: true, reply: { session.sendText($0) })
 
         case "openUrl":
             guard session.isAuthenticated else { return }
@@ -616,12 +872,18 @@ public final class WebSocketServer: @unchecked Sendable {
             guard session.isAuthenticated else { return }
             applyPowerState(json["state"] as? String, session: session)
 
+        case "transfer_offer", "transfer_ack", "transfer_done", "transfer_cancel":
+            guard session.isAuthenticated, session.chunkedTransfers else { handleConnectionClosed(session: session); return }
+            let id = ObjectIdentifier(session.connection)
+            transferQueue.async { [weak self] in self?.transferSessions[id]?.handle(json) }
+
         default:
             break
         }
     }
 
     private func handleAuthMessage(_ json: [String: Any], session: WebSocketSession) {
+        let clockReceive = Int64(Date().timeIntervalSince1970 * 1000)
         guard session.secure != nil,
               let clientID = json["deviceId"] as? String,
               let clientName = json["deviceName"] as? String,
@@ -650,6 +912,8 @@ public final class WebSocketServer: @unchecked Sendable {
         session.isAuthenticated = true
         session.peerID = clientID
         session.peerName = clientName
+        session.chunkedTransfers = json[FileTransferProtocol.capability] as? Int == FileTransferProtocol.version
+        session.clipboardSync = json[ClipboardStamp.capability] as? Int == 1
         session.livenessBudget = SyncProtocol.heartbeatBudget
 
         for (id, other) in activeSessions where id != incomingID && PeerPresence.shouldCancelExtra(
@@ -674,40 +938,56 @@ public final class WebSocketServer: @unchecked Sendable {
             "deviceId": localDeviceID,
             "deviceName": localDeviceName,
             "version": SyncProtocol.version,
+            FileTransferProtocol.capability: FileTransferProtocol.version,
+            ClipboardStamp.capability: 1,
+            "clockProbe": json["clockProbe"] as? Int64 ?? 0,
+            "clockReceive": clockReceive,
+            "clockNow": Int64(Date().timeIntervalSince1970 * 1000),
             "endpoints": advertisedEndpointList()
         ])
+        if session.chunkedTransfers { attachTransfers(session, peerID: clientID) }
+        if session.clipboardSync {
+            withCurrentClipboard { [weak self, weak session] in
+                guard let self, let session, self.activeSessions[incomingID] === session else { return }
+                session.sendText(self.clipboardState())
+            }
+        }
         onLog?("Connected to \(clientName)")
     }
 
     private func handleBinaryMessage(_ data: Data, from session: WebSocketSession) {
         guard session.isAuthenticated else { return }
         session.lastHeard = SessionLiveness.now()
+        if FileTransferProtocol.isChunk(data) {
+            guard session.chunkedTransfers, data.count <= FileTransferProtocol.headerBytes + FileTransferProtocol.chunkBytes else {
+                handleConnectionClosed(session: session); return
+            }
+            let id = ObjectIdentifier(session.connection)
+            transferQueue.async { [weak self] in self?.transferSessions[id]?.handleChunk(data) }
+            return
+        }
         guard let (meta, imgData) = SyncProtocol.unpackImage(data),
               let image = try? ImagePayload(id: UUID(uuidString: meta.id) ?? UUID(), mimeType: meta.mimeType, data: imgData) else {
             return
         }
 
-        guard image.sha256 != lastProcessedHash else { return }
-        lastProcessedHash = image.sha256
-
-        DispatchQueue.main.async { [weak self] in
-            self?.onImage?(image)
-            self?.onTransferStatus?("Received image (\(image.mimeType))")
+        if let peerID = session.peerID {
+            receivedClipboard(text: nil, image: image, stamp: meta.clipboard, peerID: peerID, reply: { session.sendText($0) })
         }
-
-        broadcastBinary(data, excludeSessionId: ObjectIdentifier(session.connection))
     }
 
-    private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil) {
+    private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil, excludePeerID: String? = nil) {
         let locals = lastLocalAddresses
         for (id, session) in activeSessions where session.isAuthenticated {
             if let excludeSessionId, id == excludeSessionId { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
+            if let excludePeerID, session.peerID == excludePeerID { continue }
             if SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: locals) { continue }
             session.sendText(object)
         }
         for session in bluetoothConnector.authenticatedSessions {
             if let targetPeerId, session.peerID != targetPeerId { continue }
+            if let excludePeerID, session.peerID == excludePeerID { continue }
             if let fields = Self.btFields(from: object) {
                 session.sendFrame(fields)
             }
@@ -718,8 +998,19 @@ public final class WebSocketServer: @unchecked Sendable {
     static func btFields(from object: [String: Any]) -> [(String, BtValue)]? {
         guard let type = object["type"] as? String else { return nil }
         switch type {
-        case "clipboard":
-            return [("type", .text(type)), ("text", .text(object["text"] as? String ?? ""))]
+        case "clipboard", "clipboard_state", "clipboard_request":
+            var fields: [(String, BtValue)] = [("type", .text(type))]
+            if type == "clipboard" { fields.append(("text", .text(object["text"] as? String ?? ""))) }
+            if let event = object["requestEvent"] as? String { fields.append(("requestEvent", .text(event))) }
+            if let available = object["clipAvailable"] as? Int { fields.append(("clipAvailable", .uint(UInt64(max(0, available))))) }
+            if let stamp = try? ClipboardStamp.parse(object) {
+                fields.append(contentsOf: [
+                    ("clipTime", .uint(UInt64(stamp.time))), ("clipCounter", .uint(UInt64(stamp.counter))),
+                    ("clipOrigin", .text(stamp.origin)), ("clipEvent", .text(stamp.event)),
+                    ("clipKind", .text(stamp.kind)), ("clipHash", .text(stamp.hash)),
+                ])
+            }
+            return fields
         case "openUrl":
             guard let url = object["url"] as? String else { return nil }
             return [("type", .text(type)), ("url", .text(url))]
@@ -733,16 +1024,6 @@ public final class WebSocketServer: @unchecked Sendable {
             return [("type", .text(type)), ("id", .text(object["id"] as? String ?? "")), ("name", .text(object["name"] as? String ?? ""))]
         default:
             return nil
-        }
-    }
-
-    private func broadcastBinary(_ data: Data, targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil) {
-        let locals = lastLocalAddresses
-        for (id, session) in activeSessions where session.isAuthenticated {
-            if let excludeSessionId, id == excludeSessionId { continue }
-            if let targetPeerId, session.peerID != targetPeerId { continue }
-            if SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: locals) { continue }
-            session.sendBinary(data)
         }
     }
 
@@ -1036,6 +1317,7 @@ public final class WebSocketServer: @unchecked Sendable {
         if session.isAuthenticated { session.lastHeard = SessionLiveness.now() }
         switch type {
         case "auth":
+            let clockReceive = Int64(Date().timeIntervalSince1970 * 1000)
             guard !session.isAuthenticated else { return }
             let clientID = text("deviceId") ?? ""
             let clientName = text("deviceName") ?? "Android"
@@ -1046,6 +1328,7 @@ public final class WebSocketServer: @unchecked Sendable {
                 return
             }
             session.isAuthenticated = true
+            session.clipboardSync = uint(ClipboardStamp.capability) == 1
             session.peerID = clientID
             session.peerName = clientName
             session.livenessBudget = SyncProtocol.heartbeatBudget
@@ -1068,19 +1351,39 @@ public final class WebSocketServer: @unchecked Sendable {
                 ("deviceId", .text(localDeviceID)),
                 ("deviceName", .text(localDeviceName)),
                 ("version", .uint(UInt64(SyncProtocol.version))),
+                (ClipboardStamp.capability, .uint(1)),
+                ("clockProbe", .uint(uint("clockProbe") ?? 0)),
+                ("clockReceive", .uint(UInt64(clockReceive))),
+                ("clockNow", .uint(UInt64(Date().timeIntervalSince1970 * 1000))),
                 ("endpoints", .array(advertisedEndpointList())),
             ]
             session.sendFrame(okFields)
+            if session.clipboardSync {
+                withCurrentClipboard { [weak self, weak session] in
+                    guard let self, let session, session.isAuthenticated, let fields = Self.btFields(from: self.clipboardState()) else { return }
+                    session.sendFrame(fields)
+                }
+            }
             onLog?("Connected to \(clientName) over Bluetooth")
-        case "clipboard":
-            guard session.isAuthenticated, let body = text("text") else { return }
-            session.lastHeard = SessionLiveness.now()
-            let digest = SyncProtocol.sha256Hex(body)
-            print("[WebSocketServer] Bluetooth clipboard received")
-            guard digest != lastProcessedHash else { return }
-            lastProcessedHash = digest
-            DispatchQueue.main.async { [weak self] in
-                self?.onClipboard?(body)
+        case "clipboard", "clipboard_state", "clipboard_request":
+            guard session.isAuthenticated, let peerID = session.peerID else { return }
+            var json: [String: Any] = [:]
+            for (key, value) in fields {
+                switch value {
+                case .text(let text): json[key] = text
+                case .uint(let number): if number <= UInt64(Int64.max) { json[key] = Int64(number) }
+                case .array(let values): json[key] = values
+                }
+            }
+            let reply: ([String: Any]) -> Void = { value in
+                if let fields = Self.btFields(from: value) { session.sendFrame(fields) }
+            }
+            if type == "clipboard", let body = text("text") {
+                let stamp = try? ClipboardStamp.parse(json)
+                guard stamp != nil || !session.clipboardSync || uint("shared") == 1 else { return }
+                receivedClipboard(text: body, image: nil, stamp: stamp, peerID: peerID, reply: reply)
+            } else if session.clipboardSync {
+                handleClipboardControl(json, peerID: peerID, images: false, reply: reply)
             }
         case "openUrl":
             guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
@@ -1204,6 +1507,8 @@ private final class WebSocketSession: @unchecked Sendable {
     let handshake = SecureHandshake()
     var secure: SecureChannel?
     var isAuthenticated: Bool = false
+    var chunkedTransfers: Bool = false
+    var clipboardSync: Bool = false
     var peerID: String?
     var peerName: String?
     var boundLocalAddress: String?

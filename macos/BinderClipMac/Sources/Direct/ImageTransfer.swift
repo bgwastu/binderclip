@@ -41,7 +41,7 @@ public enum ImageClipboard {
         return payload
     }
 
-    public static func write(_ payload: ImagePayload, to pasteboard: NSPasteboard) {
+    @discardableResult public static func write(_ payload: ImagePayload, to pasteboard: NSPasteboard, expectedChangeCount: Int? = nil) -> Int? {
         let type: NSPasteboard.PasteboardType = switch payload.mimeType {
         case "image/png": .png
         case "image/jpeg": NSPasteboard.PasteboardType("public.jpeg")
@@ -49,11 +49,17 @@ public enum ImageClipboard {
         case "image/heic": NSPasteboard.PasteboardType("public.heic")
         default: .png
         }
-        pasteboard.clearContents()
+        // Prepare expensive conversions before taking ownership of the clipboard. The generation
+        // returned by declareTypes belongs to this write, even if another app copies immediately.
+        let tiff = NSImage(data: payload.data)?.tiffRepresentation
+        if let expectedChangeCount, pasteboard.changeCount != expectedChangeCount { return nil }
+        let generation = pasteboard.declareTypes(tiff == nil ? [type] : [type, .tiff], owner: nil)
+        guard pasteboard.changeCount == generation else { return generation }
         pasteboard.setData(payload.data, forType: type)
-        if let image = NSImage(data: payload.data), let tiff = image.tiffRepresentation {
+        if let tiff, pasteboard.changeCount == generation {
             pasteboard.setData(tiff, forType: .tiff)
         }
+        return generation
     }
 }
 

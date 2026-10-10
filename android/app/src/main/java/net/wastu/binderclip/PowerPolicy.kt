@@ -9,8 +9,8 @@ object PowerPolicy {
     const val REMOTE_SLEEP_MS = 60_000L
     fun heartbeatMs(interactive: Boolean) = if (interactive) SyncProtocol.HEARTBEAT_INTERVAL_MS else IDLE_HEARTBEAT_MS
     fun budgetMs(interactive: Boolean) = if (interactive) SyncProtocol.HEARTBEAT_BUDGET_MS else IDLE_BUDGET_MS
-    fun shouldPoll(enabled: Boolean, interactive: Boolean, paired: Boolean, connected: Boolean) =
-        enabled && interactive && paired && connected
+    fun shouldPoll(enabled: Boolean, interactive: Boolean, paired: Boolean) =
+        enabled && interactive && paired
     fun shouldProbePreferredTransport(wsConnected: Boolean, btConnected: Boolean, networkAvailable: Boolean, becameAvailable: Boolean) =
         !wsConnected && btConnected && networkAvailable && becameAvailable
     fun shouldProbeHeartbeat(nowMs: Long, lastAuthenticatedFrameMs: Long, interactive: Boolean) =

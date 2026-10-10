@@ -61,6 +61,18 @@ class DeviceStore(context: Context) {
             .let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
     }
     private val prefs = context.getSharedPreferences("binderclip", Context.MODE_PRIVATE)
+    private val fileTransfers = FileTransferStore.forContext(context)
+
+    internal fun clipboardCheckpoint(): JSONObject? = runCatching {
+        prefs.getString("clipboard_checkpoint", null)?.let(::decrypt)?.let { JSONObject(String(it, Charsets.UTF_8)) }
+    }.getOrNull()
+
+    internal fun saveClipboardCheckpoint(value: JSONObject?) {
+        prefs.edit().apply {
+            if (value == null) remove("clipboard_checkpoint")
+            else putString("clipboard_checkpoint", encrypt(value.toString().toByteArray(Charsets.UTF_8)))
+        }.apply()
+    }
 
     /** Explicit text/link shares survive service startup, reconnects, and process death. */
     fun enqueueShare(text: String): Boolean = synchronized(shareLock) {
@@ -203,7 +215,9 @@ class DeviceStore(context: Context) {
 
     /** Reset pairing key: fresh PSK key, empty roster. */
     fun resetPairingKey() {
+        saveClipboardCheckpoint(null)
         clearQueuedShares()
+        fileTransfers.clearPairing()
         val key = ByteArray(32).also { SecureRandom().nextBytes(it) }
         groupKey = key
         peer = null
@@ -214,7 +228,9 @@ class DeviceStore(context: Context) {
 
     /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
     fun unpair() {
+        saveClipboardCheckpoint(null)
         clearQueuedShares()
+        fileTransfers.clearPairing()
         groupKey = null
         peer = null
         peerCandidates = emptyList()

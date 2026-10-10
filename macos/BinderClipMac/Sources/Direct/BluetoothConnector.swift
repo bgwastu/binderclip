@@ -6,6 +6,7 @@ protocol BluetoothSession: AnyObject {
     var id: ObjectIdentifier { get }
     var deviceName: String { get }
     var isAuthenticated: Bool { get set }
+    var clipboardSync: Bool { get set }
     var peerID: String? { get set }
     var peerName: String? { get set }
     var lastHeard: Date { get set }
@@ -32,6 +33,7 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
     private var writeOffset = 0
     private var queuedBytes = 0
     var isAuthenticated = false
+    var clipboardSync = false
     var peerID: String?
     var peerName: String?
     var lastHeard = SessionLiveness.now()
@@ -161,6 +163,7 @@ final class BleGattSession: BluetoothSession {
     private let notifyCharacteristic: CBMutableCharacteristic
     private let queue: DispatchQueue
     var isAuthenticated = false
+    var clipboardSync = false
     var peerID: String?
     var peerName: String?
     var lastHeard = SessionLiveness.now()

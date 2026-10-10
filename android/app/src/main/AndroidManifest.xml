@@ -42,14 +42,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/image_paths" />
         </provider>
-        <activity android:name=".ShareReceiverActivity" android:exported="true" android:theme="@style/Theme.BinderClip">
+        <activity android:name=".ShareReceiverActivity" android:exported="true" android:theme="@style/Theme.BinderClip" android:configChanges="orientation|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <activity android:name=".ReceivedFilesActivity" android:exported="false" android:theme="@style/Theme.BinderClip" />
 
         <activity
             android:name=".MainActivity"
@@ -70,10 +71,11 @@
         <service
             android:name=".BinderClipService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Persistent WebSocket clipboard sync with a user-paired Mac on a trusted LAN or VPN" />
+                android:value="Persistent WebSocket clipboard sync and user-requested file transfers with a user-paired Mac on a trusted LAN or VPN" />
         </service>
 
         <receiver

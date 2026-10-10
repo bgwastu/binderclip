@@ -17,12 +17,15 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-class WebSocketClient(
+internal class WebSocketClient(
     private val store: DeviceStore,
+    private val transferStore: FileTransferStore,
     private val deviceNameProvider: () -> String,
     private val onText: (String) -> Unit,
     private val onOpenUrl: (String) -> Unit,
     private val onImage: (ImagePayload) -> Unit,
+    private val onFile: (ReceivedFile) -> Unit,
+    private val transferMessage: (TransferProgress) -> String,
     private val onTransferStatus: (String) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onFailure: (String) -> Unit,
@@ -32,6 +35,10 @@ class WebSocketClient(
     private val onUnpaired: () -> Unit,
     private val onRemoteSleep: () -> Unit = {},
     private val onProtocolFailure: (() -> Unit)? = null,
+    private val onSyncConnected: ((Boolean, ClipboardClockSample?) -> Unit)? = null,
+    private val onSyncControl: ((JSONObject) -> Unit)? = null,
+    private val onSyncText: ((String, ClipboardStamp?) -> Unit)? = null,
+    private val onSyncImage: ((ImagePayload, ClipboardStamp?) -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "BinderClipWS"
@@ -44,6 +51,10 @@ class WebSocketClient(
         .build()
 
     private val executor = Executors.newSingleThreadScheduledExecutor()
+    private val transferExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val transferSessions = HashMap<WebSocket, ChunkedTransferSession>()
+    @Volatile private var supportsChunkedTransfers = false
+    @Volatile private var clipboardSync = false
     private val candidateSockets = ConcurrentHashMap<String, WebSocket>()
     @Volatile
     private var activeSocket: WebSocket? = null
@@ -70,6 +81,7 @@ class WebSocketClient(
     @Volatile private var remoteSleepUntilMs = 0L
 
     fun isConnected(): Boolean = isConnected.get()
+    fun supportsClipboardSync(): Boolean = isConnected.get() && clipboardSync
     fun connectedEndpoint(): String? = activeEndpoint
     fun currentBackoffSeconds(): Long = policy.delaySeconds
     fun isConnecting(): Boolean = isConnecting.get()
@@ -165,6 +177,8 @@ class WebSocketClient(
         cancelPendingReconnect()
         stopHeartbeatWatch()
         closeCandidateSockets()
+        closeTransferSessions()
+        supportsChunkedTransfers = false; clipboardSync = false
         activeSocket?.cancel()
         activeSocket = null
         activeEndpoint = null
@@ -224,6 +238,8 @@ class WebSocketClient(
                                 .put("proof", java.util.Base64.getEncoder().encodeToString(SecureChannel.proof(psk, serverNonce, clientNonce, "ws"))).toString())
                             sendSecureText(webSocket, JSONObject().put("type", "auth").put("deviceId", localId)
                                 .put("deviceName", localName).put("platform", "Android").put("version", SyncProtocol.VERSION)
+                                .put(FileTransferProtocol.CAPABILITY, FileTransferProtocol.VERSION)
+                                .put(ClipboardStamp.CAPABILITY, 1).put("clockProbe", android.os.SystemClock.elapsedRealtime())
                                 .put("pairing", pairingScan).toString())
                         } else {
                             require(objectJson.optString("type") == "secure")
@@ -309,6 +325,23 @@ class WebSocketClient(
                     return
                 }
                 activeSocket = webSocket
+                supportsChunkedTransfers = json.optInt(FileTransferProtocol.CAPABILITY) == FileTransferProtocol.VERSION
+                clipboardSync = json.optInt(ClipboardStamp.CAPABILITY) == 1
+                if (supportsChunkedTransfers) transferExecutor.execute {
+                    if (activeSocket !== webSocket) return@execute
+                    transferSessions[webSocket] = ChunkedTransferSession(
+                        remoteId(json), transferStore, transferExecutor,
+                        sendText = { activeSocket === webSocket && sendSecureText(webSocket, it.toString()) },
+                        sendBinary = { activeSocket === webSocket && sendSecureBinary(webSocket, it) },
+                        disconnect = { webSocket.cancel() },
+                        onImage = onImage, onFile = onFile, onStatus = { onTransferStatus(transferMessage(it)) },
+                        onOrderedImage = { image, stamp ->
+                            if (activeSocket === webSocket) {
+                                if (onSyncImage != null) onSyncImage.invoke(image, stamp) else onImage(image)
+                            }
+                        },
+                    ).also { it.pump() }
+                }
                 activeEndpoint = endpoint
                 lastConnectedMs = android.os.SystemClock.elapsedRealtime()
                 isConnecting.set(false)
@@ -341,6 +374,7 @@ class WebSocketClient(
                 store.lastGoodEndpoint = endpoint
                 applyRemoteEndpoints(SyncProtocol.endpointsFromJson(json))
 
+                onSyncConnected?.invoke(clipboardSync, clipboardClockSample(json, android.os.SystemClock.elapsedRealtime()))
                 onPeerIdentity(remoteId, remoteName)
                 onRosterChanged(store.members)
                 onStatus(remoteName.ifBlank { "Connected" })
@@ -353,8 +387,15 @@ class WebSocketClient(
                 val clipText = json.optString("text")
                 Log.d(TAG, "Received clipboard text (${clipText.length} characters)")
                 if (clipText.isNotEmpty()) {
-                    onText(clipText)
+                    val stamp = ClipboardStamp.parse(json)
+                    require(!clipboardSync || stamp != null)
+                    if (onSyncText != null) onSyncText.invoke(clipText, stamp) else onText(clipText)
                 }
+            }
+
+            "clipboard_state", "clipboard_request" -> {
+                require(isConnected.get() && activeSocket === webSocket && clipboardSync)
+                onSyncControl?.invoke(json)
             }
 
             "openUrl" -> {
@@ -390,13 +431,24 @@ class WebSocketClient(
             "unpair" -> {
                 applyRemoteUnpair()
             }
+
+            "transfer_offer", "transfer_ack", "transfer_done", "transfer_cancel" -> {
+                require(isConnected.get() && activeSocket === webSocket && supportsChunkedTransfers)
+                transferExecutor.execute { if (activeSocket === webSocket) transferSessions[webSocket]?.handle(json) }
+            }
         }
     }
 
     private fun handleBinaryMessage(webSocket: WebSocket, bytes: ByteString) {
         noteActivity()
+        val plaintext = bytes.toByteArray()
+        if (FileTransferProtocol.isChunk(plaintext)) {
+            require(supportsChunkedTransfers && plaintext.size <= FileTransferProtocol.HEADER_BYTES + FileTransferProtocol.CHUNK_BYTES)
+            transferExecutor.execute { if (activeSocket === webSocket) transferSessions[webSocket]?.handleChunk(plaintext) }
+            return
+        }
         Log.i(TAG, "handleBinaryMessage: received ${bytes.size} bytes")
-        val unpacked = SyncProtocol.unpackImage(bytes.toByteArray())
+        val unpacked = SyncProtocol.unpackImage(plaintext)
         if (unpacked == null) {
             Log.w(TAG, "handleBinaryMessage: unpackImage failed for ${bytes.size} bytes")
             return
@@ -405,7 +457,7 @@ class WebSocketClient(
         val imageData = unpacked.second
         val imagePayload = ImagePayload(id = meta.id, mimeType = meta.mimeType, data = imageData)
         Log.i(TAG, "handleBinaryMessage: unpacked ${imagePayload.mimeType} (${imageData.size} bytes)")
-        onImage(imagePayload)
+        if (onSyncImage != null) onSyncImage.invoke(imagePayload, meta.clipboard) else onImage(imagePayload)
         onTransferStatus("Received image (${meta.mimeType})")
     }
 
@@ -418,12 +470,14 @@ class WebSocketClient(
     private fun markActiveDeadIfNeeded(webSocket: WebSocket, endpoint: String, reason: String, resetBackoff: Boolean) {
         candidateSockets.remove(endpoint)
         secureChannels.remove(webSocket)
+        transferExecutor.execute { transferSessions.remove(webSocket)?.close() }
         if (webSocket == activeSocket) {
             Log.w(TAG, "Active connection closed: $reason")
             stopHeartbeatWatch()
             activeSocket = null
             activeEndpoint = null
             isConnected.set(false)
+            supportsChunkedTransfers = false; clipboardSync = false
             isConnecting.set(false)
 
             store.peer = store.peer?.copy(connected = false)
@@ -443,9 +497,38 @@ class WebSocketClient(
         val channel = secureChannels[socket] ?: return false
         val packet = channel.seal(text.toByteArray(Charsets.UTF_8), 1)
         socket.send(JSONObject().put("type", "secure").put("data", java.util.Base64.getEncoder().encodeToString(packet)).toString())
+            .also { if (!it) socket.cancel() }
     }
 
-    fun sendText(text: String, hash: String = SyncProtocol.sha256Hex(text)): Boolean {
+    private fun remoteId(json: JSONObject): String = json.getString("deviceId").also { require(it.isNotBlank()) }
+
+    private fun sendSecureBinary(socket: WebSocket, plaintext: ByteArray): Boolean = synchronized(sendLock) {
+        val channel = secureChannels[socket] ?: return false
+        // Chunk acknowledgement bounds file traffic; leave ample room for text and heartbeats.
+        if (socket.queueSize() + plaintext.size + 24 > 12L * 1024 * 1024) { socket.cancel(); return false }
+        socket.send(channel.seal(plaintext, 2).toByteString()).also { if (!it) socket.cancel() }
+    }
+
+    fun resumeQueuedTransfers() {
+        val socket = activeSocket ?: return
+        if (!supportsChunkedTransfers) {
+            if (transferStore.next(store.peer?.deviceId.orEmpty()) != null) onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.UPDATE_REQUIRED)))
+            return
+        }
+        transferExecutor.execute { transferSessions[socket]?.pump() }
+    }
+
+    private fun closeTransferSessions() {
+        transferExecutor.execute { transferSessions.values.forEach { it.close() }; transferSessions.clear() }
+    }
+
+    fun sendClipboardControl(payload: JSONObject): Boolean {
+        if (!supportsClipboardSync()) return false
+        val socket = activeSocket ?: return false
+        return sendSecureText(socket, payload.toString())
+    }
+
+    fun sendText(text: String, hash: String = SyncProtocol.sha256Hex(text), stamp: ClipboardStamp? = null): Boolean {
         val socket = activeSocket ?: return false
         val payload = JSONObject().apply {
             put("type", "clipboard")
@@ -454,6 +537,7 @@ class WebSocketClient(
             put("text", text)
             put("hash", hash)
             put("timestamp", System.currentTimeMillis())
+            if (stamp != null) stamp.putInto(this) else put("shared", 1)
         }
         return sendSecureText(socket, payload.toString())
     }
@@ -482,19 +566,30 @@ class WebSocketClient(
         return sendSecureText(socket, payload.toString())
     }
 
-    fun sendImage(image: ImagePayload): Boolean {
+    fun sendImage(image: ImagePayload, stamp: ClipboardStamp? = null): Boolean {
         val socket = activeSocket ?: return false
-        val packet = SyncProtocol.packImage(image, store.deviceId)
-        val queued = synchronized(sendLock) {
-            val channel = secureChannels[socket] ?: return false
-            socket.send(channel.seal(packet, 2).toByteString())
+        if (supportsChunkedTransfers) {
+            val peerId = store.peer?.deviceId?.takeIf { it.isNotBlank() } ?: return false
+            return runCatching {
+                image.data.inputStream().use { transferStore.stage(peerId, "image", image.mimeType, "image", it, stamp) }
+                resumeQueuedTransfers()
+                true
+            }.getOrElse { onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.FAILED))); false }
         }
+        // Older Macs cannot acknowledge chunks. Do not overflow OkHttp's 16 MiB send queue.
+        if (image.data.size > 8 * 1024 * 1024) {
+            onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.UPDATE_REQUIRED)))
+            return false
+        }
+        val packet = SyncProtocol.packImage(image, store.deviceId, stamp)
+        val queued = sendSecureBinary(socket, packet)
         if (queued) onTransferStatus("Sent image (${image.mimeType})")
         return queued
     }
 
     fun shutdown() {
         close()
+        transferExecutor.shutdownNow()
         executor.shutdownNow()
         httpClient.dispatcher.executorService.shutdown()
         httpClient.connectionPool.evictAll()
@@ -506,6 +601,8 @@ class WebSocketClient(
         cancelPendingReconnect()
         stopHeartbeatWatch()
         closeCandidateSockets()
+        closeTransferSessions()
+        supportsChunkedTransfers = false; clipboardSync = false
         activeSocket?.close(1000, "Closed by user")
         activeSocket = null
         activeEndpoint = null
@@ -517,12 +614,16 @@ class WebSocketClient(
     private fun applyRemoteUnpair() {
         generation++
         pairingScan = false
+        val socket = activeSocket
+        activeSocket = null
+        supportsChunkedTransfers = false; clipboardSync = false
+        closeTransferSessions()
         store.unpair()
         cancelPendingReconnect()
         executor.execute {
             stopHeartbeatWatch()
             closeCandidateSockets()
-            activeSocket?.close(1000, "Unpaired")
+            socket?.close(1000, "Unpaired")
             activeSocket = null
             activeEndpoint = null
             isConnected.set(false)

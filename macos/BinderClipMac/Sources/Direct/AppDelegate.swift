@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private var peerIdsBeforePairing: Set<String>?
     private var peers: [Peer] = [] { didSet { scheduleStateRefresh() } }
     private var status = "Listening" { didSet { scheduleStateRefresh() } }
+    private var lastTransferStatus: String?
     private var localNetworkPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private var automationPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private var cachedActiveTab: (browser: String, url: URL)?
@@ -65,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         transport.onClipboard = { [weak self] text in
-            self?.clipboard.applyRemote(text)
+            guard self?.clipboard.applyRemote(text) == true else { return }
             let msg = L10n.tr("received_text")
             self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
@@ -78,31 +79,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             ToastHUD.shared.show(message: msg, icon: "safari.fill")
         }
         transport.onImage = { [weak self] image in
-            self?.clipboard.applyRemote(image)
+            guard self?.clipboard.applyRemote(image) == true else { return }
             let msg = L10n.tr("received_image_format", image.mimeType)
             self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "photo.fill")
         }
+        transport.onFile = { [weak self] url in
+            let message = L10n.tr("file_received_format", url.lastPathComponent)
+            self?.notifyIncoming(title: AppProfile.current.displayName, body: message)
+        }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
-            self?.clipboard.setSyncActive(peers.contains { $0.connected })
+            self?.clipboard.setSyncActive(!peers.isEmpty)
         }
         transport.onLog = { message in
             DiagnosticLog.shared.info(message)
         }
         transport.onTransferStatus = { [weak self] message in
+            self?.lastTransferStatus = message
             self?.status = message
         }
+        transport.onTransferProgress = { progress in ToastHUD.shared.showTransfer(progress) }
         transport.onLocalNetworkPermissionRequired = { [weak self] required in
             DispatchQueue.main.async { self?.localNetworkPermissionRequired = required }
         }
 
-        clipboard.onLocalText = { [weak transport] text in
-            transport?.sendClipboard(text)
+        transport.onPrepareClipboardSync = { [weak self] in self?.clipboard.captureChanges() }
+        clipboard.onLocalText = { [weak transport] text, bootstrap in
+            transport?.observeClipboard(text: text, bootstrap: bootstrap)
         }
-        clipboard.onLocalImage = { [weak transport] image in
-            transport?.sendImage(image)
+        clipboard.onLocalImage = { [weak transport] image, bootstrap in
+            transport?.observeClipboard(image: image, bootstrap: bootstrap)
         }
+        clipboard.onLocalEmpty = { [weak transport] bootstrap in transport?.observeEmptyClipboard(bootstrap: bootstrap) }
 
         transport.start()
         clipboard.start()
@@ -244,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         menu.removeAllItems()
         renderPendingPermissions(into: menu)
 
-        if isTransferring {
+        if lastTransferStatus != nil || isTransferring {
             let progressItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
             progressItem.isEnabled = false
             menu.addItem(progressItem)
@@ -412,6 +421,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let logs = NSMenuItem(title: L10n.tr("show_logs"), action: #selector(showLogs), keyEquivalent: "l")
         logs.target = self
         more.addItem(logs)
+        let received = NSMenuItem(title: L10n.tr("received_files"), action: #selector(showReceivedFiles), keyEquivalent: "")
+        received.target = self
+        more.addItem(received)
 
         let rawVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         #if DEBUG
@@ -465,6 +477,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         sendToDevice.representedObject = peer.id
         sendToDevice.isEnabled = peer.connected
         details.addItem(sendToDevice)
+        let sendFile = NSMenuItem(title: L10n.tr("send_file"), action: #selector(sendFileToPeer(_:)), keyEquivalent: "")
+        sendFile.target = self
+        sendFile.representedObject = peer.id
+        sendFile.isEnabled = self.transport.canSendFile(to: peer.id)
+        sendFile.toolTip = L10n.tr("file_connection_required")
+        details.addItem(sendFile)
         details.addItem(.separator())
         let rename = NSMenuItem(title: L10n.tr("rename_device_menu"), action: #selector(renameDevice(_:)), keyEquivalent: "")
         rename.target = self
@@ -599,6 +617,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     }
 
     @objc private func showLogs() { logWindow.showWindow(nil) }
+
+    @objc private func sendFileToPeer(_ sender: NSMenuItem) {
+        guard let peerID = sender.representedObject as? String else { return }
+        runAfterMenuCloses { [weak self] in
+            guard let self else { return }
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = true
+            panel.prompt = L10n.tr("send_file")
+            panel.message = L10n.tr("file_picker_help")
+            guard panel.runModal() == .OK else { return }
+            guard panel.urls.count <= 8, self.transport.canSendFile(to: peerID) else {
+                ToastHUD.shared.show(message: L10n.tr("file_connection_required"), icon: "exclamationmark.circle")
+                return
+            }
+            for url in panel.urls { self.transport.sendFile(url, targetDeviceID: peerID) }
+        }
+    }
+
+    @objc private func showReceivedFiles() {
+        runAfterMenuCloses { [weak self] in
+            guard let self else { return }
+            let directory = self.transport.receivedFilesDirectory
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                NSWorkspace.shared.open(directory)
+            } catch { ToastHUD.shared.show(message: L10n.tr("transfer_failed"), icon: "exclamationmark.circle") }
+        }
+    }
 
     @objc private func renameDevice(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }

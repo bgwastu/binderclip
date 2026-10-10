@@ -89,6 +89,9 @@ class BluetoothLink(
         fun onEndpoints(endpoints: List<String>)
         fun onLinkDown(reason: String)
         fun onText(text: String)
+        fun onSyncConnected(supported: Boolean, sample: ClipboardClockSample?) {}
+        fun onSyncControl(json: org.json.JSONObject) {}
+        fun onSyncText(text: String, stamp: ClipboardStamp?) = onText(text)
         fun onOpenUrl(url: String)
         fun onRemoteSleep() {}
         fun onUnpair()
@@ -101,6 +104,8 @@ class BluetoothLink(
     private val scanning = AtomicBoolean(false)
     private val connecting = AtomicBoolean(false)
     private val connected = AtomicBoolean(false)
+    @Volatile private var clipboardSync = false
+    fun supportsClipboardSync(): Boolean = connected.get() && clipboardSync
 
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var socket: BluetoothSocket? = null
@@ -629,6 +634,7 @@ class BluetoothLink(
             stopScan()
             connecting.set(false)
             connected.set(false)
+            clipboardSync = false
             isL2capActive = false
             stopHeartbeat()
             runCatching { socket?.close() }
@@ -678,10 +684,15 @@ class BluetoothLink(
         }
     }
 
-    fun sendClipboard(text: String): Boolean = sendFrame(listOf(
-        "type" to "clipboard",
-        "text" to text,
-    ))
+    fun sendClipboard(text: String, stamp: ClipboardStamp? = null): Boolean = sendFrame(
+        listOf("type" to "clipboard", "text" to text) + (stamp?.fields() ?: listOf("shared" to 1))
+    )
+
+    fun sendClipboardControl(json: org.json.JSONObject): Boolean {
+        if (!supportsClipboardSync()) return false
+        val fields = json.keys().asSequence().map { key -> key to json.get(key) }.toList()
+        return sendFrame(fields)
+    }
 
     fun sendOpenUrl(url: String): Boolean = sendFrame(listOf(
         "type" to "openUrl",
@@ -763,7 +774,8 @@ class BluetoothLink(
                 secure = SecureChannel(psk, serverNonce, clientNonce, "ble")
                 sendWireFrame(listOf("type" to "secure_reply", "nonce" to java.util.Base64.getEncoder().encodeToString(clientNonce),
                     "proof" to java.util.Base64.getEncoder().encodeToString(SecureChannel.proof(psk, serverNonce, clientNonce, "ble"))))
-                sendFrame(listOf("type" to "auth", "deviceId" to store.deviceId, "deviceName" to deviceNameProvider(), "version" to SyncProtocol.VERSION))
+                sendFrame(listOf("type" to "auth", "deviceId" to store.deviceId, "deviceName" to deviceNameProvider(), "version" to SyncProtocol.VERSION,
+                    ClipboardStamp.CAPABILITY to 1, "clockProbe" to android.os.SystemClock.elapsedRealtime()))
                 return
             }
             require(type == "secure")
@@ -789,13 +801,25 @@ class BluetoothLink(
                 retry.reset()
                 sendPowerState(if (interactive) "awake" else "sleep")
                 if (!updateConnectionPriority()) return
+                clipboardSync = uint(ClipboardStamp.CAPABILITY) == 1L
+                val clockJson = org.json.JSONObject().also { json -> fields.forEach { (key, value) -> json.put(key, value) } }
+                callbacks.onSyncConnected(clipboardSync, clipboardClockSample(clockJson, android.os.SystemClock.elapsedRealtime()))
                 callbacks.onAuthenticated(id, name)
                 // Surface the Mac's live endpoints so the service can try the faster
                 // WebSocket path first (mesh beats LAN beats Bluetooth).
                 endpointsFromFields(fields)?.let { callbacks.onEndpoints(it) }
                 startHeartbeat(id)
             }
-            "clipboard" -> text("text")?.let(callbacks::onText)
+            "clipboard", "clipboard_state", "clipboard_request" -> {
+                try {
+                    val json = org.json.JSONObject().also { json -> fields.forEach { (key, value) -> json.put(key, value) } }
+                    if (type == "clipboard") {
+                        val stamp = ClipboardStamp.parse(json)
+                        require(!clipboardSync || stamp != null)
+                        text("text")?.let { callbacks.onSyncText(it, stamp) }
+                    } else if (clipboardSync) callbacks.onSyncControl(json)
+                } catch (_: Exception) { drop("invalid clipboard version") }
+            }
             "openUrl" -> text("url")?.let(callbacks::onOpenUrl)
             "unpair" -> callbacks.onUnpair()
             "ping" -> sendFrame(listOf("type" to "pong", "t" to (uint("t") ?: 0L)))

@@ -77,7 +77,6 @@ class BinderClipService : Service() {
         val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
         val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
         val ACTION_SEND_SHARED = "${BuildConfig.APPLICATION_ID}.SEND_SHARED"
-        const val EXTRA_SHARED_IMAGE_ID = "shared_image_id"
         val ACTION_SEARCH_RECONNECT = "${BuildConfig.APPLICATION_ID}.SEARCH_RECONNECT"
         const val EXTRA_MEMBER_ID = "member_id"
         const val EXTRA_TARGET_DEVICE_ID = "target_device_id"
@@ -85,6 +84,7 @@ class BinderClipService : Service() {
         const val EXTRA_URI = "uri"
         private const val CHANNEL = "binderclip_sync"
         private const val URL_CHANNEL = "binderclip_urls"
+        private const val FILE_CHANNEL = "binderclip_files"
         private const val NOTIFICATION_ID = 101
         /** Require the WebSocket to stay up this long before we tear down a working Bluetooth
          *  session, so a flaky tunnel cannot cause endless BT reconnect flapping. */
@@ -139,7 +139,15 @@ class BinderClipService : Service() {
 
     @Volatile
     private var uiVisible = false
-    private var lastSeenHash: String? = null
+    private lateinit var clipboardOrdering: ClipboardOrdering
+    private var currentClipboard: LocalClipboardContent? = null
+    private var lastReadFingerprint: String? = null
+    private var remoteClipboardEcho: String? = null
+    private var remoteClipboardToken: Long? = null
+    private var lastReadClipboardToken: Long? = null
+    private var hasObservedClipboard = false
+    private var wsClipboardReady = false
+    private var btClipboardReady = false
     private var pendingImage: ImagePayload? = null
     private var transferStatus: String? = null
     private var lastError: String? = null
@@ -153,7 +161,6 @@ class BinderClipService : Service() {
 
     private var backgroundPoll: ScheduledFuture<*>? = null
     private val pollInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
-    private var backgroundFingerprint: String? = null
     @Volatile private var interactive = true
     private val clipboardReadCache = ClipboardReadCache<RootClipboardBridge.Clip>()
     @Volatile private var remoteSleepUntilMs = 0L
@@ -202,6 +209,9 @@ class BinderClipService : Service() {
             return
         }
         clipboard = AppClipboard(this)
+        val bootId = runCatching { android.provider.Settings.Global.getInt(contentResolver, "boot_count").toString() }.getOrDefault("unknown")
+        clipboardOrdering = ClipboardOrdering(store.deviceId, uptime = android.os.SystemClock::elapsedRealtime,
+            bootId = bootId, checkpoint = store.clipboardCheckpoint())
         ImageClipboard.clearStale(this)
         nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
 
@@ -210,10 +220,13 @@ class BinderClipService : Service() {
 
         client = WebSocketClient(
             store = store,
+            transferStore = FileTransferStore.forContext(this),
             deviceNameProvider = { DeviceNames.android(this) },
             onText = ::receiveText,
             onOpenUrl = ::receiveOpenUrl,
             onImage = ::receiveImage,
+            onFile = ::receiveFile,
+            transferMessage = { it.message(this) },
             onTransferStatus = ::updateTransferStatus,
             onStatus = ::updateStatus,
             onFailure = ::reportFailure,
@@ -228,6 +241,7 @@ class BinderClipService : Service() {
             },
             onRosterChanged = { publishState() },
             onDisconnected = {
+                runServiceWork { wsClipboardReady = false }
                 // If the WebSocket just dropped and we had handed the session to it after tearing
                 // down Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is
                 // the reliable fallback. Fastest re-arm wins over the 20s stall detector.
@@ -243,16 +257,21 @@ class BinderClipService : Service() {
             },
             onRemoteSleep = ::peerSleeping,
             onProtocolFailure = { reportFailure(getString(R.string.secure_connection_failed)) },
-            onUnpaired = {
+            onSyncConnected = { supported, sample -> clipboardConnected(supported, sample, websocket = true) },
+            onSyncControl = { json -> clipboardControl(json, websocket = true) },
+            onSyncText = { text, stamp -> receiveOrderedClipboard(LocalClipboardContent.Text(text), stamp) },
+            onSyncImage = { image, stamp -> receiveOrderedClipboard(LocalClipboardContent.Image(image), stamp) },
+            onUnpaired = { runServiceWork {
                 lastError = null
                 pairingHint = null
                 store.unpair()
+                resetClipboardOrdering()
                 stopNsdDiscovery()
                 bluetoothLink?.stop()
                 DiagnosticLog.info("Mac unpaired this phone")
                 runServiceWork { RootClipboardBridge.syncKeepAlive(this, paired = false) }
                 publishState()
-            },
+            } },
         )
         val power = getSystemService(PowerManager::class.java)
         interactive = power?.isInteractive != false
@@ -295,12 +314,16 @@ class BinderClipService : Service() {
             }
 
             override fun onLinkDown(reason: String) {
+                runServiceWork { btClipboardReady = false }
                 if (store.groupKey != null) DiagnosticLog.info("Bluetooth link down ($reason)")
                 client.setReconnectSuppressed(false)
                 refreshNsdDiscovery()
                 publishState()
             }
 
+            override fun onSyncConnected(supported: Boolean, sample: ClipboardClockSample?) = clipboardConnected(supported, sample, websocket = false)
+            override fun onSyncControl(json: org.json.JSONObject) = clipboardControl(json, websocket = false)
+            override fun onSyncText(text: String, stamp: ClipboardStamp?) = receiveOrderedClipboard(LocalClipboardContent.Text(text), stamp)
             override fun onText(text: String) = receiveText(text)
             override fun onOpenUrl(url: String) = receiveOpenUrl(url)
 
@@ -309,6 +332,7 @@ class BinderClipService : Service() {
                     lastError = null
                     pairingHint = null
                     store.unpair()
+                    resetClipboardOrdering()
                     stopNsdDiscovery()
                     bluetoothLink?.stop()
                     client.close()
@@ -325,7 +349,7 @@ class BinderClipService : Service() {
             if (stopping) return@OnPrimaryClipChangedListener
             clipboardReadCache.invalidate()
             if (interactive && (uiVisible || automaticClipboardEnabled)) {
-                runServiceWork { if (!stopping) sendCurrentClipboard(userInitiated = false) }
+                runServiceWork { if (!stopping) sendCurrentClipboard(userInitiated = false, fromCallback = true) }
             }
         }
         clipboard.addPrimaryClipChangedListener(clipboardListener!!)
@@ -369,7 +393,15 @@ class BinderClipService : Service() {
         when (intent?.action ?: ACTION_START) {
             ACTION_PAIR -> intent?.getStringExtra(EXTRA_URI)?.let { uri ->
                 runServiceWork {
-                    runCatching { client.pair(uri) }
+                    runCatching {
+                        val info = SyncProtocol.parsePairingUrl(uri) ?: error("Invalid BinderClip pairing code")
+                        val nextKey = SyncProtocol.decodeBase64(info.psk) ?: error("Invalid pairing key")
+                        if (store.peer?.deviceId != info.deviceId || store.groupKey?.contentEquals(nextKey) != true) {
+                            store.unpair()
+                            resetClipboardOrdering()
+                        }
+                        client.pair(uri)
+                    }
                         .onSuccess { RootClipboardBridge.syncKeepAlive(this, store.groupKey != null) }
                         .onFailure { reportFailure(it.message ?: "Pairing failed") }
                 }
@@ -382,16 +414,11 @@ class BinderClipService : Service() {
             ACTION_SEARCH_RECONNECT -> resetReconnectBackoffAndTrigger("user_reconnect")
 
             ACTION_SEND_SHARED -> {
-                val imageId = intent?.getStringExtra(EXTRA_SHARED_IMAGE_ID)
                 runServiceWork {
-                    if (imageId != null) {
-                        SharedPayloadCache.take(imageId)?.let(::sendSharedImage)
-                            ?: reportFailure("Shared image is no longer available")
-                    } else {
-                        drainQueuedShares()
-                        if (!client.isConnected() && bluetoothLink?.isConnected() != true && !client.isConnecting()) {
-                            client.forceReconnect()
-                        }
+                    drainQueuedShares()
+                    client.resumeQueuedTransfers()
+                    if (!client.isConnected() && !client.isConnecting()) {
+                        client.forceReconnect()
                     }
                 }
             }
@@ -456,6 +483,8 @@ class BinderClipService : Service() {
                         store.groupKey = null
                         store.peerCandidates = emptyList()
                         store.lastGoodEndpoint = null
+                        store.saveClipboardCheckpoint(null)
+                        resetClipboardOrdering()
                         client.close()
                     }
                     RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
@@ -509,6 +538,7 @@ class BinderClipService : Service() {
         lastError = null
         pairingHint = null
         store.unpair()
+        resetClipboardOrdering()
         client.close()
         bluetoothLink?.stop()
         RootClipboardBridge.syncKeepAlive(this, paired = false)
@@ -529,21 +559,7 @@ class BinderClipService : Service() {
         }
     }
 
-    private fun receiveText(text: String) {
-        val hash = SyncProtocol.sha256Hex(text)
-        if (hash == lastSeenHash) return
-        lastSeenHash = hash
-
-        val applied = runCatching { applyText(text); true }.getOrDefault(false)
-        if (applied) {
-            syncToast("Received text")
-            store.pendingText = null
-        } else {
-            store.pendingText = text
-            notifyPending("New clipboard text received", text)
-        }
-        publishState()
-    }
+    private fun receiveText(text: String) = receiveOrderedClipboard(LocalClipboardContent.Text(text), null)
 
     private fun receiveOpenUrl(url: String) {
         val trimmed = url.trim()
@@ -555,44 +571,194 @@ class BinderClipService : Service() {
         syncToast("Received link")
     }
 
-    private fun receiveImage(image: ImagePayload) {
-        if (image.sha256 == lastSeenHash) return
-        lastSeenHash = image.sha256
+    private fun receiveImage(image: ImagePayload) = receiveOrderedClipboard(LocalClipboardContent.Image(image), null)
 
-        val applied = runCatching { applyImage(image); true }.getOrDefault(false)
-        if (applied) {
-            syncToast("Received image (${image.mimeType})")
-            pendingImage = null
-        } else {
-            pendingImage = image
-            notifyPending("New image received", "Image (${image.mimeType})")
+    private fun clipboardFingerprint(value: LocalClipboardContent): String = when (value) {
+        is LocalClipboardContent.Text -> "text:" + SyncProtocol.sha256Hex(value.value)
+        is LocalClipboardContent.Image -> "image:" + value.value.sha256
+        LocalClipboardContent.Unsupported -> "empty:" + SyncProtocol.sha256Hex(ByteArray(0))
+    }
+
+    private fun saveClipboardVersion() { store.saveClipboardCheckpoint(clipboardOrdering.checkpoint()) }
+
+    private fun resetClipboardOrdering() {
+        clipboardOrdering.reset(); currentClipboard = null; lastReadFingerprint = null; hasObservedClipboard = false
+        remoteClipboardEcho = null; remoteClipboardToken = null; lastReadClipboardToken = null
+        wsClipboardReady = false; btClipboardReady = false
+    }
+
+    private fun clipboardToken(clip: ClipData?): Long? = clip?.let {
+        if (AppProfile.current.isDebug) System.identityHashCode(it).toLong() else it.description.timestamp
+    }
+
+    private fun observeClipboard(value: LocalClipboardContent, force: Boolean = false, bootstrap: Boolean = false, publish: Boolean = true): ClipboardStamp? {
+        if (value is LocalClipboardContent.Text && value.value.toByteArray(Charsets.UTF_8).size > SyncProtocol.MAXIMUM_TEXT_BYTES) return null
+        val fingerprint = clipboardFingerprint(value)
+        if (!force && lastReadFingerprint == fingerprint) return null
+        lastReadFingerprint = fingerprint
+        hasObservedClipboard = true
+        currentClipboard = value
+        val kind = fingerprint.substringBefore(':')
+        val stamp = clipboardOrdering.observe(kind, fingerprint.substringAfter(':'), force, bootstrap) ?: return null
+        saveClipboardVersion()
+        if (publish && (!bootstrap || stamp.time > 0)) publishClipboard(stamp)
+        return stamp
+    }
+
+    private fun captureClipboard(publish: Boolean = false) {
+        if (!interactive || !(AppProfile.current.isDebug || uiVisible || automaticClipboardEnabled)) return
+        val value = ClipboardClassifier.read(this, clipboard)
+        // A denied/locked read is not a user clearing the clipboard.
+        if (value == LocalClipboardContent.Unsupported && !AppProfile.current.isDebug && clipboard.primaryClip == null) return
+        val token = clipboardToken(clipboard.primaryClip)
+        val changed = hasObservedClipboard && token != null && lastReadClipboardToken != null && token != lastReadClipboardToken
+        lastReadClipboardToken = token
+        observeClipboard(value, force = changed, bootstrap = !hasObservedClipboard, publish = publish)
+    }
+
+    private fun sendCurrentClipboard(userInitiated: Boolean = false, fromCallback: Boolean = false) {
+        val value = ClipboardClassifier.read(this, clipboard)
+        val fingerprint = clipboardFingerprint(value)
+        val token = clipboardToken(clipboard.primaryClip)
+        if (!userInitiated && remoteClipboardEcho == fingerprint && token == remoteClipboardToken) {
+            remoteClipboardEcho = null
+            lastReadFingerprint = fingerprint
+            lastReadClipboardToken = token
+            hasObservedClipboard = true
+            return
+        }
+        remoteClipboardEcho = null
+        val changed = fromCallback && (token == null || token != lastReadClipboardToken)
+        lastReadClipboardToken = token
+        val stamp = observeClipboard(value, force = userInitiated || changed, bootstrap = !hasObservedClipboard && !fromCallback)
+        if (userInitiated && stamp != null && value != LocalClipboardContent.Unsupported) syncToast(getString(R.string.share_queued))
+        else if (userInitiated && value == LocalClipboardContent.Unsupported) toast("Clipboard content is unsupported")
+    }
+
+    private fun publishClipboard(stamp: ClipboardStamp, websocket: Boolean? = null): Boolean {
+        val useWs = websocket ?: client.isConnected()
+        if (useWs && !wsClipboardReady || !useWs && !btClipboardReady) return false
+        val sent = when (val value = currentClipboard) {
+            is LocalClipboardContent.Text -> if (clipboardFingerprint(value) != stamp.fingerprint) false
+                else if (useWs) client.sendText(value.value, stamp.hash, stamp)
+                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(value.value, stamp) == true
+            is LocalClipboardContent.Image -> if (clipboardFingerprint(value) != stamp.fingerprint) false
+                else if (useWs) client.sendImage(value.value, stamp)
+                else {
+                    if (lastDeferredImageHash != value.value.sha256) {
+                        lastDeferredImageHash = value.value.sha256
+                        notifyDeferredImage(value.value.mimeType)
+                    }
+                    sendClipboardControl(clipboardState(), websocket)
+                    false
+                }
+            else -> sendClipboardControl(clipboardState(), websocket)
+        }
+        if (sent) { clipboardOrdering.markPublished(stamp.event); saveClipboardVersion() }
+        return sent
+    }
+
+    private fun clipboardState(): org.json.JSONObject = org.json.JSONObject().put("type", "clipboard_state").also { json ->
+        clipboardOrdering.head?.putInto(json)
+        val available = currentClipboard?.let { clipboardFingerprint(it) == clipboardOrdering.head?.fingerprint } == true
+        json.put("clipAvailable", if (available) 1 else 0)
+    }
+
+    private fun sendClipboardControl(json: org.json.JSONObject, websocket: Boolean? = null): Boolean {
+        return if (websocket ?: client.supportsClipboardSync()) client.sendClipboardControl(json)
+        else bluetoothLink?.sendClipboardControl(json) == true
+    }
+
+    private fun clipboardConnected(supported: Boolean, sample: ClipboardClockSample?, websocket: Boolean) = runServiceWork {
+        sample?.let { clipboardOrdering.calibrate(it) }
+        captureClipboard()
+        saveClipboardVersion()
+        if (websocket) wsClipboardReady = true else btClipboardReady = true
+        if (supported) sendClipboardControl(clipboardState(), websocket)
+    }
+
+    private fun clipboardControl(json: org.json.JSONObject, websocket: Boolean) = runServiceWork {
+        runCatching {
+            captureClipboard()
+            if (json.optString("type") == "clipboard_request") {
+                val head = clipboardOrdering.head
+                if (head != null && json.optString("requestEvent") == head.event && currentClipboard != null) {
+                    publishClipboard(head, websocket)
+                } else sendClipboardControl(clipboardState(), websocket)
+                return@runCatching
+            }
+            val remote = ClipboardStamp.parse(json)
+            val local = clipboardOrdering.head
+            when {
+                remote == null -> if (local != null && currentClipboard != null) publishClipboard(local, websocket)
+                remote == local -> {
+                    clipboardOrdering.receive(remote); saveClipboardVersion()
+                    if ((currentClipboard == null || currentClipboard == LocalClipboardContent.Unsupported) && remote.kind != "empty" && json.optInt("clipAvailable", 1) == 1 && (remote.kind == "text" || websocket)) {
+                        sendClipboardControl(org.json.JSONObject().put("type", "clipboard_request").put("requestEvent", remote.event), websocket)
+                    }
+                }
+                local != null && local > remote -> publishClipboard(local, websocket)
+                remote.kind == "empty" || remote.fingerprint == local?.fingerprint -> {
+                    clipboardOrdering.receive(remote)
+                    if (remote.kind == "empty") currentClipboard = null
+                    saveClipboardVersion()
+                    if (remote.kind != "empty" && (currentClipboard == null || currentClipboard == LocalClipboardContent.Unsupported) &&
+                        json.optInt("clipAvailable", 1) == 1 && (remote.kind == "text" || websocket)) {
+                        sendClipboardControl(org.json.JSONObject().put("type", "clipboard_request").put("requestEvent", remote.event), websocket)
+                    }
+                }
+                json.optInt("clipAvailable", 1) == 0 -> Unit
+                remote.kind == "text" || websocket -> sendClipboardControl(
+                    org.json.JSONObject().put("type", "clipboard_request").put("requestEvent", remote.event), websocket)
+            }
+        }.onFailure { reportFailure(getString(R.string.secure_connection_failed)) }
+    }
+
+    private fun receiveOrderedClipboard(value: LocalClipboardContent, stamp: ClipboardStamp?) = runServiceWork {
+        if (store.groupKey == null) return@runServiceWork
+        captureClipboard()
+        val fingerprint = clipboardFingerprint(value)
+        if (stamp != null && stamp.fingerprint != fingerprint) { reportFailure(getString(R.string.secure_connection_failed)); return@runServiceWork }
+        val missingPayload = currentClipboard == null || currentClipboard == LocalClipboardContent.Unsupported
+        val changed = if (stamp == null) {
+            clipboardOrdering.observe(fingerprint.substringBefore(':'), fingerprint.substringAfter(':'), force = true) != null
+        } else clipboardOrdering.receive(stamp)
+        if (stamp != null && clipboardOrdering.head != stamp) { sendClipboardControl(clipboardState()); return@runServiceWork }
+        currentClipboard = value
+        saveClipboardVersion()
+        if (!changed && !missingPayload) return@runServiceWork
+        lastReadFingerprint = fingerprint
+        hasObservedClipboard = true
+        when (value) {
+            is LocalClipboardContent.Text -> {
+                val applied = runCatching { applyText(value.value); true }.getOrDefault(false)
+                if (applied) { syncToast("Received text"); store.pendingText = null }
+                else { store.pendingText = value.value; notifyPending("New clipboard text received", value.value) }
+            }
+            is LocalClipboardContent.Image -> {
+                val applied = runCatching { applyImage(value.value); true }.getOrDefault(false)
+                if (applied) { syncToast("Received image (${value.value.mimeType})"); pendingImage = null }
+                else { pendingImage = value.value; notifyPending("New image received", "Image (${value.value.mimeType})") }
+            }
+            else -> Unit
         }
         publishState()
     }
 
-    private fun sendCurrentClipboard(userInitiated: Boolean = false) {
-        val payload = ClipboardClassifier.read(this, clipboard)
-        Log.d("BinderClip", "Clipboard change: userInitiated=$userInitiated")
-        when (payload) {
-            is LocalClipboardContent.Text -> {
-                val hash = SyncProtocol.sha256Hex(payload.value)
-                if (hash == lastSeenHash && !userInitiated) return
-                if (dispatchText(payload.value, hash)) lastSeenHash = hash
-                if (userInitiated) syncToast("Sent text")
-            }
-            is LocalClipboardContent.Image -> {
-                if (payload.value.sha256 == lastSeenHash && !userInitiated) return
-                if (dispatchImage(payload.value, userInitiated)) lastSeenHash = payload.value.sha256
-            }
-            is LocalClipboardContent.Unsupported -> {
-                if (userInitiated) toast("Clipboard content is unsupported")
-            }
-        }
-    }
-
-    private fun sendSharedImage(image: ImagePayload) {
-        if (dispatchImage(image, userInitiated = true)) lastSeenHash = image.sha256
-        else reportFailure("Could not send shared image: Wi-Fi or mesh connection required")
+    private fun receiveFile(file: ReceivedFile) {
+        if (stopping) return
+        val open = PendingIntent.getActivity(this, file.metadata.id.hashCode(),
+            Intent(this, ReceivedFilesActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = NotificationCompat.Builder(this, FILE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_binder_clip)
+            .setContentTitle(getString(R.string.file_received))
+            .setContentText(file.metadata.name)
+            .setContentIntent(open)
+            .addAction(0, getString(R.string.file_save), open)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify("received-file", file.metadata.id.hashCode(), notification)
+        publishState()
     }
 
     private fun drainQueuedShares() {
@@ -614,29 +780,31 @@ class BinderClipService : Service() {
                 reportFailure("Could not clear queued share")
                 return
             }
-            if (!isLink) applyText(text)
+            if (!isLink) {
+                observeClipboard(LocalClipboardContent.Text(text), force = true, publish = false)
+                applyText(text)
+            }
             DiagnosticLog.info("Queued share sent (${if (isLink) "link" else "text"})")
         }
     }
 
     private fun applyText(text: String) {
-        lastSeenHash = SyncProtocol.sha256Hex(text)
         clipboard.setPrimaryClip(ClipData.newPlainText("BinderClip", text))
+        remoteClipboardEcho = "text:" + SyncProtocol.sha256Hex(text)
+        remoteClipboardToken = clipboardToken(clipboard.primaryClip)
+        lastReadClipboardToken = remoteClipboardToken
     }
 
     private fun applyImage(image: ImagePayload) {
-        lastSeenHash = image.sha256
         ImageClipboard.write(this, clipboard, image)
+        remoteClipboardEcho = "image:" + image.sha256
+        remoteClipboardToken = clipboardToken(clipboard.primaryClip)
+        lastReadClipboardToken = remoteClipboardToken
     }
 
     private fun pollAllowed(): Boolean = !stopping && PowerPolicy.shouldPoll(
         automaticClipboardEnabled, interactive, store.groupKey != null,
-        client.isConnected() || bluetoothLink?.isConnected() == true,
     )
-
-    private fun dispatchText(text: String, hash: String): Boolean =
-        if (client.isConnected()) client.sendText(text, hash)
-        else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(text) == true
 
     private fun peerSleeping() {
         remoteSleepUntilMs = android.os.SystemClock.elapsedRealtime() + PowerPolicy.REMOTE_SLEEP_MS
@@ -655,7 +823,9 @@ class BinderClipService : Service() {
             try {
                 EnergyCounters.add("clipboard.poll")
                 val ticket = clipboardReadCache.generation()
-                val metadata = clipboard.primaryClip?.let { clip ->
+                val primary = clipboard.primaryClip
+                val token = clipboardToken(primary)
+                val metadata = primary?.let { clip ->
                     val item = clip.takeIf { it.itemCount > 0 }?.getItemAt(0)
                     // Once/minute revalidation also catches providers mutating a stable URI.
                     val bucket = android.os.SystemClock.elapsedRealtime() / 60_000
@@ -668,21 +838,15 @@ class BinderClipService : Service() {
                 runServiceWork {
                     try {
                         if (!pollAllowed() || ticket != clipboardReadCache.generation()) return@runServiceWork
-                        when (clip) {
-                            is RootClipboardBridge.Clip.Text -> {
-                                val hash = SyncProtocol.sha256Hex(clip.value)
-                                if (hash != backgroundFingerprint && hash != lastSeenHash && dispatchText(clip.value, hash)) {
-                                    backgroundFingerprint = hash
-                                    lastSeenHash = hash
-                                }
-                            }
-                            is RootClipboardBridge.Clip.Image -> {
-                                if (clip.value.sha256 != backgroundFingerprint && clip.value.sha256 != lastSeenHash && dispatchImage(clip.value, false)) {
-                                    backgroundFingerprint = clip.value.sha256
-                                    lastSeenHash = clip.value.sha256
-                                }
-                            }
-                            else -> {}
+                        val value = when (clip) {
+                            is RootClipboardBridge.Clip.Text -> LocalClipboardContent.Text(clip.value)
+                            is RootClipboardBridge.Clip.Image -> LocalClipboardContent.Image(clip.value)
+                            else -> null
+                        }
+                        if (value != null) {
+                            val changed = hasObservedClipboard && token != null && lastReadClipboardToken != null && token != lastReadClipboardToken
+                            lastReadClipboardToken = token
+                            observeClipboard(value, force = changed, bootstrap = !hasObservedClipboard)
                         }
                     } finally { pollInFlight.set(false) }
                 }
@@ -724,6 +888,7 @@ class BinderClipService : Service() {
     }
 
     private fun updateTransferStatus(status: String) {
+        if (stopping) return
         transferStatus = status
         publishState()
     }
@@ -834,6 +999,7 @@ class BinderClipService : Service() {
             description = getString(R.string.channel_browser_links_desc)
         }
         manager.createNotificationChannel(urlChannel)
+        manager.createNotificationChannel(NotificationChannel(FILE_CHANNEL, getString(R.string.received_files), NotificationManager.IMPORTANCE_DEFAULT))
     }
 
     private fun notification(statusText: String): android.app.Notification {
@@ -1110,23 +1276,6 @@ class BinderClipService : Service() {
             .setAutoCancel(true)
             .build()
         getSystemService(NotificationManager::class.java).notify(106, notif)
-    }
-
-    /** Wi-Fi/mesh first; Bluetooth carries text/links only and defers images. */
-    private fun dispatchImage(image: ImagePayload, userInitiated: Boolean): Boolean {
-        if (client.isConnected()) {
-            val queued = client.sendImage(image)
-            if (queued && userInitiated) syncToast("Sent image")
-            return queued
-        }
-        if (bluetoothLink?.isConnected() == true) {
-            if (userInitiated) syncToast("Images need Wi-Fi or mesh")
-            else if (lastDeferredImageHash != image.sha256) {
-                lastDeferredImageHash = image.sha256
-                notifyDeferredImage(image.mimeType)
-            }
-        }
-        return false
     }
 
     // MARK: - Network Monitor

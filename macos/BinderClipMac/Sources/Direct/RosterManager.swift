@@ -77,6 +77,7 @@ final class PrivateStateStore: @unchecked Sendable {
 
 /// Manages identity, peer roster, and the shared pairing key.
 final class RosterManager: @unchecked Sendable {
+    let stateDirectory: URL
     private let secureStore: PrivateStateStore
     private let defaults: UserDefaults
     private(set) var localID: String
@@ -86,6 +87,7 @@ final class RosterManager: @unchecked Sendable {
     private var unpairedIDs: Set<String> = []
 
     init(stateDirectory: URL = PrivateStateStore.applicationSupportDirectory(), defaults: UserDefaults = AppProfile.current.defaults) {
+        self.stateDirectory = stateDirectory
         self.secureStore = PrivateStateStore(directory: stateDirectory)
         self.defaults = defaults
         if let savedName = defaults.string(forKey: "device.custom_name")?.trimmingCharacters(in: .whitespacesAndNewlines),

@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,6 +95,15 @@ import java.util.Date
 
 class MainActivity : AppCompatActivity() {
     private var permissionRevision by mutableIntStateOf(0)
+    private val chooseFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) startActivity(Intent(this, ShareReceiverActivity::class.java).apply {
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "*/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            putExtra("share_as_file", true)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        })
+    }
     private val qrScanner = registerForActivityResult(io.github.g00fy2.quickie.ScanCustomCode()) { result ->
         when (result) {
             is io.github.g00fy2.quickie.QRResult.QRSuccess -> {
@@ -164,6 +174,7 @@ class MainActivity : AppCompatActivity() {
                     onScan = ::scan,
                     onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) },
                     onSend = { startService(BinderClipService.ACTION_SEND_CURRENT) },
+                    onSendFile = { chooseFiles.launch(arrayOf("*/*")) },
                     onCopy = { startService(BinderClipService.ACTION_COPY_PENDING) },
                     onReconnect = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
                     onToggleBtFallback = { enabled ->
@@ -309,6 +320,7 @@ private fun BinderClipScreen(
     onScan: () -> Unit,
     onRequestNotifications: () -> Unit,
     onSend: () -> Unit,
+    onSendFile: () -> Unit,
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
@@ -377,6 +389,9 @@ private fun BinderClipScreen(
                 }
             },
             actions = {
+                IconButton(onClick = { context.startActivity(Intent(context, ReceivedFilesActivity::class.java)) }) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = stringResource(R.string.received_files))
+                }
                 IconButton(onClick = { showLogs = true }) {
                     Icon(Icons.Outlined.Description, contentDescription = stringResource(R.string.show_logs))
                 }
@@ -450,6 +465,19 @@ private fun BinderClipScreen(
                     ); Spacer(Modifier.width(10.dp)); Text(stringResource(R.string.send_current_clipboard))
                 }
             }
+            item {
+                FilledTonalButton(onClick = onSendFile, enabled = state.peer != null,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text(stringResource(R.string.send_file))
+                }
+                Text(stringResource(R.string.file_picker_help), style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 8.dp))
+                if (state.transportType == TransportType.BLUETOOTH) Text(stringResource(R.string.file_connection_required),
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            state.transferStatus?.let { message -> item {
+                Text(message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 12.dp))
+            } }
             if (missingPermissions.isNotEmpty()) {
                 item { SectionTitle(stringResource(R.string.section_permissions), topPadding = 16.dp) }
                 items(missingPermissions.size, key = { missingPermissions[it].title }) { index ->

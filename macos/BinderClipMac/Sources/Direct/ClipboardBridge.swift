@@ -1,15 +1,15 @@
 import AppKit
-import CryptoKit
 
 final class ClipboardBridge {
-    var onLocalText: ((String) -> Void)?
-    var onLocalImage: ((ImagePayload) -> Void)?
+    var onLocalText: ((String, Bool) -> Void)?
+    var onLocalImage: ((ImagePayload, Bool) -> Void)?
+    var onLocalEmpty: ((Bool) -> Void)?
     let pasteboard: NSPasteboard
     private var changeCount: Int
-    private var echo = ClipboardEchoFilter()
     private var timer: Timer?
     private var syncActive = false
     private var running = false
+    private var hasCaptured = false
 
     init(pasteboard: NSPasteboard = AppProfile.current.pasteboard) {
         self.pasteboard = pasteboard
@@ -39,8 +39,8 @@ final class ClipboardBridge {
     private func configureTimer() {
         timer?.invalidate()
         timer = nil
-        // Nothing can consume a clipboard change while disconnected. Preserve changeCount so
-        // reconnection sends the latest content, without reading/decoding disconnected copies.
+        // Track copies while paired, including disconnected periods, so their version reflects
+        // the copy time rather than the time a network connection happens to return.
         guard running, syncActive else { return }
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
         timer.tolerance = 0.1
@@ -48,15 +48,22 @@ final class ClipboardBridge {
         self.timer = timer
     }
 
-    func applyRemote(_ text: String) {
-        echo.received("text:" + hash(text))
-        pasteboard.clearContents(); pasteboard.setString(text, forType: .string)
-        changeCount = pasteboard.changeCount
+    @discardableResult func applyRemote(_ text: String) -> Bool {
+        guard pasteboard.changeCount == changeCount else { captureChanges(); return false }
+        let generation = pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString(text, forType: .string)
+        changeCount = generation
+        hasCaptured = true
+        guard pasteboard.changeCount == generation else { captureChanges(); return false }
+        return true
     }
-    func applyRemote(_ image: ImagePayload) {
-        echo.received("image:" + image.sha256)
-        ImageClipboard.write(image, to: pasteboard)
-        changeCount = pasteboard.changeCount
+    @discardableResult func applyRemote(_ image: ImagePayload) -> Bool {
+        guard pasteboard.changeCount == changeCount else { captureChanges(); return false }
+        guard let generation = ImageClipboard.write(image, to: pasteboard, expectedChangeCount: changeCount) else { captureChanges(); return false }
+        changeCount = generation
+        hasCaptured = true
+        guard pasteboard.changeCount == generation else { captureChanges(); return false }
+        return true
     }
 
     func currentPreviewDescription() -> String? {
@@ -78,42 +85,32 @@ final class ClipboardBridge {
 
     func sendCurrentClipboard() {
         changeCount = pasteboard.changeCount
+        hasCaptured = true
         switch ClipboardClassifier.read(from: pasteboard) {
         case .text(let text):
             guard text.utf8.count <= SyncProtocol.maximumTextBytes else { DiagnosticLog.shared.error("Clipboard text is too large"); return }
-            onLocalText?(text)
-        case .image(let image): onLocalImage?(image)
+            onLocalText?(text, false)
+        case .image(let image): onLocalImage?(image, false)
         case .unsupported: DiagnosticLog.shared.warning("Clipboard content is unsupported or unavailable")
         }
     }
 
+    func captureChanges() { poll() }
+
     private func poll() {
         EnergyCounters.add("clipboard.poll")
-        guard pasteboard.changeCount != changeCount else { return }
+        guard !isAccessDenied, !hasCaptured || pasteboard.changeCount != changeCount else { return }
+        let bootstrap = !hasCaptured
+        hasCaptured = true
         changeCount = pasteboard.changeCount
         EnergyCounters.add("clipboard.decode")
         switch ClipboardClassifier.read(from: pasteboard) {
         case .image(let image):
-            guard echo.shouldPublish("image:" + image.sha256) else { return }
-            onLocalImage?(image)
+            onLocalImage?(image, bootstrap)
         case .text(let text):
             guard text.utf8.count <= SyncProtocol.maximumTextBytes else { return }
-            let digest = hash(text)
-            guard echo.shouldPublish("text:" + digest) else { return }
-            onLocalText?(text)
-        case .unsupported: break
+            onLocalText?(text, bootstrap)
+        case .unsupported: onLocalEmpty?(bootstrap)
         }
-    }
-    private func hash(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
-}
-
-
-/// A local change consumes the prior echo marker, even when its type or value differs.
-struct ClipboardEchoFilter {
-    private var fingerprint: String?
-    mutating func received(_ value: String) { fingerprint = value }
-    mutating func shouldPublish(_ value: String) -> Bool {
-        defer { fingerprint = nil }
-        return value != fingerprint
     }
 }

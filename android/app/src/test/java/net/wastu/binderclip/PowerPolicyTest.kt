@@ -19,9 +19,9 @@ class PowerPolicyTest {
         assertFalse(PowerPolicy.shouldProbePreferredTransport(false, false, true, true))
     }
     @Test fun startupWithScreenOffDoesNotPoll() {
-        assertFalse(PowerPolicy.shouldPoll(true, false, true, true))
-        assertFalse(PowerPolicy.shouldPoll(true, true, true, false))
-        assertTrue(PowerPolicy.shouldPoll(true, true, true, true))
+        assertFalse(PowerPolicy.shouldPoll(true, false, true))
+        assertFalse(PowerPolicy.shouldPoll(true, true, false))
+        assertTrue(PowerPolicy.shouldPoll(true, true, true))
     }
     @Test fun sleepingHeartbeatFitsDeadline() {
         assertTrue(PowerPolicy.heartbeatMs(false) > PowerPolicy.heartbeatMs(true))
