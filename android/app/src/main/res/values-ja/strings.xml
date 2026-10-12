@@ -146,4 +146,10 @@
     <string name="file_saved">ファイルを保存しました</string>
     <string name="file_save_failed">保存できませんでした。別の場所を選んでください。</string>
     <string name="file_open_failed">このファイルを開けるアプリがありません。名前を付けて保存を使用してください。</string>
+    <string name="share_preparing">送信を準備中…</string>
+    <string name="transfer_queued">Wi-Fi またはメッシュ接続を待っています。Mac が再接続するとファイルを送信します。</string>
+    <string name="transfer_kind_text">テキスト</string>
+    <string name="hide_transfer">非表示</string>
+    <string name="cancel_transfer">転送をキャンセル</string>
+    <string name="transfer_cancelled">転送をキャンセルしました</string>
 </resources>

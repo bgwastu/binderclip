@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -72,6 +73,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
@@ -175,6 +177,11 @@ class MainActivity : AppCompatActivity() {
                     onRequestNotifications = { if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) },
                     onSend = { startService(BinderClipService.ACTION_SEND_CURRENT) },
                     onSendFile = { chooseFiles.launch(arrayOf("*/*")) },
+                    onCancelTransfer = { id ->
+                        ContextCompat.startForegroundService(this, Intent(this, BinderClipService::class.java)
+                            .setAction(BinderClipService.ACTION_CANCEL_TRANSFER)
+                            .putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
+                    },
                     onCopy = { startService(BinderClipService.ACTION_COPY_PENDING) },
                     onReconnect = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
                     onToggleBtFallback = { enabled ->
@@ -312,7 +319,7 @@ class MainActivity : AppCompatActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
-private fun BinderClipScreen(
+internal fun BinderClipScreen(
     state: AppState,
     notificationsGranted: Boolean,
     bluetoothGranted: Boolean,
@@ -321,6 +328,7 @@ private fun BinderClipScreen(
     onRequestNotifications: () -> Unit,
     onSend: () -> Unit,
     onSendFile: () -> Unit,
+    onCancelTransfer: (String) -> Unit,
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
@@ -359,19 +367,19 @@ private fun BinderClipScreen(
     LaunchedEffect(bluetoothGranted, state.btFallbackEnabled) {
         if (state.btFallbackEnabled && !bluetoothGranted) onToggleBtFallback(false)
     }
-    var sentOverlayMessage by remember { mutableStateOf<String?>(null) }
-    var sentOverlayIsSuccess by remember { mutableStateOf(true) }
-
-    LaunchedEffect(state.status) {
-        if (state.status.startsWith("Sending") || state.status.startsWith("Offering") || state.status.startsWith("Opening link")) {
-            sentOverlayMessage = state.status
-            sentOverlayIsSuccess = false
-        } else if (state.status == "Sent URL to peer" || state.status == "Image sent" || state.status.startsWith("Received") || state.status.startsWith("Opened URL")) {
-            sentOverlayMessage = if (state.status == "Sent URL to peer") context.getString(R.string.url_sent_success) else if (state.status == "Image sent") context.getString(R.string.image_sent_success) else state.status
-            sentOverlayIsSuccess = true
-            kotlinx.coroutines.delay(2200)
-            sentOverlayMessage = null
+    var visibleTransfer by remember { mutableStateOf<TransferProgress?>(null) }
+    var hiddenTransferId by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.transferRevision, hiddenTransferId) {
+        if (state.transferProgress?.transferId != null && state.transferProgress.transferId == hiddenTransferId) {
+            visibleTransfer = null
+            return@LaunchedEffect
         }
+        if (state.transferProgress?.isSuccess == true) {
+            val remaining = 3000 - (android.os.SystemClock.elapsedRealtime() - state.transferUpdatedAtMs)
+            visibleTransfer = state.transferProgress.takeIf { remaining > 0 }
+            if (remaining > 0) kotlinx.coroutines.delay(remaining)
+            visibleTransfer = null
+        } else visibleTransfer = state.transferProgress
     }
 
     Scaffold(topBar = {
@@ -389,6 +397,9 @@ private fun BinderClipScreen(
                 }
             },
             actions = {
+                if (state.peer != null) IconButton(onClick = onScan) {
+                    Icon(Icons.Outlined.QrCodeScanner, contentDescription = stringResource(R.string.scan_qr_to_pair))
+                }
                 IconButton(onClick = { context.startActivity(Intent(context, ReceivedFilesActivity::class.java)) }) {
                     Icon(Icons.Outlined.FolderOpen, contentDescription = stringResource(R.string.received_files))
                 }
@@ -406,13 +417,10 @@ private fun BinderClipScreen(
             refreshScope.launch { kotlinx.coroutines.delay(1200); refreshing = false }
         })
         Box(modifier = Modifier.fillMaxSize().padding(insets)) {
-            PullRefreshIndicator(
-                refreshing = refreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
             LazyColumn(
                 modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 600.dp)
                     .fillMaxSize()
                     .pullRefresh(pullRefreshState, refreshing),
                 contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
@@ -435,131 +443,109 @@ private fun BinderClipScreen(
                         transportType = state.transportType,
                         onClick = { selectedDeviceId = device.deviceId })
                 }
-                if (devices.isNotEmpty()) item { Spacer(Modifier.height(12.dp)) }
-            item {
-                FilledTonalButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onScan()
-                }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Icon(
-                        Icons.Outlined.QrCodeScanner,
-                        contentDescription = null
-                    ); Spacer(Modifier.width(10.dp)); Text(stringResource(R.string.scan_qr_to_pair))
-                }
-            }
-            item {
-                Spacer(Modifier.height(8.dp))
-            }
-            item {
-                Button(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSend()
-                    },
-                    enabled = devices.any { it.connected },
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Outlined.Send,
-                        contentDescription = null
-                    ); Spacer(Modifier.width(10.dp)); Text(stringResource(R.string.send_current_clipboard))
-                }
-            }
-            item {
-                FilledTonalButton(onClick = onSendFile, enabled = state.peer != null,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text(stringResource(R.string.send_file))
-                }
-                Text(stringResource(R.string.file_picker_help), style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 8.dp))
-                if (state.transportType == TransportType.BLUETOOTH) Text(stringResource(R.string.file_connection_required),
-                    style = MaterialTheme.typography.bodySmall)
-            }
-            state.transferStatus?.let { message -> item {
-                Text(message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 12.dp))
-            } }
-            if (missingPermissions.isNotEmpty()) {
-                item { SectionTitle(stringResource(R.string.section_permissions), topPadding = 16.dp) }
-                items(missingPermissions.size, key = { missingPermissions[it].title }) { index ->
-                    PermissionRow(missingPermissions[index])
-                    if (index != missingPermissions.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
-                }
-            }
-            if (state.pendingText || state.pendingImage) item {
-                ListItem(
-                    headlineContent = { Text(if (state.pendingImage) stringResource(R.string.image_ready_to_copy) else stringResource(R.string.text_ready_to_copy)) },
-                    trailingContent = { TextButton(onClick = onCopy) { Text(stringResource(R.string.copy)) } })
-            }
-            item { SectionTitle(stringResource(R.string.section_settings), topPadding = 16.dp) }
-            item {
-                PreferenceToggle(
-                    title = stringResource(R.string.bt_fallback_title),
-                    summary = when {
-                        !bluetoothGranted -> stringResource(R.string.bt_fallback_desc_needs_permission)
-                        !state.btFallbackEnabled -> stringResource(R.string.bt_fallback_desc_off)
-                        !state.bluetoothEnabled -> stringResource(R.string.bt_fallback_desc_disabled)
-                        else -> stringResource(R.string.bt_fallback_desc_on)
-                    },
-                    checked = state.btFallbackEnabled,
-                    enabled = bluetoothGranted,
-                    onChanged = onToggleBtFallback,
-                )
-            }
-            if (state.btFallbackEnabled && !state.bluetoothEnabled) item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.bt_is_off_title)) },
-                    supportingContent = { Text(stringResource(R.string.bt_is_off_desc)) },
-                    trailingContent = { TextButton(onClick = onRequestBluetooth) { Text(stringResource(R.string.turn_on)) } },
-                )
-            }
-        }
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = sentOverlayMessage != null,
-                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically(initialOffsetY = { it / 2 }),
-                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically(targetOffsetY = { it / 2 }),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-            ) {
-                sentOverlayMessage?.let { msg ->
-                    Surface(
-                        shape = RoundedCornerShape(24.dp),
-                        color = if (sentOverlayIsSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        shadowElevation = 6.dp,
-                        tonalElevation = 4.dp,
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            if (sentOverlayIsSuccess) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            } else {
-                                androidx.compose.material3.CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
+                        if (devices.isEmpty()) {
+                            Button(onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onScan()
+                            }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                                Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(stringResource(R.string.scan_qr_to_pair))
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSend()
+                                },
+                                enabled = state.peer?.connected == true,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            ) {
+                                Icon(Icons.Outlined.ContentPaste, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(stringResource(R.string.send_current_clipboard))
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSendFile()
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            ) {
+                                Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(stringResource(R.string.send_file))
+                            }
+                            if (state.transportType == TransportType.BLUETOOTH || state.peer?.connected != true) {
+                                Text(
+                                    stringResource(R.string.file_connection_required),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Text(
-                                text = msg,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (sentOverlayIsSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
+                }
+                if (missingPermissions.isNotEmpty()) {
+                    item { SectionTitle(stringResource(R.string.section_permissions), topPadding = 16.dp) }
+                    items(missingPermissions.size, key = { missingPermissions[it].title }) { index ->
+                        PermissionRow(missingPermissions[index])
+                        if (index != missingPermissions.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
                     }
                 }
+                if (state.pendingText || state.pendingImage) item {
+                    ListItem(
+                        headlineContent = { Text(if (state.pendingImage) stringResource(R.string.image_ready_to_copy) else stringResource(R.string.text_ready_to_copy)) },
+                        trailingContent = { TextButton(onClick = onCopy) { Text(stringResource(R.string.copy)) } })
+                }
+                item { SectionTitle(stringResource(R.string.section_settings), topPadding = 16.dp) }
+                item {
+                    PreferenceToggle(
+                        title = stringResource(R.string.bt_fallback_title),
+                        summary = when {
+                            !bluetoothGranted -> stringResource(R.string.bt_fallback_desc_needs_permission)
+                            !state.btFallbackEnabled -> stringResource(R.string.bt_fallback_desc_off)
+                            !state.bluetoothEnabled -> stringResource(R.string.bt_fallback_desc_disabled)
+                            else -> stringResource(R.string.bt_fallback_desc_on)
+                        },
+                        checked = state.btFallbackEnabled,
+                        enabled = bluetoothGranted,
+                        onChanged = onToggleBtFallback,
+                    )
+                }
+                if (state.btFallbackEnabled && !state.bluetoothEnabled) item {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.bt_is_off_title)) },
+                        supportingContent = { Text(stringResource(R.string.bt_is_off_desc)) },
+                        trailingContent = { TextButton(onClick = onRequestBluetooth) { Text(stringResource(R.string.turn_on)) } },
+                    )
+                }
+            }
+
+            PullRefreshIndicator(
+                refreshing = refreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+            visibleTransfer?.takeUnless { it.transferId != null && it.transferId == hiddenTransferId }?.let { progress ->
+                TransferStatusOverlay(
+                    progress = progress,
+                    onDismiss = {
+                        if (progress.isBusy || progress.canCancel) hiddenTransferId = progress.transferId
+                        visibleTransfer = null
+                    },
+                    onCancel = { progress.transferId?.let(onCancelTransfer) },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 16.dp).widthIn(max = 560.dp),
+                )
             }
         }
+    }
     val selectedDevice = devices.firstOrNull { it.deviceId == selectedDeviceId }
     var deviceToRename by remember { mutableStateOf<RememberedPeer?>(null) }
     var renameInput by remember { mutableStateOf("") }

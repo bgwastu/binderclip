@@ -47,6 +47,9 @@ data class AppState(
     val pendingText: Boolean = false,
     val pendingImage: Boolean = false,
     val transferStatus: String? = null,
+    val transferProgress: TransferProgress? = null,
+    val transferRevision: Long = 0,
+    val transferUpdatedAtMs: Long = 0,
     val members: List<RememberedPeer> = emptyList(),
     val rootAvailable: Boolean = false,
     val automaticClipboardEnabled: Boolean = false,
@@ -77,6 +80,8 @@ class BinderClipService : Service() {
         val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
         val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
         val ACTION_SEND_SHARED = "${BuildConfig.APPLICATION_ID}.SEND_SHARED"
+        val ACTION_CANCEL_TRANSFER = "${BuildConfig.APPLICATION_ID}.CANCEL_TRANSFER"
+        const val EXTRA_TRANSFER_ID = "transfer_id"
         val ACTION_SEARCH_RECONNECT = "${BuildConfig.APPLICATION_ID}.SEARCH_RECONNECT"
         const val EXTRA_MEMBER_ID = "member_id"
         const val EXTRA_TARGET_DEVICE_ID = "target_device_id"
@@ -150,6 +155,9 @@ class BinderClipService : Service() {
     private var btClipboardReady = false
     private var pendingImage: ImagePayload? = null
     private var transferStatus: String? = null
+    private var transferProgress: TransferProgress? = null
+    private var transferRevision = 0L
+    private var transferUpdatedAtMs = 0L
     private var lastError: String? = null
     private var pairingHint: String? = null
 
@@ -226,7 +234,6 @@ class BinderClipService : Service() {
             onOpenUrl = ::receiveOpenUrl,
             onImage = ::receiveImage,
             onFile = ::receiveFile,
-            transferMessage = { it.message(this) },
             onTransferStatus = ::updateTransferStatus,
             onStatus = ::updateStatus,
             onFailure = ::reportFailure,
@@ -241,6 +248,9 @@ class BinderClipService : Service() {
             },
             onRosterChanged = { publishState() },
             onDisconnected = {
+                transferProgress?.takeIf { it.isBusy }?.let {
+                    updateTransferStatus(it.copy(state = TransferProgress.State.PAUSED))
+                }
                 runServiceWork { wsClipboardReady = false }
                 // If the WebSocket just dropped and we had handed the session to it after tearing
                 // down Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is
@@ -416,11 +426,20 @@ class BinderClipService : Service() {
             ACTION_SEND_SHARED -> {
                 runServiceWork {
                     drainQueuedShares()
+                    if (!client.isConnected()) {
+                        FileTransferStore.forContext(this).next(store.peer?.deviceId.orEmpty())?.let {
+                            updateTransferStatus(it.metadata.progress(TransferProgress.State.QUEUED))
+                        }
+                    }
                     client.resumeQueuedTransfers()
                     if (!client.isConnected() && !client.isConnecting()) {
                         client.forceReconnect()
                     }
                 }
+            }
+
+            ACTION_CANCEL_TRANSFER -> intent?.getStringExtra(EXTRA_TRANSFER_ID)?.let { id ->
+                runServiceWork { client.cancelTransfer(id) }
             }
 
             ACTION_COPY_PENDING -> {
@@ -582,6 +601,7 @@ class BinderClipService : Service() {
     private fun saveClipboardVersion() { store.saveClipboardCheckpoint(clipboardOrdering.checkpoint()) }
 
     private fun resetClipboardOrdering() {
+        transferProgress = null; transferStatus = null; transferRevision += 1
         clipboardOrdering.reset(); currentClipboard = null; lastReadFingerprint = null; hasObservedClipboard = false
         remoteClipboardEcho = null; remoteClipboardToken = null; lastReadClipboardToken = null
         wsClipboardReady = false; btClipboardReady = false
@@ -630,9 +650,17 @@ class BinderClipService : Service() {
         remoteClipboardEcho = null
         val changed = fromCallback && (token == null || token != lastReadClipboardToken)
         lastReadClipboardToken = token
-        val stamp = observeClipboard(value, force = userInitiated || changed, bootstrap = !hasObservedClipboard && !fromCallback)
-        if (userInitiated && stamp != null && value != LocalClipboardContent.Unsupported) syncToast(getString(R.string.share_queued))
-        else if (userInitiated && value == LocalClipboardContent.Unsupported) toast("Clipboard content is unsupported")
+        val stamp = observeClipboard(value, force = userInitiated || changed,
+            bootstrap = !hasObservedClipboard && !fromCallback, publish = !userInitiated)
+        if (userInitiated && stamp != null && value != LocalClipboardContent.Unsupported) {
+            val sent = publishClipboard(stamp)
+            if (value is LocalClipboardContent.Text) {
+                updateTransferStatus(TransferProgress(
+                    if (sent) TransferProgress.State.SENT else TransferProgress.State.PAUSED, "text"))
+            } else if (!sent && value is LocalClipboardContent.Image) {
+                updateTransferStatus(TransferProgress(TransferProgress.State.PAUSED, "image"))
+            }
+        } else if (userInitiated && value == LocalClipboardContent.Unsupported) toast("Clipboard content is unsupported")
     }
 
     private fun publishClipboard(stamp: ClipboardStamp, websocket: Boolean? = null): Boolean {
@@ -785,6 +813,7 @@ class BinderClipService : Service() {
                 applyText(text)
             }
             DiagnosticLog.info("Queued share sent (${if (isLink) "link" else "text"})")
+            updateTransferStatus(TransferProgress(TransferProgress.State.SENT, if (isLink) "link" else "text"))
         }
     }
 
@@ -887,9 +916,12 @@ class BinderClipService : Service() {
         publishState()
     }
 
-    private fun updateTransferStatus(status: String) {
+    @Synchronized private fun updateTransferStatus(progress: TransferProgress) {
         if (stopping) return
-        transferStatus = status
+        transferProgress = progress
+        transferStatus = progress.message(this)
+        transferRevision += 1
+        transferUpdatedAtMs = android.os.SystemClock.elapsedRealtime()
         publishState()
     }
 
@@ -949,6 +981,9 @@ class BinderClipService : Service() {
             pendingText = store.pendingText != null,
             pendingImage = pendingImage != null,
             transferStatus = transferStatus,
+            transferProgress = transferProgress,
+            transferRevision = transferRevision,
+            transferUpdatedAtMs = transferUpdatedAtMs,
             members = members,
             rootAvailable = rootAvailable,
             automaticClipboardEnabled = automaticClipboardEnabled,

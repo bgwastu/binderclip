@@ -146,4 +146,10 @@
     <string name="file_saved">Файл сохранён</string>
     <string name="file_save_failed">Не удалось сохранить файл. Выберите другое место.</string>
     <string name="file_open_failed">Нет приложения для открытия файла. Используйте Сохранить как.</string>
+    <string name="share_preparing">Подготовка к отправке…</string>
+    <string name="transfer_queued">Ожидание Wi-Fi или mesh. Файлы будут отправлены, когда Mac подключится снова.</string>
+    <string name="transfer_kind_text">текст</string>
+    <string name="hide_transfer">Скрыть</string>
+    <string name="cancel_transfer">Отменить передачу</string>
+    <string name="transfer_cancelled">Передача отменена</string>
 </resources>

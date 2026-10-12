@@ -11,9 +11,6 @@ import java.util.ArrayDeque
 import java.util.concurrent.Executors
 
 class FileTransferTest {
-    @get:Rule val temporary = TemporaryFolder()
-    private val id = "00000000-0000-0000-0000-000000000001"
-
     @Test fun failedShareBatchCannotSendItsFirstFileBeforeReportingImportFailure() {
         val root = temporary.newFolder()
         val importer = FileTransferStore(root)
@@ -41,6 +38,9 @@ class FileTransferTest {
         } finally { executor.shutdownNow() }
     }
 
+    @get:Rule val temporary = TemporaryFolder()
+    private val id = "00000000-0000-0000-0000-000000000001"
+
     @Test fun streamCloseFailureCannotLeaveASendableFileBehindAnImportError() {
         val store = FileTransferStore(temporary.newFolder())
         assertThrows(java.io.IOException::class.java) {
@@ -51,16 +51,6 @@ class FileTransferTest {
             }))
         }
         assertNull("Import error must never leave the file available to send", store.next("mac"))
-    }
-
-    @Test fun pairingChangeDuringImportRollsBackTheEntireSelection() {
-        val store = FileTransferStore(temporary.newFolder())
-        assertThrows(IllegalStateException::class.java) {
-            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
-                byteArrayOf(1).inputStream()
-            })) { error("Pairing changed") }
-        }
-        assertNull(store.next("mac"))
     }
 
     @Test fun chunkMatchesCrossPlatformWireVectorAndRejectsMalformedFrames() {
@@ -187,6 +177,7 @@ class FileTransferTest {
         var deliveredImage: ImagePayload? = null
         var deliveredFiles = 0
         val resumeOffsets = ArrayList<Long>()
+        val senderProgress = ArrayList<TransferProgress>()
         private fun enqueue(toReceiver: Boolean, kind: Byte, bytes: ByteArray): Boolean {
             val encrypted = (if (toReceiver) client else server).seal(bytes, kind)
             queue.add(Packet(toReceiver, kind, encrypted))
@@ -195,7 +186,7 @@ class FileTransferTest {
         }
         val a = ChunkedTransferSession("mac", sender, executor,
             sendText = { enqueue(true, 1, it.toString().toByteArray()) }, sendBinary = { enqueue(true, 2, it) },
-            disconnect = { fail("Unexpected disconnect") }, onImage = { fail("Wrong image direction") }, onFile = { fail("Wrong file direction") }, onStatus = {})
+            disconnect = { fail("Unexpected disconnect") }, onImage = { fail("Wrong image direction") }, onFile = { fail("Wrong file direction") }, onStatus = { senderProgress += it })
         val b = ChunkedTransferSession("phone", receiver, executor,
             sendText = { if (it.optString("type") == "transfer_ack") resumeOffsets += it.getLong("offset"); enqueue(false, 1, it.toString().toByteArray()) },
             sendBinary = { enqueue(false, 2, it) }, disconnect = { fail("Unexpected disconnect") },
@@ -209,6 +200,98 @@ class FileTransferTest {
         }
         fun drain() { var count = 0; while (step()) { check(++count < 1000) } }
         override fun close() { a.close(); b.close(); executor.shutdownNow() }
+    }
+
+    @Test fun successFeedbackWaitsForTheReceivingMacToConfirmDelivery() {
+        val sender = FileTransferStore(temporary.newFolder())
+        val receiver = FileTransferStore(temporary.newFolder())
+        val staged = sender.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
+            byteArrayOf(1, 2, 3).inputStream()
+        }))
+        Wire(sender, receiver).use { wire ->
+            wire.a.pump()
+            assertTrue(wire.senderProgress.last().isBusy)
+            assertFalse(wire.senderProgress.any { it.isSuccess })
+            assertTrue(wire.step()) // Offer reaches receiver.
+            assertTrue(wire.step()) // Sender gets acknowledgement and sends final chunk.
+            assertEquals(100, wire.senderProgress.last().percent)
+            assertFalse("100% sent bytes still needs a delivery receipt", wire.senderProgress.last().isSuccess)
+            assertFalse("Final bytes in flight cannot be cancelled reliably", wire.senderProgress.last().canCancel)
+            assertTrue(wire.a.cancel(staged.single().metadata.id)) // A tap racing the final chunk must wait for the receipt.
+            assertEquals(TransferProgress.State.SENDING, wire.senderProgress.last().state)
+            assertNotNull(sender.next("mac"))
+            assertTrue(wire.step()) // Receiver commits, receipt still on wire.
+            assertFalse(wire.senderProgress.last().isSuccess)
+            assertTrue(wire.step()) // Mac's transfer_done confirms delivery.
+            assertEquals(TransferProgress.State.SENT, wire.senderProgress.last().state)
+            assertTrue("Feedback must identify the share it belongs to",
+                wire.senderProgress.all { it.transferId == staged.single().metadata.id })
+            assertTrue("Filename and MIME type must survive every transfer status",
+                wire.senderProgress.all { it.fileName == "report.txt" && it.mimeType == "text/plain" })
+            assertTrue(wire.senderProgress.last().isSuccess)
+            assertFalse(wire.senderProgress.last().isBusy)
+            assertFalse(wire.senderProgress.last().isError)
+            assertNull(sender.next("mac"))
+        }
+    }
+
+    @Test fun cancellingAnActiveSendStopsChunksAndIgnoresLateAcknowledgements() {
+        val senderRoot = temporary.newFolder()
+        val sender = FileTransferStore(senderRoot)
+        val receiver = FileTransferStore(temporary.newFolder())
+        val transfer = sender.stage("mac", "report.pdf", "application/pdf", "file",
+            ByteArray(FileTransferProtocol.CHUNK_BYTES * 3).inputStream())
+        Wire(sender, receiver).use { wire ->
+            wire.a.pump()
+            assertTrue(wire.step()) // Offer.
+            assertTrue(wire.step()) // First chunk goes on the wire.
+            assertTrue(wire.a.cancel(transfer.metadata.id))
+            assertFalse("Cancellation is idempotent", wire.a.cancel(transfer.metadata.id))
+            wire.drain() // Includes the acknowledgement for the chunk already in flight.
+            wire.a.handle(JSONObject().put("type", "transfer_done").put("id", transfer.metadata.id))
+            assertEquals(TransferProgress.State.CANCELLED, wire.senderProgress.last().state)
+            assertEquals("report.pdf", wire.senderProgress.last().fileName)
+            assertEquals(1, wire.senderProgress.count { it.state == TransferProgress.State.SENDING })
+            assertTrue(receiver.receivedFiles().isEmpty())
+            assertNull(FileTransferStore(senderRoot).next("mac"))
+        }
+    }
+
+    @Test fun cancellingOneFileContinuesTheNextFileWithoutCompletingTheCancelledOne() {
+        val sender = FileTransferStore(temporary.newFolder())
+        val receiver = FileTransferStore(temporary.newFolder())
+        sender.stage("mac", "first.txt", "text/plain", "file", byteArrayOf(1).inputStream())
+        sender.stage("mac", "second.txt", "text/plain", "file", byteArrayOf(2).inputStream())
+        val first = sender.next("mac")!!
+        val remainingName = listOf("first.txt", "second.txt").single { it != first.metadata.name }
+        Wire(sender, receiver).use { wire ->
+            wire.a.pump()
+            assertTrue(wire.a.cancel(first.metadata.id)) // Before the first offer is acknowledged.
+            wire.drain()
+            assertEquals(listOf(remainingName), receiver.receivedFiles().map { it.metadata.name })
+            assertFalse(wire.senderProgress.any { it.transferId == first.metadata.id && it.isSuccess })
+            assertEquals(TransferProgress.State.SENT, wire.senderProgress.last().state)
+        }
+    }
+
+    @Test fun queuedCancellationIsPeerBoundAndSurvivesRestart() {
+        val root = temporary.newFolder()
+        val store = FileTransferStore(root)
+        val first = store.stage("mac", "first.txt", "text/plain", "file", byteArrayOf(1).inputStream())
+        assertNull(store.cancelOutgoing("other-mac", first.metadata.id))
+        assertNotNull(store.next("mac"))
+        assertEquals(first.metadata, store.cancelOutgoing("mac", first.metadata.id))
+        assertNull(FileTransferStore(root).next("mac"))
+    }
+
+    @Test fun pairingChangeDuringImportRollsBackTheEntireSelection() {
+        val store = FileTransferStore(temporary.newFolder())
+        assertThrows(IllegalStateException::class.java) {
+            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
+                byteArrayOf(1).inputStream()
+            })) { error("Pairing changed") }
+        }
+        assertNull(store.next("mac"))
     }
 
     @Test fun seventeenMiBImageUsesBoundedEncryptedChunks() {

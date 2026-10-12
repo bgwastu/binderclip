@@ -42,7 +42,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/image_paths" />
         </provider>
-        <activity android:name=".ShareReceiverActivity" android:exported="true" android:theme="@style/Theme.BinderClip" android:configChanges="orientation|screenSize">
+        <activity android:name=".ShareReceiverActivity" android:exported="true" android:theme="@style/Theme.BinderClip.ShareOverlay" android:configChanges="orientation|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

@@ -25,8 +25,7 @@ internal class WebSocketClient(
     private val onOpenUrl: (String) -> Unit,
     private val onImage: (ImagePayload) -> Unit,
     private val onFile: (ReceivedFile) -> Unit,
-    private val transferMessage: (TransferProgress) -> String,
-    private val onTransferStatus: (String) -> Unit,
+    private val onTransferStatus: (TransferProgress) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onFailure: (String) -> Unit,
     private val onPeerIdentity: (String, String) -> Unit,
@@ -334,7 +333,7 @@ internal class WebSocketClient(
                         sendText = { activeSocket === webSocket && sendSecureText(webSocket, it.toString()) },
                         sendBinary = { activeSocket === webSocket && sendSecureBinary(webSocket, it) },
                         disconnect = { webSocket.cancel() },
-                        onImage = onImage, onFile = onFile, onStatus = { onTransferStatus(transferMessage(it)) },
+                        onImage = onImage, onFile = onFile, onStatus = onTransferStatus,
                         onOrderedImage = { image, stamp ->
                             if (activeSocket === webSocket) {
                                 if (onSyncImage != null) onSyncImage.invoke(image, stamp) else onImage(image)
@@ -458,7 +457,7 @@ internal class WebSocketClient(
         val imagePayload = ImagePayload(id = meta.id, mimeType = meta.mimeType, data = imageData)
         Log.i(TAG, "handleBinaryMessage: unpacked ${imagePayload.mimeType} (${imageData.size} bytes)")
         if (onSyncImage != null) onSyncImage.invoke(imagePayload, meta.clipboard) else onImage(imagePayload)
-        onTransferStatus("Received image (${meta.mimeType})")
+        onTransferStatus(TransferProgress(TransferProgress.State.RECEIVED, "image"))
     }
 
     private fun handleSocketClosed(webSocket: WebSocket, endpoint: String, reason: String) {
@@ -512,10 +511,27 @@ internal class WebSocketClient(
     fun resumeQueuedTransfers() {
         val socket = activeSocket ?: return
         if (!supportsChunkedTransfers) {
-            if (transferStore.next(store.peer?.deviceId.orEmpty()) != null) onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.UPDATE_REQUIRED)))
+            transferStore.next(store.peer?.deviceId.orEmpty())?.let {
+                onTransferStatus(it.metadata.progress(TransferProgress.State.UPDATE_REQUIRED))
+            }
             return
         }
         transferExecutor.execute { transferSessions[socket]?.pump() }
+    }
+
+    fun cancelTransfer(id: String) {
+        if (!FileTransferProtocol.validId(id)) return
+        transferExecutor.execute {
+            try {
+                val session = activeSocket?.let { transferSessions[it] }
+                if (session?.cancel(id) == true) return@execute
+                val metadata = transferStore.cancelOutgoing(store.peer?.deviceId.orEmpty(), id) ?: return@execute
+                onTransferStatus(metadata.progress(TransferProgress.State.CANCELLED))
+                session?.pump()
+            } catch (_: Exception) {
+                onTransferStatus(TransferProgress(TransferProgress.State.FAILED, transferId = id))
+            }
+        }
     }
 
     private fun closeTransferSessions() {
@@ -574,16 +590,16 @@ internal class WebSocketClient(
                 image.data.inputStream().use { transferStore.stage(peerId, "image", image.mimeType, "image", it, stamp) }
                 resumeQueuedTransfers()
                 true
-            }.getOrElse { onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.FAILED))); false }
+            }.getOrElse { onTransferStatus(TransferProgress(TransferProgress.State.FAILED)); false }
         }
         // Older Macs cannot acknowledge chunks. Do not overflow OkHttp's 16 MiB send queue.
         if (image.data.size > 8 * 1024 * 1024) {
-            onTransferStatus(transferMessage(TransferProgress(TransferProgress.State.UPDATE_REQUIRED)))
+            onTransferStatus(TransferProgress(TransferProgress.State.UPDATE_REQUIRED))
             return false
         }
         val packet = SyncProtocol.packImage(image, store.deviceId, stamp)
         val queued = sendSecureBinary(socket, packet)
-        if (queued) onTransferStatus("Sent image (${image.mimeType})")
+        if (queued) onTransferStatus(TransferProgress(TransferProgress.State.SENT, "image"))
         return queued
     }
 

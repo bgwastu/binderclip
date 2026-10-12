@@ -146,4 +146,10 @@
     <string name="file_saved">Archivo guardado</string>
     <string name="file_save_failed">No se pudo guardar. Prueba otra ubicación.</string>
     <string name="file_open_failed">Ninguna aplicación puede abrir este archivo. Usa Guardar como.</string>
+    <string name="share_preparing">Preparando el envío…</string>
+    <string name="transfer_queued">Esperando Wi-Fi o mesh. Los archivos se enviarán cuando el Mac se conecte de nuevo.</string>
+    <string name="transfer_kind_text">texto</string>
+    <string name="hide_transfer">Ocultar</string>
+    <string name="cancel_transfer">Cancelar envío</string>
+    <string name="transfer_cancelled">Envío cancelado</string>
 </resources>

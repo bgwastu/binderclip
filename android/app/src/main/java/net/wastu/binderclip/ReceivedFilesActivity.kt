@@ -55,8 +55,8 @@ class ReceivedFilesActivity : ComponentActivity() {
         setContent {
             BinderClipTheme {
                 val runtime by AppRuntime.state.collectAsState()
-                LaunchedEffect(runtime.transferStatus) {
-                    if (runtime.transferStatus == getString(R.string.transfer_received, getString(R.string.transfer_kind_file))) refresh()
+                LaunchedEffect(runtime.transferRevision) {
+                    if (runtime.transferProgress?.let { it.state == TransferProgress.State.RECEIVED && it.kind == "file" } == true) refresh()
                 }
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) {

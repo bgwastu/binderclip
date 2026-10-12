@@ -103,16 +103,36 @@ internal data class TransferReceipt(val offset: Long, val completed: Boolean)
 
 internal data class SharedFileSource(val name: String, val mimeType: String, val kind: String, val open: () -> InputStream)
 
-internal data class TransferProgress(val state: State, val kind: String = "file", val percent: Int = 0) {
-    enum class State { OFFERING, RECEIVING, SENDING, SENT, RECEIVED, DECLINED, FAILED, INVALID, PAUSED, UPDATE_REQUIRED }
+data class TransferProgress(
+    val state: State,
+    val kind: String = "file",
+    val percent: Int = 0,
+    val transferId: String? = null,
+    val fileName: String? = null,
+    val mimeType: String? = null,
+    val isOutgoing: Boolean = true,
+) {
+    enum class State { QUEUED, OFFERING, RECEIVING, SENDING, SENT, RECEIVED, CANCELLED, DECLINED, FAILED, INVALID, PAUSED, UPDATE_REQUIRED }
+    val canCancel: Boolean get() = isOutgoing && transferId != null &&
+        (state == State.SENDING && percent < 100 || state in
+            setOf(State.QUEUED, State.OFFERING, State.PAUSED, State.UPDATE_REQUIRED))
+    val isBusy: Boolean get() = state in setOf(State.OFFERING, State.RECEIVING, State.SENDING)
+    val isSuccess: Boolean get() = state in setOf(State.SENT, State.RECEIVED)
+    val isError: Boolean get() = state in setOf(State.DECLINED, State.FAILED, State.INVALID, State.UPDATE_REQUIRED)
     fun message(context: android.content.Context): String {
-        val label = context.getString(if (kind == "image") R.string.transfer_kind_image else R.string.transfer_kind_file)
+        val label = context.getString(when (kind) {
+            "image" -> R.string.transfer_kind_image
+            "text" -> R.string.transfer_kind_text
+            else -> R.string.transfer_kind_file
+        })
         return when (state) {
+            State.QUEUED -> context.getString(R.string.transfer_queued)
             State.OFFERING -> context.getString(R.string.transfer_offering, label)
             State.RECEIVING -> context.getString(R.string.transfer_receiving, label) + if (percent > 0) " ($percent%)" else ""
             State.SENDING -> context.getString(R.string.transfer_sending, label, percent)
-            State.SENT -> context.getString(R.string.transfer_sent, label)
+            State.SENT -> if (kind == "link") context.getString(R.string.url_sent_success) else context.getString(R.string.transfer_sent, label)
             State.RECEIVED -> context.getString(R.string.transfer_received, label)
+            State.CANCELLED -> context.getString(R.string.transfer_cancelled)
             State.DECLINED -> context.getString(R.string.transfer_declined)
             State.FAILED -> context.getString(R.string.transfer_failed)
             State.INVALID -> context.getString(R.string.transfer_invalid)
@@ -121,6 +141,9 @@ internal data class TransferProgress(val state: State, val kind: String = "file"
         }
     }
 }
+
+internal fun TransferMetadata.progress(state: TransferProgress.State, percent: Int = 0, isOutgoing: Boolean = true) =
+    TransferProgress(state, kind, percent, id, name, mimeType, isOutgoing)
 
 /** Disk-backed, peer-bound transfers. Every instance shares the lock with share-sheet imports. */
 internal class FileTransferStore(private val root: File) {
@@ -216,6 +239,18 @@ internal class FileTransferStore(private val root: File) {
         require(FileTransferProtocol.validId(id))
         File(outgoing, id).deleteRecursively()
         Unit
+    }
+
+    fun cancelOutgoing(peerId: String, id: String): TransferMetadata? = synchronized(lock) {
+        if (!FileTransferProtocol.validId(id)) return@synchronized null
+        val directory = File(outgoing, id)
+        val metadata = runCatching {
+            val json = readJson(File(directory, "metadata"))
+            if (json.getString("peerId") != peerId) return@synchronized null
+            TransferMetadata.parse(json)
+        }.getOrNull() ?: return@synchronized null
+        check(directory.deleteRecursively())
+        metadata
     }
 
     fun accept(peerId: String, meta: TransferMetadata): TransferReceipt = synchronized(lock) {

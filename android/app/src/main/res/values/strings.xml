@@ -120,6 +120,7 @@
 
     <string name="transfer_kind_file">file</string>
     <string name="transfer_kind_image">image</string>
+    <string name="transfer_kind_text">text</string>
     <string name="transfer_offering">Preparing %1$s…</string>
     <string name="transfer_receiving">Receiving %1$s…</string>
     <string name="transfer_sending">Sending %1$s (%2$d%%)</string>
@@ -130,7 +131,9 @@
     <string name="transfer_invalid">Transfer failed integrity or sequence validation</string>
     <string name="transfer_paused">Transfer paused; reconnecting…</string>
     <string name="transfer_update_required">Update both apps to share files and large images</string>
-    <string name="share_error_file">Couldn’t queue file. Limit: 100 MiB (clipboard images: 30 MiB). Check access and free space.</string>
+    <string name="share_error_file">Couldn’t prepare files. Nothing from this selection was sent. Check file access, free space, and the size limit: 100 MiB per file (30 MiB for clipboard images).</string>
+    <string name="share_preparing">Preparing to send…</string>
+    <string name="transfer_queued">Waiting for Wi-Fi or mesh. Files will send when your Mac reconnects.</string>
     <string name="received_files">Received Files</string>
     <string name="send_file">Send File…</string>
     <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
@@ -144,4 +147,7 @@
     <string name="file_saved">File saved</string>
     <string name="file_save_failed">Couldn’t save file. Try another location.</string>
     <string name="file_open_failed">No app can open this file. Use Save As instead.</string>
+    <string name="hide_transfer">Hide</string>
+    <string name="cancel_transfer">Cancel transfer</string>
+    <string name="transfer_cancelled">Transfer cancelled</string>
 </resources>

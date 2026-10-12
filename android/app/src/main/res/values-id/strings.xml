@@ -146,4 +146,10 @@
     <string name="file_saved">File disimpan</string>
     <string name="file_save_failed">File gagal disimpan. Coba lokasi lain.</string>
     <string name="file_open_failed">Tidak ada aplikasi untuk membuka file ini. Gunakan Simpan Sebagai.</string>
+    <string name="share_preparing">Menyiapkan kiriman…</string>
+    <string name="transfer_queued">Menunggu Wi-Fi atau mesh. File akan dikirim saat Mac terhubung kembali.</string>
+    <string name="transfer_kind_text">teks</string>
+    <string name="hide_transfer">Sembunyikan</string>
+    <string name="cancel_transfer">Batalkan kiriman</string>
+    <string name="transfer_cancelled">Kiriman dibatalkan</string>
 </resources>

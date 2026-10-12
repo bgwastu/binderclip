@@ -26,6 +26,27 @@ internal class ChunkedTransferSession(
     private var deadline: ScheduledFuture<*>? = null
     private val incoming = LinkedHashMap<String, TransferMetadata>()
     private var closed = false
+    private val cancelled = LinkedHashSet<String>()
+
+    fun cancel(id: String): Boolean {
+        val transfer = outgoing?.takeIf { it.metadata.id == id && !closed } ?: return false
+        // The final chunk may have reached the Mac before its receipt reaches us.
+        // Once all bytes are in flight, leave the receipt to determine completion.
+        if (!offered && expectedOffset == transfer.metadata.size) {
+            onStatus(transfer.metadata.progress(TransferProgress.State.SENDING, 100))
+            return true
+        }
+        val metadata = store.cancelOutgoing(peerId, id) ?: return false
+        deadline?.cancel(false)
+        outgoing = null
+        cancelled += id
+        if (cancelled.size > 128) cancelled.remove(cancelled.first())
+        onStatus(metadata.progress(TransferProgress.State.CANCELLED))
+        if (!sendText(JSONObject().put("type", "transfer_cancel").put("id", id))) {
+            disconnect(); close()
+        } else pump()
+        return true
+    }
 
     fun pump() {
         if (closed || outgoing != null) return
@@ -34,13 +55,14 @@ internal class ChunkedTransferSession(
         offered = true
         if (!sendText(next.metadata.json())) { close(); return }
         waitForReply()
-        onStatus(TransferProgress(TransferProgress.State.OFFERING, next.metadata.kind))
+        onStatus(next.metadata.progress(TransferProgress.State.OFFERING))
     }
 
     fun handle(json: JSONObject) {
         if (closed) return
         val id = json.optString("id")
         if (!FileTransferProtocol.validId(id)) { disconnect(); return }
+        if (id in cancelled) return // Ignore acknowledgements/receipts already in flight when cancelled.
         try {
             when (json.getString("type")) {
                 "transfer_offer" -> {
@@ -54,7 +76,7 @@ internal class ChunkedTransferSession(
                     } else {
                         incoming[id] = meta
                         acknowledge(id, state.offset)
-                        onStatus(TransferProgress(TransferProgress.State.RECEIVING, meta.kind))
+                        onStatus(meta.progress(TransferProgress.State.RECEIVING, isOutgoing = false))
                     }
                 }
                 "transfer_ack" -> {
@@ -77,7 +99,7 @@ internal class ChunkedTransferSession(
                     expectedOffset = offset + count
                     if (!sendBinary(FileTransferProtocol.packChunk(id, offset, bytes))) { disconnect(); close(); return }
                     waitForReply()
-                    onStatus(TransferProgress(TransferProgress.State.SENDING, transfer.metadata.kind, (expectedOffset * 100 / transfer.metadata.size).toInt()))
+                    onStatus(transfer.metadata.progress(TransferProgress.State.SENDING, (expectedOffset * 100 / transfer.metadata.size).toInt()))
                 }
                 "transfer_done" -> {
                     val transfer = outgoing?.takeIf { it.metadata.id == id } ?: return
@@ -85,25 +107,26 @@ internal class ChunkedTransferSession(
                     deadline?.cancel(false)
                     store.removeOutgoing(id)
                     outgoing = null
-                    onStatus(TransferProgress(TransferProgress.State.SENT, transfer.metadata.kind))
+                    onStatus(transfer.metadata.progress(TransferProgress.State.SENT))
                     pump()
                 }
                 "transfer_cancel" -> {
                     incoming.remove(id)?.let { store.discardIncoming(peerId, id) }
-                    if (outgoing?.metadata?.id == id) {
+                    outgoing?.takeIf { it.metadata.id == id }?.let { transfer ->
                         deadline?.cancel(false)
                         store.removeOutgoing(id)
                         outgoing = null
-                        onStatus(TransferProgress(TransferProgress.State.DECLINED))
+                        onStatus(transfer.metadata.progress(TransferProgress.State.DECLINED))
                         pump()
                     }
                 }
             }
         } catch (_: Exception) {
+            val metadata = outgoing?.metadata?.takeIf { it.id == id } ?: incoming[id]
             incoming.remove(id)
             store.discardIncoming(peerId, id)
             sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
-            onStatus(TransferProgress(TransferProgress.State.FAILED))
+            onStatus(metadata?.progress(TransferProgress.State.FAILED) ?: TransferProgress(TransferProgress.State.FAILED, transferId = id))
             if (outgoing?.metadata?.id == id) { disconnect(); close() }
         }
     }
@@ -111,14 +134,16 @@ internal class ChunkedTransferSession(
     fun handleChunk(packet: ByteArray) {
         if (closed) return
         var id: String? = null
+        var metadata: TransferMetadata? = null
         try {
             val (chunkId, offset, bytes) = FileTransferProtocol.unpackChunk(packet)
             id = chunkId
             val meta = incoming[chunkId] ?: error("Unsolicited chunk")
+            metadata = meta
             val next = store.append(peerId, meta, offset, bytes)
             if (next == meta.size) complete(meta) else {
                 acknowledge(chunkId, next)
-                onStatus(TransferProgress(TransferProgress.State.RECEIVING, meta.kind, (next * 100 / meta.size).toInt()))
+                onStatus(meta.progress(TransferProgress.State.RECEIVING, (next * 100 / meta.size).toInt(), isOutgoing = false))
             }
         } catch (_: Exception) {
             if (id != null) {
@@ -126,7 +151,7 @@ internal class ChunkedTransferSession(
                 store.discardIncoming(peerId, id)
                 sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
             } else disconnect()
-            onStatus(TransferProgress(TransferProgress.State.INVALID))
+            onStatus(metadata?.progress(TransferProgress.State.INVALID) ?: TransferProgress(TransferProgress.State.INVALID, transferId = id))
         }
     }
 
@@ -142,12 +167,12 @@ internal class ChunkedTransferSession(
             file.file.delete()
         } else onFile(file)
         sendText(JSONObject().put("type", "transfer_done").put("id", meta.id))
-        onStatus(TransferProgress(TransferProgress.State.RECEIVED, meta.kind))
+        onStatus(meta.progress(TransferProgress.State.RECEIVED, isOutgoing = false))
     }
     private fun waitForReply() {
         deadline?.cancel(false)
         deadline = executor.schedule({
-            if (!closed) { onStatus(TransferProgress(TransferProgress.State.PAUSED)); disconnect(); close() }
+            if (!closed) { onStatus(outgoing?.metadata?.progress(TransferProgress.State.PAUSED) ?: TransferProgress(TransferProgress.State.PAUSED)); disconnect(); close() }
         }, 60, TimeUnit.SECONDS)
     }
     fun close() {

@@ -146,4 +146,10 @@
     <string name="file_saved">Fichier enregistré</string>
     <string name="file_save_failed">Impossible d’enregistrer le fichier. Essayez un autre emplacement.</string>
     <string name="file_open_failed">Aucune application ne peut ouvrir ce fichier. Utilisez Enregistrer sous.</string>
+    <string name="share_preparing">Préparation de l’envoi…</string>
+    <string name="transfer_queued">En attente du Wi-Fi ou du mesh. Les fichiers seront envoyés dès que votre Mac sera reconnecté.</string>
+    <string name="transfer_kind_text">texte</string>
+    <string name="hide_transfer">Masquer</string>
+    <string name="cancel_transfer">Annuler le transfert</string>
+    <string name="transfer_cancelled">Transfert annulé</string>
 </resources>

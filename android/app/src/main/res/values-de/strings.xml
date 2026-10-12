@@ -146,4 +146,10 @@
     <string name="file_saved">Datei gespeichert</string>
     <string name="file_save_failed">Datei konnte nicht gespeichert werden. Anderen Ort wählen.</string>
     <string name="file_open_failed">Keine App kann diese Datei öffnen. Speichern unter verwenden.</string>
+    <string name="share_preparing">Senden wird vorbereitet…</string>
+    <string name="transfer_queued">Warten auf WLAN oder Mesh. Die Dateien werden gesendet, sobald dein Mac wieder verbunden ist.</string>
+    <string name="transfer_kind_text">Text</string>
+    <string name="hide_transfer">Ausblenden</string>
+    <string name="cancel_transfer">Übertragung abbrechen</string>
+    <string name="transfer_cancelled">Übertragung abgebrochen</string>
 </resources>
