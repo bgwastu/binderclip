@@ -227,6 +227,10 @@ final class FileTransferTests: XCTestCase {
     }
 
     func testMacSendsLargeImageAndExplicitFileWithAcknowledgedEncryptedChunks() async throws {
+        // Prepare expensive fixtures before connecting so slow CI runners do not miss heartbeats.
+        let data = Data((0..<(17 * 1024 * 1024 + 113)).map { UInt8($0 % 251) })
+        let image = try ImagePayload(mimeType: "image/png", data: data)
+        let fileBytes = Data((0..<(FileTransferProtocol.chunkBytes * 2 + 5)).map { UInt8($0 % 239) })
         let (root, _) = try isolated()
         let suite = "binderclip-send-wire-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -236,8 +240,6 @@ final class FileTransferTests: XCTestCase {
         let client = try await FileWireClient.connect(port: port, key: roster.groupKey)
         defer { client.close() }
         XCTAssertTrue(server.canSendFile(to: "wire-phone"))
-        let data = Data((0..<(17 * 1024 * 1024 + 113)).map { UInt8($0 % 251) })
-        let image = try ImagePayload(mimeType: "image/png", data: data)
         let imageSent = expectation(description: "image acknowledged")
         server.onTransferStatus = { if $0 == L10n.tr("transfer_sent", L10n.tr("transfer_kind_image")) { imageSent.fulfill() } }
         server.sendImage(image, targetDeviceId: "wire-phone")
@@ -249,7 +251,6 @@ final class FileTransferTests: XCTestCase {
         await fulfillment(of: [imageSent], timeout: 5)
 
         let source = root.appendingPathComponent("sample.pdf")
-        let fileBytes = Data((0..<(FileTransferProtocol.chunkBytes * 2 + 5)).map { UInt8($0 % 239) })
         try fileBytes.write(to: source)
         let fileSent = expectation(description: "file acknowledged")
         let progressCompleted = expectation(description: "send progress completes only after final acknowledgement")
