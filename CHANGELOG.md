@@ -1,5 +1,17 @@
 # Changelog
 
+## Android 1.16.1
+
+- Show file transfer progress in an overlay with a single-line filename, file-type icon, and consistent spacing.
+- Add compact **Hide** and **Cancel transfer** buttons. Hide keeps delivery running without reopening the panel; Cancel stops the selected file and removes it from the outgoing queue.
+- Replace the blank share-import screen with a dimmed dialog and remove misleading queued messages after sending.
+- Roll back failed file selections atomically, including provider stream-close failures, so an import error cannot leave files queued for delivery.
+- Preserve delivery confirmation when cancellation races the final chunk, and ignore late acknowledgements after cancellation.
+
+Validation: 117 Android unit tests, the emulator transfer UI check, debug builds, and Android lint passed.
+
+Version comes from the Android-only release tag `android-v1.16.1`.
+
 ## 1.15.0
 
 Mac and Android must update together: protocol 3 encrypts and authenticates all application traffic over LAN, mesh, and Bluetooth, rejects replayed frames, and does not connect to older protocol versions. Existing production pairing keys remain usable.
