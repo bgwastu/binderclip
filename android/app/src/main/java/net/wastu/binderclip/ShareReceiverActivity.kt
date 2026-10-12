@@ -73,9 +73,8 @@ class ShareReceiverActivity : ComponentActivity() {
         if (streams.isEmpty()) return R.string.share_error_unsupported
         if (streams.size > 8) return R.string.file_picker_help
         val transfers = FileTransferStore.forContext(this)
-        val staged = ArrayList<String>()
         return try {
-            for (uri in streams) {
+            val sources = streams.map { uri ->
                 require(uri.scheme == "content" && uri.authority != "$packageName.images")
                 val mime = (contentResolver.getType(uri) ?: intent.type)?.substringBefore(';')?.trim()?.lowercase()
                     ?.takeIf { it.matches(Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")) && it.length <= 127 } ?: "application/octet-stream"
@@ -83,18 +82,17 @@ class ShareReceiverActivity : ComponentActivity() {
                     if (cursor.moveToFirst()) cursor.getString(0) else null
                 } ?: "file"
                 val kind = if (!intent.getBooleanExtra("share_as_file", false) && mime in ImagePayload.ALLOWED_MIME_TYPES) "image" else "file"
-                val transfer = contentResolver.openInputStream(uri)?.use { transfers.stage(peerId, name, mime, kind, it) }
-                    ?: error("Unreadable shared content")
-                staged += transfer.metadata.id
+                SharedFileSource(name, mime, kind) { contentResolver.openInputStream(uri) ?: error("Unreadable shared content") }
             }
-            if (DeviceStore(this).groupKey == null || DeviceStore(this).peer?.deviceId != peerId) {
-                staged.forEach(transfers::removeOutgoing)
-                R.string.tile_not_paired
-            } else null
+            transfers.stageBatch(peerId, sources) {
+                val current = DeviceStore(this)
+                check(current.groupKey != null && current.peer?.deviceId == peerId)
+            }
+            null
         } catch (_: Exception) {
-            staged.forEach(transfers::removeOutgoing)
             DiagnosticLog.warning("Shared file import failed")
-            R.string.share_error_file
+            if (DeviceStore(this).groupKey == null || DeviceStore(this).peer?.deviceId != peerId) R.string.tile_not_paired
+            else R.string.share_error_file
         }
     }
 }

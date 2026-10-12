@@ -101,6 +101,8 @@ internal data class ReceivedFile(val metadata: TransferMetadata, val file: File)
 }
 internal data class TransferReceipt(val offset: Long, val completed: Boolean)
 
+internal data class SharedFileSource(val name: String, val mimeType: String, val kind: String, val open: () -> InputStream)
+
 internal data class TransferProgress(val state: State, val kind: String = "file", val percent: Int = 0) {
     enum class State { OFFERING, RECEIVING, SENDING, SENT, RECEIVED, DECLINED, FAILED, INVALID, PAUSED, UPDATE_REQUIRED }
     fun message(context: android.content.Context): String {
@@ -134,6 +136,23 @@ internal class FileTransferStore(private val root: File) {
     private val outgoing get() = File(root, "outgoing")
     private val incoming get() = File(root, "incoming")
     private val received get() = File(root, "received")
+
+    // Share imports and the transport's next() use the same lock. A failed batch is
+    // rolled back before any sender can offer an earlier file from that batch.
+    fun stageBatch(peerId: String, sources: List<SharedFileSource>, validate: () -> Unit = {}): List<OutgoingTransfer> = synchronized(lock) {
+        require(sources.isNotEmpty() && sources.size <= MAX_PENDING)
+        val staged = ArrayList<OutgoingTransfer>()
+        try {
+            for (source in sources) {
+                source.open().use { staged += stage(peerId, source.name, source.mimeType, source.kind, it) }
+            }
+            validate()
+            staged
+        } catch (error: Exception) {
+            staged.forEach { removeOutgoing(it.metadata.id) }
+            throw error
+        }
+    }
 
     fun stage(peerId: String, name: String, mimeType: String, kind: String, input: InputStream, clipboard: ClipboardStamp? = null): OutgoingTransfer = synchronized(lock) {
         cleanup()

@@ -14,6 +14,55 @@ class FileTransferTest {
     @get:Rule val temporary = TemporaryFolder()
     private val id = "00000000-0000-0000-0000-000000000001"
 
+    @Test fun failedShareBatchCannotSendItsFirstFileBeforeReportingImportFailure() {
+        val root = temporary.newFolder()
+        val importer = FileTransferStore(root)
+        val sender = FileTransferStore(root)
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        var pending: java.util.concurrent.Future<OutgoingTransfer?>? = null
+        try {
+            assertThrows(Exception::class.java) {
+                importer.stageBatch("mac", listOf(
+                    SharedFileSource("first.txt", "text/plain", "file") { byteArrayOf(1).inputStream() },
+                    SharedFileSource("unreadable.txt", "text/plain", "file") {
+                        val started = java.util.concurrent.CountDownLatch(1)
+                        pending = executor.submit<OutgoingTransfer?> { started.countDown(); sender.next("mac") }
+                        assertTrue(started.await(1, java.util.concurrent.TimeUnit.SECONDS))
+                        // A live sender races the import, just as it does after reconnect or transfer_done.
+                        try { pending!!.get(150, java.util.concurrent.TimeUnit.MILLISECONDS) }
+                        catch (_: java.util.concurrent.TimeoutException) { }
+                        throw java.io.IOException("Unreadable second document")
+                    }
+                ))
+            }
+            assertEquals("No file may be offered from a failed share", null,
+                pending!!.get(1, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(null, sender.next("mac"))
+        } finally { executor.shutdownNow() }
+    }
+
+    @Test fun streamCloseFailureCannotLeaveASendableFileBehindAnImportError() {
+        val store = FileTransferStore(temporary.newFolder())
+        assertThrows(java.io.IOException::class.java) {
+            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
+                object : java.io.ByteArrayInputStream(byteArrayOf(1, 2, 3)) {
+                    override fun close() { throw java.io.IOException("Provider close failed") }
+                }
+            }))
+        }
+        assertNull("Import error must never leave the file available to send", store.next("mac"))
+    }
+
+    @Test fun pairingChangeDuringImportRollsBackTheEntireSelection() {
+        val store = FileTransferStore(temporary.newFolder())
+        assertThrows(IllegalStateException::class.java) {
+            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
+                byteArrayOf(1).inputStream()
+            })) { error("Pairing changed") }
+        }
+        assertNull(store.next("mac"))
+    }
+
     @Test fun chunkMatchesCrossPlatformWireVectorAndRejectsMalformedFrames() {
         val packet = FileTransferProtocol.packChunk(id, 524288, byteArrayOf(1, 2, 3))
         val expected = "42435431" + "30303030303030302d303030302d303030302d303030302d303030303030303030303031" + "0000000000080000" + "010203"
