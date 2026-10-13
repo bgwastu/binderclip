@@ -130,6 +130,9 @@ jobs:
       - name: Load stable Mac signing identity from BWS
         env:
           BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          MACOS_SIGNING_CERTIFICATE_ID: ${{ vars.MACOS_SIGNING_CERTIFICATE_ID }}
+          MACOS_SIGNING_PASSWORD_ID: ${{ vars.MACOS_SIGNING_PASSWORD_ID }}
+          MACOS_SIGNING_IDENTITY_ID: ${{ vars.MACOS_SIGNING_IDENTITY_ID }}
         run: python3 macos/mac-signing.py setup
 
       - name: Build macOS app and DMG

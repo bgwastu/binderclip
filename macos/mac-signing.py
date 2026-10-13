@@ -11,11 +11,7 @@ import subprocess
 import sys
 import tempfile
 
-IDS = {
-    'certificate': '3fbbfc14-c360-4a70-a892-b4e2003fe745',
-    'password': '466e7f4b-7d83-475f-98c4-b4e2003fe7d7',
-    'identity': '55237e6c-e87b-45ef-831e-b4e2003fe83d',
-}
+REFERENCES = ('MACOS_SIGNING_CERTIFICATE_ID', 'MACOS_SIGNING_PASSWORD_ID', 'MACOS_SIGNING_IDENTITY_ID')
 
 
 def run(*args, **kwargs):
@@ -36,8 +32,16 @@ def cleanup(directory):
 
 
 def setup():
-    values = {key: json.loads(run('bws', 'secret', 'get', identifier, '-o', 'json'))['value']
-              for key, identifier in IDS.items()}
+    identifiers = {name: os.environ.get(name) for name in REFERENCES}
+    if not all(identifiers.values()) and os.environ.get('CI') != 'true':
+        # Local builds use the same repository configuration as release CI.
+        configured = {item['name']: item['value'] for item in
+                      json.loads(run('gh', 'variable', 'list', '--json', 'name,value'))}
+        identifiers = {name: identifiers[name] or configured.get(name) for name in REFERENCES}
+    if not all(identifiers.values()):
+        raise SystemExit('Missing Mac signing BWS lookup references in repository variables')
+    values = {key: json.loads(run('bws', 'secret', 'get', identifiers[name], '-o', 'json'))['value']
+              for key, name in zip(('certificate', 'password', 'identity'), REFERENCES)}
     if not re.fullmatch(r'[0-9A-Fa-f]{40}', values['identity']):
         raise SystemExit('Invalid signing certificate fingerprint')
     directory = Path(tempfile.mkdtemp(prefix='mac-app-signing-', dir=os.environ.get('RUNNER_TEMP')))
