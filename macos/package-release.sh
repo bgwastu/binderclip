@@ -1,10 +1,13 @@
 #!/bin/zsh
 
-# Build an ad-hoc signed, universal direct-only BinderClip.app and DMG.
+# Build a universal direct-only BinderClip.app and DMG.
 
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
+if [[ -z "${MACOS_SIGNING_IDENTITY:-}" ]]; then
+  exec python3 "$SCRIPT_DIR/mac-signing.py" run -- "$SCRIPT_DIR/package-release.sh" "$@"
+fi
 PACKAGE_DIR="$SCRIPT_DIR/BinderClipMac"
 RELEASE_REF="${GITHUB_REF_NAME:-}"
 GIT_TAG_VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "1.0.0")"
@@ -118,8 +121,17 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
 PLIST
 
 install_name_tool -add_rpath '@loader_path/../Frameworks' "$APP_PATH/Contents/MacOS/BinderClip"
-codesign --force --deep --sign - "$APP_PATH"
+identity="${MACOS_SIGNING_IDENTITY:--}"
+signing_args=(--force --deep --sign "$identity")
+if [[ "$identity" != - ]]; then
+  signing_args+=(--timestamp=none)
+  [[ -z "${MACOS_SIGNING_KEYCHAIN:-}" ]] || signing_args+=(--keychain "$MACOS_SIGNING_KEYCHAIN")
+fi
+codesign "${signing_args[@]}" "$APP_PATH"
 codesign --verify --deep --strict "$APP_PATH"
+if [[ "$identity" != - ]]; then
+  codesign --verify -R "=certificate leaf = H\"$identity\"" "$APP_PATH"
+fi
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUTPUT_DIR/BinderClip-$VERSION.zip"
 
 DMG_STAGING="$BUILD_ROOT/dmg-root"

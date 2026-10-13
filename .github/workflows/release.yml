@@ -127,6 +127,11 @@ jobs:
           install -m 0755 bws /usr/local/bin/bws
           rm -f bws.zip bws
 
+      - name: Load stable Mac signing identity from BWS
+        env:
+          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+        run: python3 macos/mac-signing.py setup
+
       - name: Build macOS app and DMG
         env:
           BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
@@ -135,6 +140,7 @@ jobs:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           VERSION: ${{ needs.detect-targets.outputs.version-name }}
         run: |
+          test -n "$MACOS_SIGNING_IDENTITY"
           export SPARKLE_PUBLIC_ED_KEY="$(bws secret get 097e3232-600f-417c-bf10-b4a400a3f8a2 -o json | jq -r '.value')"
           ./macos/package-release.sh
 
@@ -174,6 +180,10 @@ jobs:
             dist/BinderClip-*.dmg
             dist/BinderClip-*.zip
             dist/appcast.xml
+
+      - name: Remove temporary Mac signing keychain
+        if: always() && env.MACOS_SIGNING_DIRECTORY != ''
+        run: python3 macos/mac-signing.py cleanup
 
   build-android:
     needs: detect-targets
