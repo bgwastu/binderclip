@@ -180,4 +180,18 @@
     <string name="update_check">Rechercher des mises à jour</string>
     <string name="update_up_to_date">BinderClip est à jour (%1$s)</string>
     <string name="update_error">Impossible de rechercher les mises à jour</string>
+    <string name="listening_for_connections">En attente de connexions</string>
+    <string name="shizuku_active">Service Shizuku actif</string>
+    <string name="root_active">Service Root actif</string>
+    <string name="automatic_sync_active">Synchronisation automatique active</string>
+    <string name="send_current_clip">Envoyer le presse-papiers</string>
+    <string name="send_file_compact">Envoyer un fichier</string>
+    <string name="back">Retour</string>
+    <string name="file_save_downloads">Enregistrer dans Téléchargements</string>
+    <string name="device_details">Détails de connexion</string>
+    <string name="offline">Hors ligne</string>
+    <string name="share_sent_confirmation">Envoyé à %1$s</string>
+    <string name="share_sending_to">Envoi à %1$s…</string>
+    <string name="share_queued_for">En file d\'attente pour %1$s</string>
+    <string name="background_engine">Service d\'arrière-plan</string>
 </resources>

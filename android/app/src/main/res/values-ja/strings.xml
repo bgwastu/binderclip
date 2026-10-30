@@ -180,4 +180,18 @@
     <string name="update_check">アップデートを確認</string>
     <string name="update_up_to_date">BinderClip は最新の状態です (%1$s)</string>
     <string name="update_error">アップデートを確認できませんでした</string>
+    <string name="listening_for_connections">接続を待機中</string>
+    <string name="shizuku_active">Shizuku サービス有効</string>
+    <string name="root_active">Root サービス有効</string>
+    <string name="automatic_sync_active">自動同期が有効</string>
+    <string name="send_current_clip">クリップを送信</string>
+    <string name="send_file_compact">ファイルを送信</string>
+    <string name="back">戻る</string>
+    <string name="file_save_downloads">ダウンロードに保存</string>
+    <string name="device_details">接続の詳細</string>
+    <string name="offline">オフライン</string>
+    <string name="share_sent_confirmation">%1$s に送信しました</string>
+    <string name="share_sending_to">%1$s に送信中…</string>
+    <string name="share_queued_for">%1$s 宛てに待機中</string>
+    <string name="background_engine">バックグラウンドサービス</string>
 </resources>

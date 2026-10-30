@@ -178,4 +178,18 @@
     <string name="update_check">Check for updates</string>
     <string name="update_up_to_date">BinderClip is up to date (%1$s)</string>
     <string name="update_error">Couldn’t check for updates</string>
+    <string name="listening_for_connections">Listening for connections</string>
+    <string name="shizuku_active">Shizuku service active</string>
+    <string name="root_active">Root service active</string>
+    <string name="automatic_sync_active">Automatic sync active</string>
+    <string name="send_current_clip">Send Current Clip</string>
+    <string name="send_file_compact">Send File</string>
+    <string name="back">Back</string>
+    <string name="file_save_downloads">Save to Downloads</string>
+    <string name="device_details">Connection Details</string>
+    <string name="offline">Offline</string>
+    <string name="share_sent_confirmation">Sent to %1$s</string>
+    <string name="share_sending_to">Sending to %1$s…</string>
+    <string name="share_queued_for">Queued for %1$s</string>
+    <string name="background_engine">Background Service</string>
 </resources>

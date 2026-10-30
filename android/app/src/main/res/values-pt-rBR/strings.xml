@@ -180,4 +180,18 @@
     <string name="update_check">Verificar atualizações</string>
     <string name="update_up_to_date">O BinderClip está atualizado (%1$s)</string>
     <string name="update_error">Não foi possível verificar atualizações</string>
+    <string name="listening_for_connections">Aguardando conexões</string>
+    <string name="shizuku_active">Serviço Shizuku ativo</string>
+    <string name="root_active">Serviço root ativo</string>
+    <string name="automatic_sync_active">Sincronização automática ativa</string>
+    <string name="send_current_clip">Enviar área de transferência</string>
+    <string name="send_file_compact">Enviar arquivo</string>
+    <string name="back">Voltar</string>
+    <string name="file_save_downloads">Salvar em Downloads</string>
+    <string name="device_details">Detalhes da conexão</string>
+    <string name="offline">Offline</string>
+    <string name="share_sent_confirmation">Enviado para %1$s</string>
+    <string name="share_sending_to">Enviando para %1$s…</string>
+    <string name="share_queued_for">Na fila para %1$s</string>
+    <string name="background_engine">Serviço em segundo plano</string>
 </resources>

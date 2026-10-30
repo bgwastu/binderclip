@@ -6,14 +6,15 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
-import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,20 +22,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.activity.ComponentActivity
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -42,12 +43,15 @@ class ShareReceiverActivity : ComponentActivity() {
     private var message by mutableIntStateOf(R.string.share_preparing)
     private var importing by mutableStateOf(true)
     private var failed by mutableStateOf(false)
+    private var success by mutableStateOf(false)
     private var fileShare = false
     private var deliveryRevision by mutableLongStateOf(0)
     private var stagedTransferIds = emptySet<String>()
     private var cancelling by mutableStateOf(false)
+    private var sharedFileName by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setDimAmount(0.32f)
@@ -55,6 +59,7 @@ class ShareReceiverActivity : ComponentActivity() {
         setContent {
             BinderClipTheme {
                 val runtime by AppRuntime.state.collectAsState()
+                val targetPeerName = runtime.peer?.name ?: AppProfile.current.displayName
                 val progress = runtime.transferProgress?.takeIf {
                     !importing && !failed && if (fileShare) it.transferId in stagedTransferIds
                     else runtime.transferRevision > deliveryRevision && it.kind in setOf("text", "link") && it.isSuccess
@@ -62,41 +67,104 @@ class ShareReceiverActivity : ComponentActivity() {
                 AlertDialog(
                     onDismissRequest = { if (!importing) finish() },
                     icon = {
-                        if (progress?.fileName != null) Icon(fileTypeIcon(progress.mimeType, progress.fileName),
-                            contentDescription = null, modifier = Modifier.size(32.dp))
-                        else if (importing || progress?.isBusy == true) CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                        else Icon(if (failed || progress?.isError == true) Icons.Outlined.ErrorOutline
-                            else if (progress?.isSuccess == true) Icons.Outlined.CheckCircle else Icons.Outlined.Schedule,
-                            contentDescription = null)
-                    },
-                    title = { Text(if (importing) stringResource(message) else AppProfile.current.displayName) },
-                    text = {
-                        if (!importing) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            progress?.fileName?.let { name ->
-                                Text(name, style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Text(progress?.message(this@ShareReceiverActivity) ?: stringResource(message))
+                        when {
+                            progress?.fileName != null -> Icon(
+                                fileTypeIcon(progress.mimeType, progress.fileName),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            importing || progress?.isBusy == true -> CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 3.dp,
+                            )
+                            failed || progress?.isError == true -> Icon(
+                                Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                            success || progress?.isSuccess == true -> Icon(
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            else -> Icon(
+                                Icons.Outlined.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
-                        else if (importing && intent.hasExtra(Intent.EXTRA_STREAM)) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(stringResource(R.string.file_picker_help), style = MaterialTheme.typography.bodyMedium)
+                    },
+                    title = {
+                        val titleText = when {
+                            importing -> stringResource(R.string.share_preparing)
+                            failed -> stringResource(R.string.share_error_unsupported)
+                            success -> stringResource(R.string.share_sent_confirmation, targetPeerName)
+                            else -> targetPeerName
+                        }
+                        Text(titleText, style = MaterialTheme.typography.titleMedium)
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val fileName = progress?.fileName ?: sharedFileName
+                            if (fileName != null) {
+                                Text(
+                                    fileName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (!importing) {
+                                Text(
+                                    progress?.message(this@ShareReceiverActivity)
+                                        ?: stringResource(message),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else if (intent.hasExtra(Intent.EXTRA_STREAM)) {
+                                Text(
+                                    stringResource(R.string.file_picker_help),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     },
                     confirmButton = {
-                        if (!importing) TextButton(onClick = { finish() }) {
-                            Text(stringResource(if (progress?.canCancel == true) R.string.hide_transfer else R.string.close))
+                        if (!importing) {
+                            TextButton(onClick = { finish() }) {
+                                Text(
+                                    stringResource(
+                                        if (progress?.canCancel == true) R.string.hide_transfer else R.string.close,
+                                    ),
+                                )
+                            }
                         }
                     },
                     dismissButton = {
-                        if (progress?.canCancel == true) TextButton(enabled = !cancelling, onClick = {
-                            cancelling = true
-                            ContextCompat.startForegroundService(this@ShareReceiverActivity,
-                                Intent(this@ShareReceiverActivity, BinderClipService::class.java)
-                                    .setAction(BinderClipService.ACTION_CANCEL_TRANSFER)
-                                    .putExtra(BinderClipService.EXTRA_TRANSFER_ID, progress.transferId))
-                        }) { Text(stringResource(R.string.cancel_transfer), color = MaterialTheme.colorScheme.error) }
+                        if (progress?.canCancel == true) {
+                            TextButton(
+                                enabled = !cancelling,
+                                onClick = {
+                                    cancelling = true
+                                    ContextCompat.startForegroundService(
+                                        this@ShareReceiverActivity,
+                                        Intent(this@ShareReceiverActivity, BinderClipService::class.java)
+                                            .setAction(BinderClipService.ACTION_CANCEL_TRANSFER)
+                                            .putExtra(BinderClipService.EXTRA_TRANSFER_ID, progress.transferId),
+                                    )
+                                },
+                            ) {
+                                Text(
+                                    stringResource(R.string.cancel_transfer),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
                     },
                 )
             }
@@ -111,18 +179,23 @@ class ShareReceiverActivity : ComponentActivity() {
             }
             try {
                 deliveryRevision = AppRuntime.state.value.transferRevision
-                ContextCompat.startForegroundService(this@ShareReceiverActivity,
-                    Intent(this@ShareReceiverActivity, BinderClipService::class.java).setAction(BinderClipService.ACTION_SEND_SHARED))
+                ContextCompat.startForegroundService(
+                    this@ShareReceiverActivity,
+                    Intent(this@ShareReceiverActivity, BinderClipService::class.java)
+                        .setAction(BinderClipService.ACTION_SEND_SHARED),
+                )
                 val runtime = AppRuntime.state.value
                 val canSend = runtime.peer?.connected == true &&
                     (!fileShare || runtime.transportType == TransportType.LAN || runtime.transportType == TransportType.MESH)
                 if (!canSend) {
                     importing = false
                     message = if (fileShare) R.string.transfer_queued else R.string.share_queued
-                    kotlinx.coroutines.delay(2200)
+                    delay(2000)
                 } else {
-                    val label = getString(if (fileShare) R.string.transfer_kind_file else R.string.transfer_kind_text)
-                    Toast.makeText(this@ShareReceiverActivity, getString(R.string.transfer_sending, label, 0), Toast.LENGTH_SHORT).show()
+                    importing = false
+                    success = true
+                    message = if (fileShare) R.string.transfer_kind_file else R.string.share_text_content
+                    delay(1200)
                 }
             } catch (_: RuntimeException) {
                 DiagnosticLog.warning("Could not start share delivery")
@@ -153,6 +226,7 @@ class ShareReceiverActivity : ComponentActivity() {
         // Explicit streams are documents, even when their MIME type is text/plain.
         // A browser thumbnail in ClipData must not take precedence over a URL share.
         if (explicitStreams.isEmpty() && text != null) {
+            sharedFileName = text.take(60)
             return if (runCatching { deviceStore.enqueueShare(text) }.getOrDefault(false)) null else R.string.share_error_queue_full
         }
         val streams = explicitStreams.ifEmpty {
@@ -173,6 +247,7 @@ class ShareReceiverActivity : ComponentActivity() {
                 val kind = if (!intent.getBooleanExtra("share_as_file", false) && mime in ImagePayload.ALLOWED_MIME_TYPES) "image" else "file"
                 SharedFileSource(name, mime, kind) { contentResolver.openInputStream(uri) ?: error("Unreadable shared content") }
             }
+            sharedFileName = if (sources.size == 1) sources.first().name else "${sources.size} files"
             stagedTransferIds = transfers.stageBatch(peerId, sources) {
                 val current = DeviceStore(this)
                 check(current.groupKey != null && current.peer?.deviceId == peerId)

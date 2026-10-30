@@ -180,4 +180,18 @@
     <string name="update_check">检查更新</string>
     <string name="update_up_to_date">BinderClip 已是最新版本 (%1$s)</string>
     <string name="update_error">无法检查更新</string>
+    <string name="listening_for_connections">等待连接</string>
+    <string name="shizuku_active">Shizuku 服务已激活</string>
+    <string name="root_active">Root 服务已激活</string>
+    <string name="automatic_sync_active">自动同步已激活</string>
+    <string name="send_current_clip">发送当前剪贴板</string>
+    <string name="send_file_compact">发送文件</string>
+    <string name="back">返回</string>
+    <string name="file_save_downloads">保存到下载</string>
+    <string name="device_details">连接详情</string>
+    <string name="offline">离线</string>
+    <string name="share_sent_confirmation">已发送至 %1$s</string>
+    <string name="share_sending_to">正在发送至 %1$s…</string>
+    <string name="share_queued_for">已加入队列（目标：%1$s）</string>
+    <string name="background_engine">后台服务</string>
 </resources>

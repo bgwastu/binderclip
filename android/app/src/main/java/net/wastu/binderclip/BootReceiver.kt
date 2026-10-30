@@ -8,7 +8,9 @@ import android.content.Intent
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         DiagnosticLog.initialize(context)
-        val paired = DeviceStore(context).groupKey != null
+        val store = DeviceStore(context)
+        val paired = store.groupKey != null
+        if (!store.isAutostartEnabled()) return
         if (!ServiceAutostart.shouldStart(intent?.action, paired)) return
         DiagnosticLog.info("Starting BinderClip after ${intent?.action}")
         BinderClipService.startFromBackground(context)

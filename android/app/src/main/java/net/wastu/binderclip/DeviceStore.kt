@@ -256,6 +256,9 @@ class DeviceStore(context: Context) {
     fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", true)
     fun setSyncToastHidden(hidden: Boolean) { prefs.edit().putBoolean("hide_sync_toasts", hidden).apply() }
 
+    fun isAutostartEnabled(): Boolean = prefs.getBoolean("autostart_enabled", true)
+    fun setAutostartEnabled(enabled: Boolean) { prefs.edit().putBoolean("autostart_enabled", enabled).apply() }
+
     fun reset() { prefs.edit().clear().apply() }
 
     private fun keyAlias(): String {

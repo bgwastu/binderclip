@@ -180,4 +180,18 @@
     <string name="update_check">Проверить обновления</string>
     <string name="update_up_to_date">Установлена последняя версия BinderClip (%1$s)</string>
     <string name="update_error">Не удалось проверить обновления</string>
+    <string name="listening_for_connections">Ожидание подключений</string>
+    <string name="shizuku_active">Служба Shizuku активна</string>
+    <string name="root_active">Служба Root активна</string>
+    <string name="automatic_sync_active">Автосинхронизация активна</string>
+    <string name="send_current_clip">Отправить буфер</string>
+    <string name="send_file_compact">Отправить файл</string>
+    <string name="back">Назад</string>
+    <string name="file_save_downloads">Сохранить в Загрузки</string>
+    <string name="device_details">Сведения о подключении</string>
+    <string name="offline">Не в сети</string>
+    <string name="share_sent_confirmation">Отправлено на %1$s</string>
+    <string name="share_sending_to">Отправка на %1$s…</string>
+    <string name="share_queued_for">В очереди для %1$s</string>
+    <string name="background_engine">Фоновая служба</string>
 </resources>

@@ -66,6 +66,7 @@ data class AppState(
     val bluetoothEnabled: Boolean = false,
     val localDeviceId: String = "",
     val localDeviceName: String = "",
+    val autostartEnabled: Boolean = true,
 )
 
 object AppRuntime {
@@ -83,6 +84,7 @@ class BinderClipService : Service() {
         val ACTION_UI_VISIBLE = "${BuildConfig.APPLICATION_ID}.UI_VISIBLE"
         val ACTION_SET_SYNC_TOASTS = "${BuildConfig.APPLICATION_ID}.SET_SYNC_TOASTS"
         val ACTION_SET_BT_FALLBACK = "${BuildConfig.APPLICATION_ID}.SET_BT_FALLBACK"
+        val ACTION_SET_AUTOSTART = "${BuildConfig.APPLICATION_ID}.SET_AUTOSTART"
         val ACTION_REFRESH_CAPABILITIES = "${BuildConfig.APPLICATION_ID}.REFRESH_CAPABILITIES"
         val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
         val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
@@ -481,6 +483,11 @@ class BinderClipService : Service() {
                 store.setBtFallbackEnabled(intent?.getBooleanExtra("enabled", false) ?: false)
                 if (!store.isBtFallbackEnabled()) bluetoothLink?.stop()
                 evaluateBluetooth()
+                publishState()
+            }
+
+            ACTION_SET_AUTOSTART -> runServiceWork {
+                store.setAutostartEnabled(intent?.getBooleanExtra("enabled", true) ?: true)
                 publishState()
             }
 
@@ -1099,6 +1106,7 @@ class BinderClipService : Service() {
             bluetoothEnabled = bluetoothLink?.adapterEnabled() == true,
             localDeviceId = store.deviceId,
             localDeviceName = DeviceNames.android(this),
+            autostartEnabled = store.isAutostartEnabled(),
         )
     }
 
