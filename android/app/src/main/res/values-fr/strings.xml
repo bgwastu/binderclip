@@ -194,4 +194,5 @@
     <string name="share_sending_to">Envoi à %1$s…</string>
     <string name="share_queued_for">En file d\'attente pour %1$s</string>
     <string name="background_engine">Service d\'arrière-plan</string>
+    <string name="more_options">Plus d’options</string>
 </resources>

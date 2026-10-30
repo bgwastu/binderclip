@@ -50,6 +50,9 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -417,17 +420,53 @@ internal fun BinderClipScreen(
                 }
             },
             actions = {
-                if (state.peer != null) IconButton(onClick = onScan) {
-                    Icon(Icons.Outlined.QrCodeScanner, contentDescription = stringResource(R.string.scan_qr_to_pair))
-                }
-                IconButton(onClick = { context.startActivity(Intent(context, ReceivedFilesActivity::class.java)) }) {
-                    Icon(Icons.Outlined.FolderOpen, contentDescription = stringResource(R.string.received_files))
-                }
-                IconButton(onClick = { showLogs = true }) {
-                    Icon(Icons.Outlined.Description, contentDescription = stringResource(R.string.show_logs))
-                }
-                IconButton(onClick = { checkUpdates(manual = true) }) {
-                    Icon(Icons.Outlined.SystemUpdate, contentDescription = stringResource(R.string.update_check))
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = stringResource(R.string.more_options)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.received_files)) },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                context.startActivity(Intent(context, ReceivedFilesActivity::class.java))
+                            }
+                        )
+                        if (state.peer != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.scan_qr_to_pair)) },
+                                leadingIcon = { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onScan()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.show_logs)) },
+                            leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                showLogs = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.update_check)) },
+                            leadingIcon = { Icon(Icons.Outlined.SystemUpdate, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                checkUpdates(manual = true)
+                            }
+                        )
+                    }
                 }
             },
         )

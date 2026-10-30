@@ -194,4 +194,5 @@
     <string name="share_sending_to">Отправка на %1$s…</string>
     <string name="share_queued_for">В очереди для %1$s</string>
     <string name="background_engine">Фоновая служба</string>
+    <string name="more_options">Другие параметры</string>
 </resources>

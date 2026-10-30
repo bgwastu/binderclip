@@ -194,4 +194,5 @@
     <string name="share_sending_to">Wird an %1$s gesendet…</string>
     <string name="share_queued_for">In Warteschlange für %1$s</string>
     <string name="background_engine">Hintergrunddienst</string>
+    <string name="more_options">Weitere Optionen</string>
 </resources>

@@ -194,4 +194,5 @@
     <string name="share_sending_to">正在发送至 %1$s…</string>
     <string name="share_queued_for">已加入队列（目标：%1$s）</string>
     <string name="background_engine">后台服务</string>
+    <string name="more_options">更多选项</string>
 </resources>
