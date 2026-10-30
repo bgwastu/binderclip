@@ -330,7 +330,7 @@ internal fun BinderClipScreen(
     onCopy: () -> Unit,
     onReconnect: () -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
-    onToggleAutostart: (Boolean) -> Unit,
+    onToggleAutostart: (Boolean) -> Unit = {},
     onRequestBluetooth: () -> Unit,
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
