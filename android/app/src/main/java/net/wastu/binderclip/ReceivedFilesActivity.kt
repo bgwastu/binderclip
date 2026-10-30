@@ -284,7 +284,7 @@ private fun ReceivedFileItem(
         },
         supportingContent = {
             Text(
-                "$formattedSize · $relativeTime",
+                "$formattedSize, $relativeTime",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -222,7 +222,7 @@ final class PairingWindow: NSObject, NSWindowDelegate {
         imageView?.image = image
         if let info = SyncProtocol.parsePairingURL(url.absoluteString) {
             let hosts = info.endpoints.compactMap { SyncProtocol.parseEndpoint($0)?.host }
-            endpointsLabel?.stringValue = hosts.joined(separator: "  ·  ")
+            endpointsLabel?.stringValue = hosts.joined(separator: ", ")
         }
         expiresAt = Date().addingTimeInterval(300)
         #if DEBUG

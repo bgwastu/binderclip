@@ -1078,8 +1078,8 @@ class BinderClipService : Service() {
             else -> ConnectionStatus.label(phase, peer?.name)
         }
         val statusWithTransport = when (transportType) {
-            TransportType.BLUETOOTH -> "$statusText · Bluetooth"
-            TransportType.MESH -> "$statusText · Mesh"
+            TransportType.BLUETOOTH -> "$statusText (Bluetooth)"
+            TransportType.MESH -> "$statusText (Mesh)"
             else -> statusText
         }
         if (notify) updateNotification(statusWithTransport)
@@ -1168,7 +1168,7 @@ class BinderClipService : Service() {
             val name = progress.fileName ?: label
             val title = if (progress.isOutgoing) getString(R.string.transfer_sending, name, progress.percent) else getString(R.string.transfer_receiving, name)
             builder.setContentTitle(title)
-                .setContentText("${progress.percent}% · $statusText")
+                .setContentText("${progress.percent}% - $statusText")
                 .setProgress(100, progress.percent, false)
             if (progress.canCancel && progress.transferId != null) {
                 val cancelIntent = Intent(this, BinderClipService::class.java)

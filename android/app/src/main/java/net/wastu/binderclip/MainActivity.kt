@@ -67,6 +67,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -455,48 +456,6 @@ internal fun BinderClipScreen(
             ) {
                 if (AppProfile.current.isDebug) item { DebugClipboardPanel() }
 
-                // Compact Status Header & Side-by-Side Action Row
-                item {
-                    StatusHeaderAndActionRow(
-                        state = state,
-                        onSend = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onSend()
-                        },
-                        onSendFile = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onSendFile()
-                        },
-                    )
-                }
-
-                // Paired Devices
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            stringResource(R.string.paired_devices),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        if (state.connectionPhase == ConnectionPhase.Connecting || state.connectionPhase == ConnectionPhase.Reconnecting) {
-                            IconButton(onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onReconnect()
-                            }, modifier = Modifier.size(24.dp)) {
-                                Icon(
-                                    Icons.Outlined.Refresh,
-                                    contentDescription = stringResource(R.string.reconnect),
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                }
                 if (devices.isEmpty()) {
                     item {
                         EmptyPairedDevices(onScan = {
@@ -507,45 +466,25 @@ internal fun BinderClipScreen(
                 } else {
                     items(devices.size, key = { devices[it].deviceId }) { index ->
                         val device = devices[index]
-                        DeviceListItem(
+                        DeviceCard(
                             device = device,
                             phase = state.connectionPhase,
                             transportType = state.transportType,
-                            onClick = { selectedDevice = device },
+                            onSendFile = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSendFile()
+                            },
+                            onSendClipboard = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSend()
+                            },
+                            onManage = { selectedDevice = device }
                         )
                     }
                 }
 
-                // Background Engine: Quiet 1-line status if active, guided action card if setup is needed
                 val isBackgroundActive = state.shizukuCaptureActive || (state.rootAvailable && state.automaticClipboardEnabled)
-                if (isBackgroundActive) {
-                    item {
-                        ListItem(
-                            leadingContent = {
-                                Icon(
-                                    Icons.Outlined.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            },
-                            headlineContent = {
-                                Text(
-                                    stringResource(if (state.rootAvailable) R.string.root_active else R.string.shizuku_active),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            },
-                            supportingContent = {
-                                Text(
-                                    stringResource(R.string.automatic_sync_active),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                        )
-                    }
-                } else if (state.peer != null) {
+                if (!isBackgroundActive && state.peer != null) {
                     item {
                         ClipboardCaptureSetup(state)
                     }
@@ -774,7 +713,7 @@ internal fun BinderClipScreen(
                                 Text(
                                     "${
                                         DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(event.timestamp))
-                                    } · ${event.message}",
+                                    } - ${event.message}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = when (event.level) {
                                         DiagnosticLevel.Error -> MaterialTheme.colorScheme.error
@@ -859,193 +798,129 @@ internal fun BinderClipScreen(
 }
 
 @Composable
-private fun StatusHeaderAndActionRow(
-    state: AppState,
-    onSend: () -> Unit,
-    onSendFile: () -> Unit,
-) {
-    val peer = state.peer
-    val isConnected = peer?.connected == true
-    val headerTitle = peer?.name ?: stringResource(R.string.listening_for_connections)
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Line 1: Peer name or listening state
-        Text(
-            text = headerTitle,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
-        // Line 2: Status text with small static green dot when connected
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (isConnected) {
-                // Static green dot (no pulsing)
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF2E7D32)),
-                )
-                val transportName = when (state.transportType) {
-                    TransportType.LAN -> "LAN"
-                    TransportType.MESH -> "Mesh"
-                    TransportType.BLUETOOTH -> "Bluetooth"
-                    TransportType.NONE -> ""
-                }
-                val autoSyncText = if (state.shizukuCaptureActive || (state.rootAvailable && state.automaticClipboardEnabled)) {
-                    " · " + stringResource(R.string.automatic_sync_active)
-                } else ""
-                val statusText = stringResource(R.string.status_connected) +
-                        (if (transportName.isNotEmpty()) " · $transportName" else "") +
-                        autoSyncText
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (state.connectionPhase == ConnectionPhase.Connecting || state.connectionPhase == ConnectionPhase.Reconnecting)
-                                MaterialTheme.colorScheme.tertiary
-                            else MaterialTheme.colorScheme.outlineVariant
-                        ),
-                )
-                val statusText = when {
-                    state.connectionPhase == ConnectionPhase.Connecting -> stringResource(R.string.status_connecting)
-                    state.connectionPhase == ConnectionPhase.Reconnecting -> stringResource(R.string.status_reconnecting)
-                    peer != null -> stringResource(R.string.offline)
-                    else -> stringResource(R.string.tile_not_paired)
-                }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // Action row: Two side-by-side compact tonal buttons [ 📁 Send File ] and [ 📋 Send Current Clip ]
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilledTonalButton(
-                onClick = onSendFile,
-                enabled = isConnected && state.transportType != TransportType.BLUETOOTH,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.send_file_compact), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            FilledTonalButton(
-                onClick = onSend,
-                enabled = isConnected,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(Icons.Outlined.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.send_current_clip), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-
-        if (isConnected && state.transportType == TransportType.BLUETOOTH) {
-            Text(
-                stringResource(R.string.file_connection_required),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DeviceListItem(
+private fun DeviceCard(
     device: RememberedPeer,
     phase: ConnectionPhase,
     transportType: TransportType,
-    onClick: () -> Unit,
+    onSendFile: () -> Unit,
+    onSendClipboard: () -> Unit,
+    onManage: () -> Unit,
 ) {
-    ListItem(
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick),
-        leadingContent = {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (device.connected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.size(40.dp),
+    val isConnected = device.connected
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                if (device.platform == "macOS") Icons.Outlined.LaptopMac else Icons.Outlined.Android,
+                                contentDescription = null,
+                                tint = if (isConnected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = device.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isConnected) Color(0xFF2E7D32)
+                                        else if (phase == ConnectionPhase.Connecting || phase == ConnectionPhase.Reconnecting) MaterialTheme.colorScheme.tertiary
+                                        else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                            )
+                            val statusText = when {
+                                isConnected && transportType == TransportType.LAN -> stringResource(R.string.status_connected) + " (LAN)"
+                                isConnected && transportType == TransportType.MESH -> stringResource(R.string.status_connected) + " (Mesh)"
+                                isConnected && transportType == TransportType.BLUETOOTH -> stringResource(R.string.status_connected) + " (Bluetooth)"
+                                isConnected -> stringResource(R.string.status_connected)
+                                phase == ConnectionPhase.Connecting -> stringResource(R.string.status_connecting)
+                                phase == ConnectionPhase.Reconnecting -> stringResource(R.string.status_reconnecting)
+                                else -> stringResource(R.string.offline)
+                            }
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                IconButton(onClick = onManage) {
                     Icon(
-                        if (device.platform == "macOS") Icons.Outlined.LaptopMac else Icons.Outlined.Android,
-                        contentDescription = null,
-                        tint = if (device.connected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp),
+                        Icons.Outlined.Settings,
+                        contentDescription = stringResource(R.string.device_details),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-        },
-        headlineContent = {
-            Text(
-                device.name,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        supportingContent = {
-            val statusText = when {
-                device.connected -> stringResource(R.string.status_connected)
-                phase == ConnectionPhase.Connecting -> stringResource(R.string.status_connecting)
-                phase == ConnectionPhase.Reconnecting -> stringResource(R.string.status_reconnecting)
-                else -> stringResource(R.string.offline)
-            }
-            Text(
-                statusText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = {
-            if (device.connected) {
-                val pillText = when (transportType) {
-                    TransportType.LAN -> "LAN"
-                    TransportType.MESH -> "Mesh"
-                    TransportType.BLUETOOTH -> "BT"
-                    TransportType.NONE -> ""
+
+            // Compact Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = onSendFile,
+                    enabled = isConnected && transportType != TransportType.BLUETOOTH,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.send_file), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (pillText.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Text(
-                            text = pillText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                    }
+                FilledTonalButton(
+                    onClick = onSendClipboard,
+                    enabled = isConnected,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Outlined.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.send_current_clipboard), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-        },
-    )
+
+            if (isConnected && transportType == TransportType.BLUETOOTH) {
+                Text(
+                    stringResource(R.string.file_connection_required),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable

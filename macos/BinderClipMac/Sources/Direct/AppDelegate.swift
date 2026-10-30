@@ -314,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             menu.addItem(.separator())
         }
 
-        let headerText = "\(transport.localDeviceName) · Port \(AppProfile.current.port)"
+        let headerText = "\(transport.localDeviceName) (Port \(AppProfile.current.port))"
         addSectionHeader(headerText, to: menu)
 
         if peers.isEmpty {
