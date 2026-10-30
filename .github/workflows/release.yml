@@ -118,38 +118,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install BWS CLI
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/bitwarden/sdk-sm/releases/download/bws-v2.1.0/bws-macos-universal-2.1.0.zip \
-            --output bws.zip
-          unzip -q bws.zip
-          install -m 0755 bws /usr/local/bin/bws
-          rm -f bws.zip bws
-
-      - name: Load stable Mac signing identity from BWS
+      - name: Load stable Mac signing identity
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
-          MACOS_SIGNING_CERTIFICATE_ID: ${{ vars.MACOS_SIGNING_CERTIFICATE_ID }}
-          MACOS_SIGNING_PASSWORD_ID: ${{ vars.MACOS_SIGNING_PASSWORD_ID }}
-          MACOS_SIGNING_IDENTITY_ID: ${{ vars.MACOS_SIGNING_IDENTITY_ID }}
+          MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+          MACOS_SIGNING_FINGERPRINT: ${{ secrets.MACOS_SIGNING_FINGERPRINT }}
         run: python3 macos/mac-signing.py setup
 
       - name: Build macOS app and DMG
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           VERSION: ${{ needs.detect-targets.outputs.version-name }}
         run: |
           test -n "$MACOS_SIGNING_IDENTITY"
-          export SPARKLE_PUBLIC_ED_KEY="$(bws secret get 097e3232-600f-417c-bf10-b4a400a3f8a2 -o json | jq -r '.value')"
           ./macos/package-release.sh
 
       - name: Generate Sparkle appcast
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
           RELEASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/
         run: |
           SPARKLE_BIN="macos/BinderClipMac/.build/release-package/arm64/artifacts/sparkle/Sparkle/bin"
@@ -165,7 +154,6 @@ jobs:
           test -x "$SPARKLE_BIN/generate_appcast"
           mkdir -p appcast-input
           cp dist/BinderClip-*.zip appcast-input/
-          SPARKLE_PRIVATE_ED_KEY="$(bws secret get 8cf93282-1053-4d39-9a99-b4a400a3f9f6 -o json | jq -r '.value')"
           KEY_FILE=$(mktemp)
           printf '%s' "$SPARKLE_PRIVATE_ED_KEY" > "$KEY_FILE"
           "$SPARKLE_BIN/generate_appcast" \
@@ -195,15 +183,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install BWS CLI
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/bitwarden/sdk-sm/releases/download/bws-v2.1.0/bws-x86_64-unknown-linux-gnu-2.1.0.zip \
-            --output bws.zip
-          unzip -q bws.zip
-          install -m 0755 bws /usr/local/bin/bws
-          rm -f bws.zip bws
-
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -212,21 +191,17 @@ jobs:
 
       - name: Restore release keystore
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
-        run: |
-          bws secret get 0ecc5659-116c-4804-8309-b4a3002bd429 -o json |
-            jq -r '.value' |
-            base64 --decode > android/clipboard-release.keystore
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: printf '%s' "$ANDROID_KEYSTORE" | base64 --decode > android/clipboard-release.keystore
 
       - name: Build signed APK
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          BINDERCLIP_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          BINDERCLIP_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           VERSION_CODE: ${{ github.run_number }}
           BINDERCLIP_STORE_FILE: ${{ github.workspace }}/android/clipboard-release.keystore
           VERSION_NAME: ${{ needs.detect-targets.outputs.version-name }}
         run: |
-          export BINDERCLIP_STORE_PASSWORD="$(bws secret get 9c59ffda-bbb6-4ba3-8c35-b4a3002bd595 -o json | jq -r '.value')"
-          export BINDERCLIP_KEY_ALIAS="$(bws secret get 0a668da3-1c95-452d-b53b-b4a3002d5bae -o json | jq -r '.value')"
           ./android/gradlew -p android :app:assembleRelease
 
       - name: Rename APK
