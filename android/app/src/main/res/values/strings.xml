@@ -170,4 +170,12 @@
     <string name="capture_paused_title">Phone → Mac clipboard paused</string>
     <string name="capture_paused_desc">Shizuku isn’t running. Tap to start it.</string>
     <string name="capture_paused_card_desc">Shizuku stopped, usually after a restart. Open it and tap Start. Mac → phone still works.</string>
+    <string name="update_available">Update available</string>
+    <string name="update_message">A new version of BinderClip (%1$s) is available.</string>
+    <string name="update_button">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading update (%1$d%%)…</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_up_to_date">BinderClip is up to date (%1$s)</string>
+    <string name="update_error">Couldn’t check for updates</string>
 </resources>

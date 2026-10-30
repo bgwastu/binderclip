@@ -44,6 +44,9 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Close
@@ -363,6 +366,26 @@ internal fun BinderClipScreen(
             visibleTransfer = null
         } else visibleTransfer = state.transferProgress
     }
+    val updater = remember { AppUpdater(context) }
+    var availableUpdate by remember { mutableStateOf<AppRelease?>(null) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadPercent by remember { mutableIntStateOf(0) }
+    val updateScope = rememberCoroutineScope()
+
+    fun checkUpdates(manual: Boolean = false) {
+        updateScope.launch {
+            val release = updater.checkForUpdate()
+            if (release != null) {
+                availableUpdate = release
+            } else if (manual) {
+                android.widget.Toast.makeText(context, context.getString(R.string.update_up_to_date, BuildConfig.VERSION_NAME), android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        checkUpdates(manual = false)
+    }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -387,6 +410,9 @@ internal fun BinderClipScreen(
                 }
                 IconButton(onClick = { showLogs = true }) {
                     Icon(Icons.Outlined.Description, contentDescription = stringResource(R.string.show_logs))
+                }
+                IconButton(onClick = { checkUpdates(manual = true) }) {
+                    Icon(Icons.Outlined.SystemUpdate, contentDescription = stringResource(R.string.update_check))
                 }
             },
         )
@@ -735,6 +761,72 @@ internal fun BinderClipScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showLogs = false }) { Text(stringResource(R.string.close)) } },
+        )
+    }
+    availableUpdate?.let { release ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDownloadingUpdate) availableUpdate = null
+            },
+            icon = {
+                Icon(Icons.Outlined.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            title = {
+                Text(stringResource(R.string.update_available))
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isDownloadingUpdate) {
+                        Text(stringResource(R.string.update_downloading, downloadPercent))
+                        LinearProgressIndicator(
+                            progress = { downloadPercent / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text(stringResource(R.string.update_message, release.versionName))
+                        release.releaseNotes?.let { notes ->
+                            Text(
+                                notes,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 6,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (!isDownloadingUpdate) {
+                    TextButton(onClick = {
+                        updateScope.launch {
+                            if (!updater.canRequestPackageInstalls()) {
+                                updater.requestInstallPermissionIntent()?.let { context.startActivity(it) }
+                                return@launch
+                            }
+                            isDownloadingUpdate = true
+                            val file = updater.downloadApk(release) { percent ->
+                                downloadPercent = percent
+                            }
+                            isDownloadingUpdate = false
+                            if (file != null && file.exists()) {
+                                availableUpdate = null
+                                updater.installApk(file)
+                            } else {
+                                android.widget.Toast.makeText(context, context.getString(R.string.update_error), android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }) {
+                        Text(stringResource(R.string.update_button))
+                    }
+                }
+            },
+            dismissButton = {
+                if (!isDownloadingUpdate) {
+                    TextButton(onClick = { availableUpdate = null }) {
+                        Text(stringResource(R.string.update_later))
+                    }
+                }
+            }
         )
     }
 }

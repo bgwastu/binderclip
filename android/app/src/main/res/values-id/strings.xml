@@ -172,4 +172,12 @@
     <string name="capture_paused_title">Papan klip ponsel → Mac dijeda</string>
     <string name="capture_paused_desc">Shizuku tidak berjalan. Ketuk untuk memulai.</string>
     <string name="capture_paused_card_desc">Shizuku berhenti, biasanya setelah restart. Buka dan ketuk Mulai. Mac → ponsel tetap berfungsi.</string>
+    <string name="update_available">Pembaruan tersedia</string>
+    <string name="update_message">Versi baru BinderClip (%1$s) telah tersedia.</string>
+    <string name="update_button">Perbarui</string>
+    <string name="update_later">Nanti</string>
+    <string name="update_downloading">Mengunduh pembaruan (%1$d%%)…</string>
+    <string name="update_check">Periksa pembaruan</string>
+    <string name="update_up_to_date">BinderClip sudah versi terbaru (%1$s)</string>
+    <string name="update_error">Gagal memeriksa pembaruan</string>
 </resources>

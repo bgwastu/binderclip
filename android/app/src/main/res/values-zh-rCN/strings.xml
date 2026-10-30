@@ -172,4 +172,12 @@
     <string name="capture_paused_title">手机 → Mac 剪贴板已暂停</string>
     <string name="capture_paused_desc">Shizuku 未运行。点按以启动。</string>
     <string name="capture_paused_card_desc">Shizuku 已停止，通常是在重启之后。打开它并点按“启动”。Mac → 手机仍可使用。</string>
+    <string name="update_available">有可用更新</string>
+    <string name="update_message">BinderClip 的新版本 (%1$s) 已发布。</string>
+    <string name="update_button">更新</string>
+    <string name="update_later">稍后</string>
+    <string name="update_downloading">正在下载更新 (%1$d%%)…</string>
+    <string name="update_check">检查更新</string>
+    <string name="update_up_to_date">BinderClip 已是最新版本 (%1$s)</string>
+    <string name="update_error">无法检查更新</string>
 </resources>

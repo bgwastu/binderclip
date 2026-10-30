@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -119,6 +120,9 @@ class ShareReceiverActivity : ComponentActivity() {
                     importing = false
                     message = if (fileShare) R.string.transfer_queued else R.string.share_queued
                     kotlinx.coroutines.delay(2200)
+                } else {
+                    val label = getString(if (fileShare) R.string.transfer_kind_file else R.string.transfer_kind_text)
+                    Toast.makeText(this@ShareReceiverActivity, getString(R.string.transfer_sending, label, 0), Toast.LENGTH_SHORT).show()
                 }
             } catch (_: RuntimeException) {
                 DiagnosticLog.warning("Could not start share delivery")

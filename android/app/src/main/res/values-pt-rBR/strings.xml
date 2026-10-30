@@ -172,4 +172,12 @@
     <string name="capture_paused_title">Área de transferência celular → Mac pausada</string>
     <string name="capture_paused_desc">O Shizuku não está em execução. Toque para iniciar.</string>
     <string name="capture_paused_card_desc">O Shizuku parou, geralmente após reiniciar. Abra e toque em Iniciar. Mac → celular continua funcionando.</string>
+    <string name="update_available">Atualização disponível</string>
+    <string name="update_message">Uma nova versão do BinderClip (%1$s) está disponível.</string>
+    <string name="update_button">Atualizar</string>
+    <string name="update_later">Mais tarde</string>
+    <string name="update_downloading">Baixando atualização (%1$d%%)…</string>
+    <string name="update_check">Verificar atualizações</string>
+    <string name="update_up_to_date">O BinderClip está atualizado (%1$s)</string>
+    <string name="update_error">Não foi possível verificar atualizações</string>
 </resources>

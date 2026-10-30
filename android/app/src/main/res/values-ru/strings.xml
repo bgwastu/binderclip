@@ -172,4 +172,12 @@
     <string name="capture_paused_title">Буфер обмена телефон → Mac приостановлен</string>
     <string name="capture_paused_desc">Shizuku не запущен. Нажмите, чтобы запустить.</string>
     <string name="capture_paused_card_desc">Shizuku остановлен, обычно после перезагрузки. Откройте его и нажмите «Запустить». Mac → телефон по-прежнему работает.</string>
+    <string name="update_available">Доступно обновление</string>
+    <string name="update_message">Доступна новая версия BinderClip (%1$s).</string>
+    <string name="update_button">Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Загрузка обновления (%1$d%%)…</string>
+    <string name="update_check">Проверить обновления</string>
+    <string name="update_up_to_date">Установлена последняя версия BinderClip (%1$s)</string>
+    <string name="update_error">Не удалось проверить обновления</string>
 </resources>

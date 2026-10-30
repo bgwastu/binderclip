@@ -172,4 +172,12 @@
     <string name="capture_paused_title">Portapapeles teléfono → Mac en pausa</string>
     <string name="capture_paused_desc">Shizuku no se está ejecutando. Toca para iniciarlo.</string>
     <string name="capture_paused_card_desc">Shizuku se detuvo, normalmente tras reiniciar. Ábrelo y toca Iniciar. Mac → teléfono sigue funcionando.</string>
+    <string name="update_available">Actualización disponible</string>
+    <string name="update_message">Una nueva versión de BinderClip (%1$s) está disponible.</string>
+    <string name="update_button">Actualizar</string>
+    <string name="update_later">Más tarde</string>
+    <string name="update_downloading">Descargando actualización (%1$d%%)…</string>
+    <string name="update_check">Buscar actualizaciones</string>
+    <string name="update_up_to_date">BinderClip está actualizado (%1$s)</string>
+    <string name="update_error">No se pudieron buscar actualizaciones</string>
 </resources>

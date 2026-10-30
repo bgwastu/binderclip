@@ -1026,10 +1026,14 @@ class BinderClipService : Service() {
 
     @Synchronized private fun updateTransferStatus(progress: TransferProgress) {
         if (stopping) return
+        val wasBusy = transferProgress?.isBusy == true
         transferProgress = progress
         transferStatus = progress.message(this)
         transferRevision += 1
         transferUpdatedAtMs = android.os.SystemClock.elapsedRealtime()
+        if (wasBusy && progress.state == TransferProgress.State.SENT) {
+            notifyTransferSent(progress)
+        }
         publishState()
     }
 
@@ -1145,13 +1149,44 @@ class BinderClipService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL)
+        val builder = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle(AppProfile.current.displayName)
-            .setContentText(statusText)
             .setContentIntent(pending)
             .setOngoing(true)
+
+        val progress = transferProgress
+        if (progress != null && progress.isBusy) {
+            val label = getString(if (progress.kind == "image") R.string.transfer_kind_image else R.string.transfer_kind_file)
+            val name = progress.fileName ?: label
+            val title = if (progress.isOutgoing) getString(R.string.transfer_sending, name, progress.percent) else getString(R.string.transfer_receiving, name)
+            builder.setContentTitle(title)
+                .setContentText("${progress.percent}% · $statusText")
+                .setProgress(100, progress.percent, false)
+            if (progress.canCancel && progress.transferId != null) {
+                val cancelIntent = Intent(this, BinderClipService::class.java)
+                    .setAction(ACTION_CANCEL_TRANSFER)
+                    .putExtra(EXTRA_TRANSFER_ID, progress.transferId)
+                val cancelPending = PendingIntent.getService(this, 99, cancelIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                builder.addAction(0, getString(R.string.cancel_transfer), cancelPending)
+            }
+        } else {
+            builder.setContentTitle(AppProfile.current.displayName)
+                .setContentText(statusText)
+        }
+        return builder.build()
+    }
+
+    private fun notifyTransferSent(progress: TransferProgress) {
+        val label = getString(if (progress.kind == "image") R.string.transfer_kind_image else R.string.transfer_kind_file)
+        val title = getString(R.string.transfer_sent, progress.fileName ?: label)
+        syncToast(title)
+        val notif = NotificationCompat.Builder(this, FILE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_binder_clip)
+            .setContentTitle(title)
+            .setContentText(store.peer?.name ?: AppProfile.current.displayName)
+            .setAutoCancel(true)
             .build()
+        getSystemService(NotificationManager::class.java).notify("sent-file", (progress.transferId ?: "file").hashCode(), notif)
     }
 
     private fun updateNotification(text: String) {

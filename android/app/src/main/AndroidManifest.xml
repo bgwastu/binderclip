@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Deliberate: on rooted phones BinderClip grants this privileged permission via su; Shizuku capture does not need it. -->
     <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <!-- CleanCopy shares through this private FileProvider. -->

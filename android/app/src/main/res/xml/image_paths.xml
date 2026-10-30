@@ -2,4 +2,5 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="clipboard-images" path="clipboard-images/" />
     <files-path name="received-files" path="file-transfers/received/" />
+    <cache-path name="updates" path="updates/" />
 </paths>
