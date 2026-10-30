@@ -18,7 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Opt-in physical test. A Mac coordinator verifies delivery and supplies the return clips.
- * Run only with hardwareRoundTrip=true and the coordinator described in battery-validation.md.
+ * Run only with hardwareRoundTrip=true and the coordinator described in scripts/device-tests/README.md.
  */
 @RunWith(AndroidJUnit4::class)
 class TransportDeviceTest {

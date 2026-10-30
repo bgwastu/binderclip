@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/images/binderclip-icon.svg" alt="BinderClip icon" width="96"></p>
+<p align="center"><img src="assets/binderclip-icon.svg" alt="BinderClip icon" width="96"></p>
 
 <h1 align="center">BinderClip</h1>
 
@@ -11,8 +11,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/binderclip-preview-dark.png">
-    <img src="docs/images/binderclip-preview-light.png" alt="BinderClip menu on a Mac with a phone connected, next to the Android app connected to that Mac" width="720">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/binderclip-preview-dark.png">
+    <img src="assets/binderclip-preview-light.png" alt="BinderClip menu on a Mac with a phone connected, next to the Android app connected to that Mac" width="720">
   </picture>
 </p>
 
