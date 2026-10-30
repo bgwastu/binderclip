@@ -10,7 +10,10 @@
 ## Preview
 
 <p align="center">
-  <a href="docs/images/android-app.png"><img src="docs/images/android-app.png" alt="BinderClip Android app ready to pair" width="320"></a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/binderclip-preview-dark.png">
+    <img src="docs/images/binderclip-preview-light.png" alt="BinderClip menu on a Mac with a phone connected, next to the Android app connected to that Mac" width="720">
+  </picture>
 </p>
 
 ## Features
