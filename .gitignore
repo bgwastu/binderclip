@@ -4,3 +4,4 @@ macos/**/.build/
 dist/
 dist-validation/
 .install-*/
+android/.kotlin/
