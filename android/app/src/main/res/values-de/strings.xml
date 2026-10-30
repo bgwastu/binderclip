@@ -135,14 +135,6 @@
     <string name="file_connection_required">Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.</string>
     <string name="file_picker_help">Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.</string>
     <string name="file_received">Datei empfangen</string>
-    <string name="received_files_help">Dateien an einem gewählten Ort speichern. Sie bleiben hier, bis sie gelöscht werden.</string>
-    <string name="received_files_empty">Noch keine Dateien empfangen</string>
-    <string name="file_save">Speichern unter…</string>
-    <string name="file_open">Öffnen</string>
-    <string name="file_delete">Löschen</string>
-    <string name="file_saved">Datei gespeichert</string>
-    <string name="file_save_failed">Datei konnte nicht gespeichert werden. Anderen Ort wählen.</string>
-    <string name="file_open_failed">Keine App kann diese Datei öffnen. Speichern unter verwenden.</string>
     <string name="share_preparing">Senden wird vorbereitet…</string>
     <string name="transfer_queued">Warten auf WLAN oder Mesh. Die Dateien werden gesendet, sobald dein Mac wieder verbunden ist.</string>
     <string name="transfer_kind_text">Text</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">Zwischenablage senden</string>
     <string name="send_file_compact">Datei senden</string>
     <string name="back">Zurück</string>
-    <string name="file_save_downloads">In Downloads speichern</string>
     <string name="device_details">Verbindungsdetails</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">An %1$s gesendet</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">In Warteschlange für %1$s</string>
     <string name="background_engine">Hintergrunddienst</string>
     <string name="more_options">Weitere Optionen</string>
+    <string name="file_saved_downloads">In Downloads gespeichert</string>
+    <string name="file_save_downloads_failed">Speichern in Downloads fehlgeschlagen</string>
 </resources>

@@ -135,14 +135,6 @@
     <string name="file_connection_required">Для файлов нужны Wi-Fi или mesh и обновлённые приложения на обоих устройствах.</string>
     <string name="file_picker_help">Выберите до восьми файлов размером не более 100 MiB каждый.</string>
     <string name="file_received">Файл получен</string>
-    <string name="received_files_help">Сохраните файлы в выбранное место. Они остаются здесь до удаления.</string>
-    <string name="received_files_empty">Полученных файлов пока нет</string>
-    <string name="file_save">Сохранить как…</string>
-    <string name="file_open">Открыть</string>
-    <string name="file_delete">Удалить</string>
-    <string name="file_saved">Файл сохранён</string>
-    <string name="file_save_failed">Не удалось сохранить файл. Выберите другое место.</string>
-    <string name="file_open_failed">Нет приложения для открытия файла. Используйте Сохранить как.</string>
     <string name="share_preparing">Подготовка к отправке…</string>
     <string name="transfer_queued">Ожидание Wi-Fi или mesh. Файлы будут отправлены, когда Mac подключится снова.</string>
     <string name="transfer_kind_text">текст</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">Отправить буфер</string>
     <string name="send_file_compact">Отправить файл</string>
     <string name="back">Назад</string>
-    <string name="file_save_downloads">Сохранить в Загрузки</string>
     <string name="device_details">Сведения о подключении</string>
     <string name="offline">Не в сети</string>
     <string name="share_sent_confirmation">Отправлено на %1$s</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">В очереди для %1$s</string>
     <string name="background_engine">Фоновая служба</string>
     <string name="more_options">Другие параметры</string>
+    <string name="file_saved_downloads">Сохранено в «Загрузки»</string>
+    <string name="file_save_downloads_failed">Не удалось сохранить в «Загрузки»</string>
 </resources>

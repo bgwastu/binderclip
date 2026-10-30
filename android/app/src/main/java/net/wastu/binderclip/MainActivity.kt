@@ -41,8 +41,8 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.QrCodeScanner
@@ -432,14 +432,6 @@ internal fun BinderClipScreen(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.received_files)) },
-                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                context.startActivity(Intent(context, ReceivedFilesActivity::class.java))
-                            }
-                        )
                         if (state.peer != null) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.scan_qr_to_pair)) },

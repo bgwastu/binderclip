@@ -28,7 +28,6 @@ class FileTransferDeviceTest {
         assumeTrue(AppProfile.current.isDebug)
         val context = ApplicationProvider.getApplicationContext<Context>()
         val clipboard = AppClipboard(context)
-        val store = FileTransferStore.forContext(context)
         val stage = File(context.filesDir, "device-test-file-stage.txt")
         val ack = File(context.filesDir, "device-test-file-ack.txt")
         val run = UUID.randomUUID().toString().take(8)
@@ -37,7 +36,6 @@ class FileTransferDeviceTest {
         val macName = "binderclip-device-$run-mac.bin"
         val size = 50L * 1024 * 1024 + 137
         val fixtures = ArrayList<Uri>()
-        val receivedIds = ArrayList<String>()
         fun waitFor(label: String, timeout: Long = 180_000, predicate: () -> Boolean) {
             val deadline = SystemClock.elapsedRealtime() + timeout
             while (SystemClock.elapsedRealtime() < deadline) {
@@ -117,23 +115,20 @@ class FileTransferDeviceTest {
                 waitFor("empty file verification") { ack.exists() && ack.readText() == "empty-file" }
                 assertEquals(marker, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
                 stage.writeText("mac-file")
-                waitFor("Mac file delivery") { store.receivedFiles().any { it.metadata.name == macName } }
-                val received = store.receivedFiles().single { it.metadata.name == macName }
-                receivedIds += received.storageId
-                assertEquals(size, received.file.length())
-                assertEquals(macHash, received.file.inputStream().use(FileTransferProtocol::hash))
+                fun downloaded(): Uri? = context.contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.MediaColumns._ID), "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(macName), null)
+                    ?.use { c -> if (c.moveToFirst()) android.content.ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0)) else null }
+                waitFor("Mac file delivery") { downloaded() != null }
+                val saved = downloaded()!!
+                fixtures += saved
+                assertEquals(macHash, context.contentResolver.openInputStream(saved)!!.use(FileTransferProtocol::hash))
                 assertEquals(marker, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-                stage.writeText("save-file")
-                ActivityScenario.launch(ReceivedFilesActivity::class.java).use {
-                    waitFor("Save As verification") { ack.exists() && ack.readText() == "save-file" }
-                }
                 stage.writeText("passed")
             } catch (error: Throwable) {
                 stage.writeText("failed")
                 throw error
             } finally {
                 fixtures.forEach { runCatching { context.contentResolver.delete(it, null, null) } }
-                receivedIds.forEach(store::deleteReceived)
                 if (previousImage != null) ImageClipboard.write(context, clipboard, previousImage)
                 else if (previous != null) clipboard.setPrimaryClip(previous) else clipboard.clearPrimaryClip()
             }

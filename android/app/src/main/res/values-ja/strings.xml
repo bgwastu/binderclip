@@ -135,14 +135,6 @@
     <string name="file_connection_required">ファイルにはWi-Fiまたはmesh接続と、両端末のアプリの更新が必要です。</string>
     <string name="file_picker_help">最大8個、各100 MiB以下のファイルを選択してください。</string>
     <string name="file_received">ファイルを受信しました</string>
-    <string name="received_files_help">保存先を選んで保存できます。削除するまでここに保持されます。</string>
-    <string name="received_files_empty">受信ファイルはありません</string>
-    <string name="file_save">名前を付けて保存…</string>
-    <string name="file_open">開く</string>
-    <string name="file_delete">削除</string>
-    <string name="file_saved">ファイルを保存しました</string>
-    <string name="file_save_failed">保存できませんでした。別の場所を選んでください。</string>
-    <string name="file_open_failed">このファイルを開けるアプリがありません。名前を付けて保存を使用してください。</string>
     <string name="share_preparing">送信を準備中…</string>
     <string name="transfer_queued">Wi-Fi またはメッシュ接続を待っています。Mac が再接続するとファイルを送信します。</string>
     <string name="transfer_kind_text">テキスト</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">クリップを送信</string>
     <string name="send_file_compact">ファイルを送信</string>
     <string name="back">戻る</string>
-    <string name="file_save_downloads">ダウンロードに保存</string>
     <string name="device_details">接続の詳細</string>
     <string name="offline">オフライン</string>
     <string name="share_sent_confirmation">%1$s に送信しました</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">%1$s 宛てに待機中</string>
     <string name="background_engine">バックグラウンドサービス</string>
     <string name="more_options">その他のオプション</string>
+    <string name="file_saved_downloads">ダウンロードに保存しました</string>
+    <string name="file_save_downloads_failed">ダウンロードに保存できませんでした</string>
 </resources>

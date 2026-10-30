@@ -136,14 +136,6 @@
     <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
     <string name="file_picker_help">Choose up to eight files, at most 100 MiB each.</string>
     <string name="file_received">File received</string>
-    <string name="received_files_help">Save files to a location you choose. Files remain here until you delete them.</string>
-    <string name="received_files_empty">No received files yet</string>
-    <string name="file_save">Save As…</string>
-    <string name="file_open">Open</string>
-    <string name="file_delete">Delete</string>
-    <string name="file_saved">File saved</string>
-    <string name="file_save_failed">Couldn’t save file. Try another location.</string>
-    <string name="file_open_failed">No app can open this file. Use Save As instead.</string>
     <string name="hide_transfer">Hide</string>
     <string name="cancel_transfer">Cancel transfer</string>
     <string name="transfer_cancelled">Transfer cancelled</string>
@@ -185,7 +177,6 @@
     <string name="send_current_clip">Send Current Clip</string>
     <string name="send_file_compact">Send File</string>
     <string name="back">Back</string>
-    <string name="file_save_downloads">Save to Downloads</string>
     <string name="device_details">Connection Details</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">Sent to %1$s</string>
@@ -193,4 +184,6 @@
     <string name="share_queued_for">Queued for %1$s</string>
     <string name="background_engine">Background Service</string>
     <string name="more_options">More options</string>
+    <string name="file_saved_downloads">Saved to Downloads</string>
+    <string name="file_save_downloads_failed">Couldn’t save to Downloads</string>
 </resources>

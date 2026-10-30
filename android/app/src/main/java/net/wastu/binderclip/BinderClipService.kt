@@ -1,5 +1,6 @@
 package net.wastu.binderclip
 
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -7,6 +8,7 @@ import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -19,8 +21,10 @@ import android.net.Uri
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -793,18 +797,45 @@ class BinderClipService : Service() {
 
     private fun receiveFile(file: ReceivedFile) {
         if (stopping) return
-        val open = PendingIntent.getActivity(this, file.metadata.id.hashCode(),
-            Intent(this, ReceivedFilesActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val notification = NotificationCompat.Builder(this, FILE_CHANNEL)
+        val uri = runCatching { saveToDownloads(file) }.getOrNull()
+        val builder = NotificationCompat.Builder(this, FILE_CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
-            .setContentTitle(getString(R.string.file_received))
-            .setContentText(file.metadata.name)
-            .setContentIntent(open)
-            .addAction(0, getString(R.string.file_save), open)
+            .setContentTitle(file.metadata.name)
             .setAutoCancel(true)
-            .build()
-        getSystemService(NotificationManager::class.java).notify("received-file", file.metadata.id.hashCode(), notification)
+        if (uri != null) {
+            runCatching { FileTransferStore.forContext(this).deleteReceived(file.storageId) }
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, file.metadata.mimeType)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            val fallback = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val target = if (view.resolveActivity(packageManager) != null) view else fallback
+            builder.setContentText(getString(R.string.file_saved_downloads))
+                .setContentIntent(PendingIntent.getActivity(this, file.metadata.id.hashCode(), target,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        } else {
+            builder.setContentText(getString(R.string.file_save_downloads_failed))
+        }
+        getSystemService(NotificationManager::class.java).notify("received-file", file.metadata.id.hashCode(), builder.build())
         publishState()
+    }
+
+    /** Received files go straight to Downloads; nothing is kept in a private inbox. */
+    private fun saveToDownloads(file: ReceivedFile): android.net.Uri {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, file.metadata.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, file.metadata.mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: error("Could not create download entry")
+        try {
+            contentResolver.openOutputStream(uri)?.use { out ->
+                file.file.inputStream().use { it.copyTo(out, 64 * 1024) }
+            } ?: error("Could not write download content")
+        } catch (error: Throwable) {
+            runCatching { contentResolver.delete(uri, null, null) }
+            throw error
+        }
+        return uri
     }
 
     private fun drainQueuedShares() {

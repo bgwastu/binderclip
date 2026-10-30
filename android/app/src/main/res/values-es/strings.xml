@@ -135,14 +135,6 @@
     <string name="file_connection_required">Los archivos requieren Wi-Fi o mesh y ambas aplicaciones actualizadas.</string>
     <string name="file_picker_help">Elige hasta ocho archivos de un máximo de 100 MiB cada uno.</string>
     <string name="file_received">Archivo recibido</string>
-    <string name="received_files_help">Guarda los archivos donde quieras. Permanecen aquí hasta que los elimines.</string>
-    <string name="received_files_empty">Aún no hay archivos recibidos</string>
-    <string name="file_save">Guardar como…</string>
-    <string name="file_open">Abrir</string>
-    <string name="file_delete">Eliminar</string>
-    <string name="file_saved">Archivo guardado</string>
-    <string name="file_save_failed">No se pudo guardar. Prueba otra ubicación.</string>
-    <string name="file_open_failed">Ninguna aplicación puede abrir este archivo. Usa Guardar como.</string>
     <string name="share_preparing">Preparando el envío…</string>
     <string name="transfer_queued">Esperando Wi-Fi o mesh. Los archivos se enviarán cuando el Mac se conecte de nuevo.</string>
     <string name="transfer_kind_text">texto</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">Enviar portapapeles</string>
     <string name="send_file_compact">Enviar archivo</string>
     <string name="back">Atrás</string>
-    <string name="file_save_downloads">Guardar en Descargas</string>
     <string name="device_details">Detalles de conexión</string>
     <string name="offline">Desconectado</string>
     <string name="share_sent_confirmation">Enviado a %1$s</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">En cola para %1$s</string>
     <string name="background_engine">Servicio en segundo plano</string>
     <string name="more_options">Más opciones</string>
+    <string name="file_saved_downloads">Guardado en Descargas</string>
+    <string name="file_save_downloads_failed">No se pudo guardar en Descargas</string>
 </resources>

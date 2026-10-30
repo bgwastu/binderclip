@@ -61,7 +61,6 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-        <activity android:name=".ReceivedFilesActivity" android:exported="false" android:theme="@style/Theme.BinderClip" />
 
         <activity
             android:name=".MainActivity"

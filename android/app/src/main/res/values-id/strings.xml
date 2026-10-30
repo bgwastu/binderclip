@@ -135,14 +135,6 @@
     <string name="file_connection_required">File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.</string>
     <string name="file_picker_help">Pilih hingga delapan file, masing-masing maksimal 100 MiB.</string>
     <string name="file_received">File diterima</string>
-    <string name="received_files_help">Simpan file ke lokasi pilihan Anda. File tetap di sini hingga dihapus.</string>
-    <string name="received_files_empty">Belum ada file diterima</string>
-    <string name="file_save">Simpan Sebagai…</string>
-    <string name="file_open">Buka</string>
-    <string name="file_delete">Hapus</string>
-    <string name="file_saved">File disimpan</string>
-    <string name="file_save_failed">File gagal disimpan. Coba lokasi lain.</string>
-    <string name="file_open_failed">Tidak ada aplikasi untuk membuka file ini. Gunakan Simpan Sebagai.</string>
     <string name="share_preparing">Menyiapkan kiriman…</string>
     <string name="transfer_queued">Menunggu Wi-Fi atau mesh. File akan dikirim saat Mac terhubung kembali.</string>
     <string name="transfer_kind_text">teks</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">Kirim Klip Saat Ini</string>
     <string name="send_file_compact">Kirim Berkas</string>
     <string name="back">Kembali</string>
-    <string name="file_save_downloads">Simpan ke Unduhan</string>
     <string name="device_details">Detail Koneksi</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">Terkirim ke %1$s</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">Dalam antrean untuk %1$s</string>
     <string name="background_engine">Layanan Latar Belakang</string>
     <string name="more_options">Opsi lainnya</string>
+    <string name="file_saved_downloads">Disimpan di Unduhan</string>
+    <string name="file_save_downloads_failed">Tidak dapat menyimpan ke Unduhan</string>
 </resources>

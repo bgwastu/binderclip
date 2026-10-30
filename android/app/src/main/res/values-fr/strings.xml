@@ -135,14 +135,6 @@
     <string name="file_connection_required">Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.</string>
     <string name="file_picker_help">Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.</string>
     <string name="file_received">Fichier reçu</string>
-    <string name="received_files_help">Enregistrez les fichiers à l’endroit de votre choix. Ils restent ici jusqu’à leur suppression.</string>
-    <string name="received_files_empty">Aucun fichier reçu</string>
-    <string name="file_save">Enregistrer sous…</string>
-    <string name="file_open">Ouvrir</string>
-    <string name="file_delete">Supprimer</string>
-    <string name="file_saved">Fichier enregistré</string>
-    <string name="file_save_failed">Impossible d’enregistrer le fichier. Essayez un autre emplacement.</string>
-    <string name="file_open_failed">Aucune application ne peut ouvrir ce fichier. Utilisez Enregistrer sous.</string>
     <string name="share_preparing">Préparation de l’envoi…</string>
     <string name="transfer_queued">En attente du Wi-Fi ou du mesh. Les fichiers seront envoyés dès que votre Mac sera reconnecté.</string>
     <string name="transfer_kind_text">texte</string>
@@ -187,7 +179,6 @@
     <string name="send_current_clip">Envoyer le presse-papiers</string>
     <string name="send_file_compact">Envoyer un fichier</string>
     <string name="back">Retour</string>
-    <string name="file_save_downloads">Enregistrer dans Téléchargements</string>
     <string name="device_details">Détails de connexion</string>
     <string name="offline">Hors ligne</string>
     <string name="share_sent_confirmation">Envoyé à %1$s</string>
@@ -195,4 +186,6 @@
     <string name="share_queued_for">En file d\'attente pour %1$s</string>
     <string name="background_engine">Service d\'arrière-plan</string>
     <string name="more_options">Plus d’options</string>
+    <string name="file_saved_downloads">Enregistré dans Téléchargements</string>
+    <string name="file_save_downloads_failed">Impossible d’enregistrer dans Téléchargements</string>
 </resources>
