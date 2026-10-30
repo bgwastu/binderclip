@@ -141,9 +141,9 @@
     <string name="hide_transfer">Sembunyikan</string>
     <string name="cancel_transfer">Batalkan kiriman</string>
     <string name="transfer_cancelled">Kiriman dibatalkan</string>
-    <string name="capture_install_desc">Tanpa root, BinderClip membutuhkan Shizuku, aplikasi gratis, untuk melihat yang Anda salin. Mac → ponsel sudah berfungsi.</string>
+    <string name="capture_install_desc">Tanpa root, BinderClip membutuhkan Shizuku, aplikasi gratis, untuk melihat yang Anda salin.</string>
     <string name="capture_install_action">Dapatkan Shizuku</string>
-    <string name="capture_start_desc">Buka Shizuku, ketuk Mulai di bagian Debugging nirkabel, lalu kembali. Halaman ini akan lanjut sendiri.</string>
+    <string name="capture_start_desc">Buka Shizuku, ketuk Mulai di bagian Debugging nirkabel, lalu kembali.</string>
     <string name="capture_open_shizuku">Buka Shizuku</string>
     <string name="capture_update_title">Perbarui Shizuku</string>
     <string name="capture_update_desc">Versi Shizuku ini terlalu lama untuk BinderClip. Perbarui, lalu mulai lagi.</string>
@@ -153,9 +153,9 @@
     <string name="capture_denied_desc">Buka Shizuku, masuk ke Aplikasi yang diotorisasi, lalu aktifkan BinderClip.</string>
     <string name="capture_connecting_title">Menghubungkan ke Shizuku…</string>
     <string name="capture_connecting_desc">Memeriksa apakah BinderClip dapat melihat salinan Anda.</string>
-    <string name="capture_paused_title">Papan klip ponsel → Mac dijeda</string>
+    <string name="capture_paused_title">Papan klip ponsel ke Mac dijeda</string>
     <string name="capture_paused_desc">Shizuku tidak berjalan. Ketuk untuk memulai.</string>
-    <string name="capture_paused_card_desc">Shizuku berhenti, biasanya setelah restart. Buka dan ketuk Mulai. Mac → ponsel tetap berfungsi.</string>
+    <string name="capture_paused_card_desc">Shizuku berhenti, biasanya setelah restart. Buka dan ketuk Mulai.</string>
     <string name="update_available">Pembaruan tersedia</string>
     <string name="update_message">Versi baru BinderClip (%1$s) telah tersedia.</string>
     <string name="update_button">Perbarui</string>
@@ -184,7 +184,7 @@
     <string name="capture_row_shizuku">Aktif, memakai Shizuku</string>
     <string name="capture_row_off">Mati. Siapkan agar salinan terkirim otomatis</string>
     <string name="capture_row_paused">Dijeda. Shizuku berhenti</string>
-    <string name="setup_intro">BinderClip butuh akses clipboard latar belakang untuk mengirim yang Anda salin di ponsel ini. Mac ke ponsel sudah berfungsi tanpanya.</string>
+    <string name="setup_intro">BinderClip butuh akses clipboard latar belakang untuk mengirim yang Anda salin di ponsel ini.</string>
     <string name="setup_root_title">Akses root</string>
     <string name="setup_root_desc">Root tersedia di ponsel ini.</string>
     <string name="setup_root_hint">Punya root? Izinkan BinderClip di aplikasi root Anda, lalu periksa lagi.</string>

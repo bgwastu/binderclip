@@ -139,9 +139,9 @@
     <string name="hide_transfer">Hide</string>
     <string name="cancel_transfer">Cancel transfer</string>
     <string name="transfer_cancelled">Transfer cancelled</string>
-    <string name="capture_install_desc">Without root, BinderClip needs Shizuku, a free app, to see what you copy. Mac → phone already works.</string>
+    <string name="capture_install_desc">Without root, BinderClip needs Shizuku, a free app, to see what you copy.</string>
     <string name="capture_install_action">Get Shizuku</string>
-    <string name="capture_start_desc">Open Shizuku, tap Start under Wireless debugging, then come back. This page moves on by itself.</string>
+    <string name="capture_start_desc">Open Shizuku, tap Start under Wireless debugging, then come back.</string>
     <string name="capture_open_shizuku">Open Shizuku</string>
     <string name="capture_update_title">Update Shizuku</string>
     <string name="capture_update_desc">This Shizuku version is too old for BinderClip. Update it, then start it again.</string>
@@ -151,9 +151,9 @@
     <string name="capture_denied_desc">Open Shizuku, go to Authorized applications, and turn on BinderClip.</string>
     <string name="capture_connecting_title">Connecting to Shizuku…</string>
     <string name="capture_connecting_desc">Checking that BinderClip can see your copies.</string>
-    <string name="capture_paused_title">Phone → Mac clipboard paused</string>
+    <string name="capture_paused_title">Phone to Mac clipboard paused</string>
     <string name="capture_paused_desc">Shizuku isn’t running. Tap to start it.</string>
-    <string name="capture_paused_card_desc">Shizuku stopped, usually after a restart. Open it and tap Start. Mac → phone still works.</string>
+    <string name="capture_paused_card_desc">Shizuku stopped, usually after a restart. Open it and tap Start.</string>
     <string name="update_available">Update available</string>
     <string name="update_message">A new version of BinderClip (%1$s) is available.</string>
     <string name="update_button">Update</string>
@@ -182,7 +182,7 @@
     <string name="capture_row_shizuku">On, using Shizuku</string>
     <string name="capture_row_off">Off. Set up to send copies automatically</string>
     <string name="capture_row_paused">Paused. Shizuku stopped</string>
-    <string name="setup_intro">BinderClip needs background clipboard access to send what you copy on this phone. Mac to phone already works without it.</string>
+    <string name="setup_intro">BinderClip needs background clipboard access to send what you copy on this phone.</string>
     <string name="setup_root_title">Root access</string>
     <string name="setup_root_desc">Root is available on this phone.</string>
     <string name="setup_root_hint">Have root? Allow BinderClip in your root manager, then check again.</string>

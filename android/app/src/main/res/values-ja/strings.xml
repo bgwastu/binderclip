@@ -141,9 +141,9 @@
     <string name="hide_transfer">非表示</string>
     <string name="cancel_transfer">転送をキャンセル</string>
     <string name="transfer_cancelled">転送をキャンセルしました</string>
-    <string name="capture_install_desc">root なしの場合、コピー内容を読み取るには無料アプリ Shizuku が必要です。Mac → スマホはすでに使えます。</string>
+    <string name="capture_install_desc">root なしの場合、コピー内容を読み取るには無料アプリ Shizuku が必要です。</string>
     <string name="capture_install_action">Shizuku を入手</string>
-    <string name="capture_start_desc">Shizuku を開き、「ワイヤレスデバッグ」の「開始」をタップしてから戻ってください。この画面は自動で進みます。</string>
+    <string name="capture_start_desc">Shizuku を開き、「ワイヤレスデバッグ」の「開始」をタップしてから戻ってください。</string>
     <string name="capture_open_shizuku">Shizuku を開く</string>
     <string name="capture_update_title">Shizuku を更新</string>
     <string name="capture_update_desc">この Shizuku は BinderClip には古すぎます。更新してから再度起動してください。</string>
@@ -153,9 +153,9 @@
     <string name="capture_denied_desc">Shizuku を開き、「承認済みアプリ」で BinderClip をオンにしてください。</string>
     <string name="capture_connecting_title">Shizuku に接続中…</string>
     <string name="capture_connecting_desc">BinderClip がコピー内容を読み取れるか確認しています。</string>
-    <string name="capture_paused_title">スマホ → Mac のクリップボードを一時停止中</string>
+    <string name="capture_paused_title">スマホからMac のクリップボードを一時停止中</string>
     <string name="capture_paused_desc">Shizuku が実行されていません。タップして起動します。</string>
-    <string name="capture_paused_card_desc">Shizuku が停止しました（通常は再起動後）。開いて「開始」をタップしてください。Mac → スマホは引き続き使えます。</string>
+    <string name="capture_paused_card_desc">Shizuku が停止しました（通常は再起動後）。開いて「開始」をタップしてください。</string>
     <string name="update_available">アップデートが利用可能です</string>
     <string name="update_message">BinderClip の新しいバージョン (%1$s) が利用可能です。</string>
     <string name="update_button">更新</string>
@@ -184,7 +184,7 @@
     <string name="capture_row_shizuku">オン（Shizuku 使用）</string>
     <string name="capture_row_off">オフ。設定するとコピーを自動送信します</string>
     <string name="capture_row_paused">一時停止中。Shizuku が停止しました</string>
-    <string name="setup_intro">このスマホでコピーした内容を送るには、BinderClip にバックグラウンドのクリップボード権限が必要です。Macからスマホへのコピーにはこの権限は不要です。</string>
+    <string name="setup_intro">このスマホでコピーした内容を送るには、BinderClip にバックグラウンドのクリップボード権限が必要です。</string>
     <string name="setup_root_title">root 権限</string>
     <string name="setup_root_desc">このスマホでは root を利用できます。</string>
     <string name="setup_root_hint">root をお持ちですか？root 管理アプリで BinderClip を許可してから、もう一度確認してください。</string>

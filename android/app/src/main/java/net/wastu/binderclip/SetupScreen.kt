@@ -91,14 +91,14 @@ internal fun SetupScreen(state: AppState, onBack: () -> Unit, onCheckAgain: () -
                 Modifier.align(Alignment.TopCenter).widthIn(max = 600.dp).fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                if (done) {
+                    Text(stringResource(R.string.setup_done_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                }
                 Text(
                     stringResource(if (done) R.string.setup_done_desc else R.string.setup_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (done) {
-                    Text(stringResource(R.string.setup_done_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                }
                 steps.forEachIndexed { index, item -> StepRow(index + 1, item) }
                 if (!done && !state.rootAvailable) {
                     Text(

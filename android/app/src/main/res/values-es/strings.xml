@@ -141,9 +141,9 @@
     <string name="hide_transfer">Ocultar</string>
     <string name="cancel_transfer">Cancelar envío</string>
     <string name="transfer_cancelled">Envío cancelado</string>
-    <string name="capture_install_desc">Sin root, BinderClip necesita Shizuku, una app gratuita, para ver lo que copias. Mac → teléfono ya funciona.</string>
+    <string name="capture_install_desc">Sin root, BinderClip necesita Shizuku, una app gratuita, para ver lo que copias.</string>
     <string name="capture_install_action">Obtener Shizuku</string>
-    <string name="capture_start_desc">Abre Shizuku, toca Iniciar en Depuración inalámbrica y vuelve. Esta página avanzará sola.</string>
+    <string name="capture_start_desc">Abre Shizuku, toca Iniciar en Depuración inalámbrica y vuelve.</string>
     <string name="capture_open_shizuku">Abrir Shizuku</string>
     <string name="capture_update_title">Actualiza Shizuku</string>
     <string name="capture_update_desc">Esta versión de Shizuku es demasiado antigua para BinderClip. Actualízala e iníciala de nuevo.</string>
@@ -153,9 +153,9 @@
     <string name="capture_denied_desc">Abre Shizuku, ve a Aplicaciones autorizadas y activa BinderClip.</string>
     <string name="capture_connecting_title">Conectando con Shizuku…</string>
     <string name="capture_connecting_desc">Comprobando que BinderClip puede ver lo que copias.</string>
-    <string name="capture_paused_title">Portapapeles teléfono → Mac en pausa</string>
+    <string name="capture_paused_title">Portapapeles teléfono a Mac en pausa</string>
     <string name="capture_paused_desc">Shizuku no se está ejecutando. Toca para iniciarlo.</string>
-    <string name="capture_paused_card_desc">Shizuku se detuvo, normalmente tras reiniciar. Ábrelo y toca Iniciar. Mac → teléfono sigue funcionando.</string>
+    <string name="capture_paused_card_desc">Shizuku se detuvo, normalmente tras reiniciar. Ábrelo y toca Iniciar.</string>
     <string name="update_available">Actualización disponible</string>
     <string name="update_message">Una nueva versión de BinderClip (%1$s) está disponible.</string>
     <string name="update_button">Actualizar</string>
@@ -184,7 +184,7 @@
     <string name="capture_row_shizuku">Activa, con Shizuku</string>
     <string name="capture_row_off">Desactivada. Configúrala para enviar copias automáticamente</string>
     <string name="capture_row_paused">En pausa. Shizuku se detuvo</string>
-    <string name="setup_intro">BinderClip necesita acceso al portapapeles en segundo plano para enviar lo que copias en este teléfono. Mac a teléfono ya funciona sin él.</string>
+    <string name="setup_intro">BinderClip necesita acceso al portapapeles en segundo plano para enviar lo que copias en este teléfono.</string>
     <string name="setup_root_title">Acceso root</string>
     <string name="setup_root_desc">Hay root disponible en este teléfono.</string>
     <string name="setup_root_hint">¿Tienes root? Permite BinderClip en tu gestor de root y vuelve a comprobar.</string>

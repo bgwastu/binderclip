@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Android:** Received files save straight to Downloads and the notification opens them; the Received Files screen is gone. The transfer toast is neutral and always has a close button.
+- **Android:** New status-first home with a recent activity list. Phone to Mac copying has its own step-by-step setup screen for root and Shizuku, and settings moved to a separate screen.
 - **macOS:** Menu rewritten with one submenu per device (send clipboard, file, browser tab, rename, unpair) and no emoji. The toast is neutral with a close button, shows determinate progress, and a finished received file reveals itself in Finder on click. The Received Files menu item is removed.
 
 ## 1.17.0
