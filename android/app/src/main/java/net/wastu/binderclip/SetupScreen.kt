@@ -146,25 +146,25 @@ private fun StatusCard(done: Boolean) {
     val content = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
     ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(shape = CircleShape, color = content.copy(alpha = 0.12f), modifier = Modifier.size(56.dp)) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = content.copy(alpha = 0.12f), modifier = Modifier.size(40.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         if (done) Icons.Outlined.CheckCircle else Icons.Outlined.ContentPaste,
                         contentDescription = null,
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
-            Text(
-                stringResource(if (done) R.string.setup_done_title else R.string.capture_row_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(stringResource(if (done) R.string.setup_done_desc else R.string.setup_intro), style = MaterialTheme.typography.bodyLarge)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (done) {
+                    Text(stringResource(R.string.setup_done_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
+                Text(stringResource(if (done) R.string.setup_done_desc else R.string.setup_intro), style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
