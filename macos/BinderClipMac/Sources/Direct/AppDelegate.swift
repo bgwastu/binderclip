@@ -320,14 +320,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let submenu = NSMenu()
         submenu.autoenablesItems = false
 
-        if #available(macOS 14.4, *) {
-            item.subtitle = status.text
-        } else {
-            let caption = NSMenuItem(title: status.text, action: nil, keyEquivalent: "")
-            caption.isEnabled = false
-            submenu.addItem(caption)
-            submenu.addItem(.separator())
-        }
+        let caption = NSMenuItem(title: status.text, action: nil, keyEquivalent: "")
+        caption.isEnabled = false
+        submenu.addItem(caption)
+        submenu.addItem(.separator())
 
         func action(_ title: String, _ selector: Selector, enabled: Bool = true) {
             let entry = NSMenuItem(title: title, action: selector, keyEquivalent: "")
