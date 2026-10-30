@@ -42,7 +42,14 @@ private struct ToastCapsuleView: View {
     let message: String
     let icon: String
     var progress: TransferProgress? = nil
+    var fileURL: URL? = nil
+    var onClick: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+
+    private var isInteractive: Bool {
+        onClick != nil || fileURL != nil
+    }
 
     private var category: ToastCategory {
         ToastCategory.from(icon: icon)
@@ -87,19 +94,41 @@ private struct ToastCapsuleView: View {
                 }
                 .frame(width: 300, alignment: .leading)
             } else {
-                Text(message)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 380, alignment: .leading)
+                VStack(alignment: .leading, spacing: isInteractive ? 2 : 0) {
+                    Text(message)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if isInteractive {
+                        Text(L10n.tr("toast_click_to_reveal"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: 380, alignment: .leading)
             }
         }
         .padding(.leading, 8)
         .padding(.trailing, 16)
-        .padding(.vertical, progress == nil ? 7 : 12)
+        .padding(.vertical, progress == nil ? (isInteractive ? 8 : 7) : 12)
         .liquidGlassBacking(colorScheme: colorScheme, cornerRadius: progress == nil ? 100 : 20)
         .padding(14) // Breathing room for the ambient drop shadow
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onClick?()
+        }
+        .onHover { hovering in
+            if isInteractive {
+                isHovered = hovering
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+        }
     }
 
     private func byteCount(_ bytes: Int64) -> String {
@@ -154,12 +183,48 @@ final class ToastHUD {
     private var displayedTransfer: TransferProgress?
     private var lastProgressUpdate: TimeInterval = 0
 
-    func show(message: String, icon: String = "checkmark.circle.fill") {
+    func show(message: String, icon: String = "checkmark.circle.fill", fileURL: URL? = nil, onClick: (() -> Void)? = nil) {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.activeTransfers.isEmpty else { return }
             self.displayedTransfer = nil
-            self.render(ToastCapsuleView(message: message, icon: icon), dismiss: true)
+
+            let clickAction: (() -> Void)?
+            if let onClick {
+                clickAction = { [weak self] in
+                    onClick()
+                    self?.dismissNow()
+                }
+            } else if let fileURL {
+                clickAction = { [weak self] in
+                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    self?.dismissNow()
+                }
+            } else {
+                clickAction = nil
+            }
+
+            self.render(ToastCapsuleView(message: message, icon: icon, fileURL: fileURL, onClick: clickAction), dismiss: true)
         }
+    }
+
+    func showFileReceived(url: URL, message: String) {
+        show(message: message, icon: "folder.fill", fileURL: url)
+    }
+
+    func dismissNow() {
+        dismissWorkItem?.cancel()
+        dismissWorkItem = nil
+        guard let panel = window, panel.isVisible else { return }
+        let currentFrame = panel.frame
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0.0, 1.0, 1.0)
+            panel.animator().setFrame(currentFrame.offsetBy(dx: 0, dy: 8), display: true)
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self, self.dismissWorkItem == nil else { return }
+            panel?.orderOut(nil)
+        })
     }
 
     func showTransfer(_ progress: TransferProgress) {
@@ -216,9 +281,12 @@ final class ToastHUD {
         dismissWorkItem?.cancel()
         dismissWorkItem = nil
 
+        let isInteractive = (toastView.onClick != nil || toastView.fileURL != nil)
+
         let panel: ToastPanel
         if let existingWindow = window, let hosting = hostingView {
             panel = existingWindow
+            panel.ignoresMouseEvents = !isInteractive
             hosting.rootView = toastView
         } else {
             panel = ToastPanel(
@@ -231,7 +299,7 @@ final class ToastHUD {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.hasShadow = false
-            panel.ignoresMouseEvents = true
+            panel.ignoresMouseEvents = !isInteractive
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
 
@@ -298,6 +366,7 @@ final class ToastHUD {
         }
         guard let workItem else { return }
         dismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: workItem)
+        let delay: TimeInterval = isInteractive ? 3.5 : 2.2
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 }

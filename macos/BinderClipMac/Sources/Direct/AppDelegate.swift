@@ -107,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             let message = L10n.tr("file_received_format", url.lastPathComponent)
             self?.notifyIncoming(title: AppProfile.current.displayName, body: message, sound: .default, userInfo: ["fileURL": url.path])
             NSSound(named: "Glass")?.play()
-            ToastHUD.shared.show(message: message, icon: "folder.fill")
+            ToastHUD.shared.show(message: message, icon: "folder.fill", fileURL: url)
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
@@ -314,7 +314,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             menu.addItem(.separator())
         }
 
-        addSectionHeader(hostCaption(), to: menu)
+        let headerText = "\(transport.localDeviceName) · Port \(AppProfile.current.port)"
+        addSectionHeader(headerText, to: menu)
 
         if peers.isEmpty {
             let empty = NSMenuItem(title: L10n.tr("no_phones_yet"), action: nil, keyEquivalent: "")
@@ -323,35 +324,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         } else {
             let ordered = peers.filter(\.connected) + peers.filter { !$0.connected }
             for peer in ordered {
-                let transport = transport.peerTransportType(peer.id)
-                let isLive = peer.connected || transport != .none
-                let title = isLive ? peer.name : L10n.tr("device_waiting_suffix", peer.name)
-                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-                item.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
-                if !isLive {
-                    let attributed = NSMutableAttributedString(string: title)
-                    attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: attributed.length))
-                    item.attributedTitle = attributed
+                let transportType = transport.peerTransportType(peer.id)
+                let isLive = peer.connected || transportType != .none
+
+                let badge: String
+                switch transportType {
+                case .lan:
+                    badge = "LAN 🟢"
+                case .mesh:
+                    badge = "Mesh 🔵"
+                case .bluetooth:
+                    badge = "BT ⚪"
+                case .none:
+                    badge = isLive ? "🟢" : "⚪"
                 }
-                item.submenu = deviceMenu(for: peer)
-                menu.addItem(item)
+
+                let rowTitle = isLive ? "\(peer.name)  \(badge)" : "\(peer.name)  ⚪"
+                let rowItem = NSMenuItem(title: rowTitle, action: nil, keyEquivalent: "")
+                rowItem.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
+                if !isLive {
+                    let attributed = NSMutableAttributedString(string: L10n.tr("device_waiting_suffix", peer.name))
+                    attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: attributed.length))
+                    rowItem.attributedTitle = attributed
+                }
+                menu.addItem(rowItem)
+
+                let sendFile = NSMenuItem(
+                    title: L10n.tr("send_file_to_device", peer.name),
+                    action: #selector(sendFileToPeer(_:)),
+                    keyEquivalent: ""
+                )
+                sendFile.target = self
+                sendFile.representedObject = peer.id
+                sendFile.indentationLevel = 1
+                sendFile.isEnabled = transport.canSendFile(to: peer.id)
+                sendFile.toolTip = L10n.tr("file_connection_required")
+                menu.addItem(sendFile)
+
+                let optionsItem = NSMenuItem(title: L10n.tr("device_options"), action: nil, keyEquivalent: "")
+                optionsItem.indentationLevel = 1
+                let optionsMenu = NSMenu()
+                optionsMenu.autoenablesItems = false
+
+                let rename = NSMenuItem(title: L10n.tr("rename_device_menu"), action: #selector(renameDevice(_:)), keyEquivalent: "")
+                rename.target = self
+                rename.representedObject = peer.id
+                optionsMenu.addItem(rename)
+
+                let unpair = NSMenuItem(title: L10n.tr("unpair_device_menu"), action: #selector(removePeer(_:)), keyEquivalent: "")
+                unpair.target = self
+                unpair.representedObject = peer.id
+                optionsMenu.addItem(unpair)
+
+                let sendToDevice = NSMenuItem(title: L10n.tr("send_clipboard_to_peer", peer.name), action: #selector(sendClipboardToPeer(_:)), keyEquivalent: "")
+                sendToDevice.target = self
+                sendToDevice.representedObject = peer.id
+                sendToDevice.isEnabled = peer.connected
+                optionsMenu.addItem(sendToDevice)
+
+                optionsItem.submenu = optionsMenu
+                menu.addItem(optionsItem)
             }
         }
 
         menu.addItem(.separator())
 
-        if AppProfile.current.isDebug {
-            let item = NSMenuItem(title: "Private Debug Clipboard…", action: #selector(showDebugClipboard), keyEquivalent: "d")
-            item.target = self; menu.addItem(item)
-            let bluetooth = NSMenuItem(title: "Bluetooth Testing (Shared Radio)", action: #selector(toggleDebugBluetooth), keyEquivalent: "")
-            bluetooth.target = self
-            bluetooth.state = transport.isBluetoothEnabled ? .on : .off
-            menu.addItem(bluetooth)
-        }
-
-        let pair = NSMenuItem(title: L10n.tr("add_device"), action: #selector(showPairing), keyEquivalent: "n")
+        let pair = NSMenuItem(title: L10n.tr("add_device") + "…", action: #selector(showPairing), keyEquivalent: "n")
         pair.target = self
         menu.addItem(pair)
+
+        let received = NSMenuItem(title: L10n.tr("received_files"), action: #selector(showReceivedFiles), keyEquivalent: "")
+        received.target = self
+        menu.addItem(received)
+
+        let logs = NSMenuItem(title: L10n.tr("diagnostic_logs"), action: #selector(showLogs), keyEquivalent: "l")
+        logs.target = self
+        menu.addItem(logs)
 
         if let browserTab = cachedActiveTab {
             let sendURLItem = NSMenuItem(title: L10n.tr("send_browser_tab"), action: nil, keyEquivalent: "u")
@@ -385,11 +433,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             menu.addItem(sendURLItem)
         }
 
+        if AppProfile.current.isDebug {
+            menu.addItem(.separator())
+            let item = NSMenuItem(title: "Private Debug Clipboard…", action: #selector(showDebugClipboard), keyEquivalent: "d")
+            item.target = self; menu.addItem(item)
+            let bluetooth = NSMenuItem(title: "Bluetooth Testing (Shared Radio)", action: #selector(toggleDebugBluetooth), keyEquivalent: "")
+            bluetooth.target = self
+            bluetooth.state = transport.isBluetoothEnabled ? .on : .off
+            menu.addItem(bluetooth)
+        }
+
         menu.addItem(.separator())
 
-        let more = NSMenuItem(title: L10n.tr("more"), action: nil, keyEquivalent: "")
-        more.submenu = moreMenu()
-        menu.addItem(more)
+        let login = NSMenuItem(title: L10n.tr("launch_at_login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        login.target = self
+        login.state = (!AppProfile.current.isDebug && SMAppService.mainApp.status == .enabled) ? .on : .off
+        if AppProfile.current.isDebug { login.isEnabled = false }
+        menu.addItem(login)
+
+        let updates = NSMenuItem(title: L10n.tr("check_for_updates"), action: #selector(checkForUpdates), keyEquivalent: "")
+        updates.target = self
+        updates.isEnabled = !AppProfile.current.isDebug
+        menu.addItem(updates)
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: L10n.tr("quit_binderclip"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -438,116 +503,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if hasPendingPermission { menu.addItem(.separator()) }
     }
 
-    private func moreMenu() -> NSMenu {
-        let more = NSMenu()
-        more.autoenablesItems = false
-
-        let loginStatus = SMAppService.mainApp.status
-        if !AppProfile.current.isDebug && loginStatus != .enabled {
-            let needsApproval = loginStatus == .requiresApproval
-            let login = NSMenuItem(
-                title: needsApproval ? L10n.tr("allow_launch_at_login") : L10n.tr("enable_launch_at_login"),
-                action: #selector(enableLaunchAtLogin),
-                keyEquivalent: ""
-            )
-            login.target = self
-            more.addItem(login)
-            more.addItem(.separator())
-        }
-
-        let rename = NSMenuItem(title: L10n.tr("rename_this_mac"), action: #selector(renameDevice(_:)), keyEquivalent: "")
-        rename.target = self
-        rename.representedObject = transport.localDeviceID
-        more.addItem(rename)
-
-        if !peers.isEmpty {
-            let unpairAll = NSMenuItem(title: L10n.tr("unpair_all_devices"), action: #selector(unpairAllDevices), keyEquivalent: "")
-            unpairAll.target = self
-            more.addItem(unpairAll)
-        }
-
-        let resetKey = NSMenuItem(title: L10n.tr("reset_pairing_key"), action: #selector(resetPairingKey), keyEquivalent: "")
-        resetKey.target = self
-        more.addItem(resetKey)
-
-        more.addItem(.separator())
-
-        let logs = NSMenuItem(title: L10n.tr("show_logs"), action: #selector(showLogs), keyEquivalent: "l")
-        logs.target = self
-        more.addItem(logs)
-        let received = NSMenuItem(title: L10n.tr("received_files"), action: #selector(showReceivedFiles), keyEquivalent: "")
-        received.target = self
-        more.addItem(received)
-
-        let rawVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        #if DEBUG
-        let versionString = rawVersion.map { $0.contains("debug") ? $0 : "\($0)-debug" } ?? "debug"
-        let updatesTitle = "BinderClip Debug\tv\(versionString)"
-        #else
-        let versionString = rawVersion
-        let updatesTitle = versionString.map { "\(L10n.tr("check_for_updates"))\tv\($0)" } ?? L10n.tr("check_for_updates")
-        #endif
-        let updates = NSMenuItem(title: updatesTitle, action: #selector(checkForUpdates), keyEquivalent: "")
-        updates.target = self
-        updates.isEnabled = !AppProfile.current.isDebug
-        more.addItem(updates)
-        return more
-    }
-
-    private func deviceMenu(for peer: Peer) -> NSMenu {
-        let details = NSMenu()
-        details.autoenablesItems = false
-        let transportType = transport.peerTransportType(peer.id)
-        let isConnected = peer.connected || transportType != .none
-        let statusTitle: String
-        if !isConnected || transportType == .none {
-            statusTitle = L10n.tr("status_waiting_for_device")
-        } else {
-            switch transportType {
-            case .bluetooth:
-                statusTitle = L10n.tr("connected_via_bluetooth")
-            case .mesh:
-                statusTitle = L10n.tr("connected_via_mesh")
-            case .lan:
-                statusTitle = L10n.tr("connected_via_lan")
-            case .none:
-                statusTitle = L10n.tr("status_waiting_for_device")
-            }
-        }
-        let status = NSMenuItem(title: statusTitle, action: nil, keyEquivalent: "")
-        status.isEnabled = false
-        details.addItem(status)
-        let host = peer.endpoint.host.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !host.isEmpty, host != "unknown" {
-            let ipTitle = host == "bluetooth" ? L10n.tr("transport_bluetooth_ble") : host
-            let ip = NSMenuItem(title: ipTitle, action: nil, keyEquivalent: "")
-            ip.isEnabled = false
-            details.addItem(ip)
-        }
-
-        details.addItem(.separator())
-        let sendToDevice = NSMenuItem(title: L10n.tr("send_clipboard_to_peer", peer.name), action: #selector(sendClipboardToPeer(_:)), keyEquivalent: "")
-        sendToDevice.target = self
-        sendToDevice.representedObject = peer.id
-        sendToDevice.isEnabled = peer.connected
-        details.addItem(sendToDevice)
-        let sendFile = NSMenuItem(title: L10n.tr("send_file"), action: #selector(sendFileToPeer(_:)), keyEquivalent: "")
-        sendFile.target = self
-        sendFile.representedObject = peer.id
-        sendFile.isEnabled = self.transport.canSendFile(to: peer.id)
-        sendFile.toolTip = L10n.tr("file_connection_required")
-        details.addItem(sendFile)
-        details.addItem(.separator())
-        let rename = NSMenuItem(title: L10n.tr("rename_device_menu"), action: #selector(renameDevice(_:)), keyEquivalent: "")
-        rename.target = self
-        rename.representedObject = peer.id
-        details.addItem(rename)
-        let remove = NSMenuItem(title: L10n.tr("unpair_device_menu"), action: #selector(removePeer(_:)), keyEquivalent: "")
-        remove.target = self
-        remove.representedObject = peer.id
-        details.addItem(remove)
-        return details
-    }
 
     @objc private func showPairing() {
         runAfterMenuCloses { [weak self] in
@@ -743,19 +698,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if alert.runModal() == .alertFirstButtonReturn { transport.removePeer(id) }
     }
 
-    @objc private func enableLaunchAtLogin() {
+    @objc private func toggleLaunchAtLogin() {
         guard !AppProfile.current.isDebug else { return }
-        let currentStatus = SMAppService.mainApp.status
-        if currentStatus == .requiresApproval {
+        let service = SMAppService.mainApp
+        if service.status == .enabled {
+            do {
+                try service.unregister()
+            } catch {
+                DiagnosticLog.shared.error("Failed to unregister launch at login: \(error.localizedDescription)")
+            }
+        } else if service.status == .requiresApproval {
             SMAppService.openSystemSettingsLoginItems()
-            renderMenu()
-            return
-        }
-        do {
-            try SMAppService.mainApp.register()
-        } catch {
-            DiagnosticLog.shared.error("Failed to register launch at login: \(error.localizedDescription)")
-            SMAppService.openSystemSettingsLoginItems()
+        } else {
+            do {
+                try service.register()
+            } catch {
+                DiagnosticLog.shared.error("Failed to register launch at login: \(error.localizedDescription)")
+                SMAppService.openSystemSettingsLoginItems()
+            }
         }
         renderMenu()
     }
