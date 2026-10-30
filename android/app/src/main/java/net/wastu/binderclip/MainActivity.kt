@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -192,6 +193,10 @@ class MainActivity : AppCompatActivity() {
                             .putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
                     },
                     onCopy = { startService(BinderClipService.ACTION_COPY_PENDING) },
+                    onCheckCapture = {
+                        ShizukuAccess.refresh()
+                        startService(BinderClipService.ACTION_REFRESH_CAPABILITIES)
+                    },
                     onReconnect = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
                     onToggleBtFallback = { enabled ->
                         startService(
@@ -339,10 +344,12 @@ internal fun BinderClipScreen(
     onRemove: (String) -> Unit,
     onUpdateDeviceName: (String?, String?) -> Unit,
     onRefresh: () -> Unit,
+    onCheckCapture: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var selectedDevice by remember { mutableStateOf<RememberedPeer?>(null) }
+    var screen by rememberSaveable { mutableStateOf(Screen.Home) }
     var showLogs by remember { mutableStateOf(false) }
     val diagnosticEvents by DiagnosticLog.events.collectAsState()
     val devices = listOfNotNull(state.peer)
@@ -405,202 +412,40 @@ internal fun BinderClipScreen(
         checkUpdates(manual = false)
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painterResource(R.drawable.ic_binder_clip),
-                        contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(AppProfile.current.displayName, fontWeight = FontWeight.SemiBold)
-                }
-            },
-            actions = {
-                var menuExpanded by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            Icons.Outlined.MoreVert,
-                            contentDescription = stringResource(R.string.more_options)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        if (state.peer != null) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.scan_qr_to_pair)) },
-                                leadingIcon = { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null) },
-                                onClick = {
-                                    menuExpanded = false
-                                    onScan()
-                                }
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.show_logs)) },
-                            leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                showLogs = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.update_check)) },
-                            leadingIcon = { Icon(Icons.Outlined.SystemUpdate, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                checkUpdates(manual = true)
-                            }
-                        )
-                    }
-                }
-            },
+    BackHandler(enabled = screen != Screen.Home) { screen = Screen.Home }
+    when (screen) {
+        Screen.Setup -> SetupScreen(state, onBack = { screen = Screen.Home }, onCheckAgain = onCheckCapture)
+        Screen.Settings -> SettingsScreen(
+            state = state,
+            bluetoothGranted = bluetoothGranted,
+            missingPermissions = missingPermissions,
+            onBack = { screen = Screen.Home },
+            onToggleBtFallback = onToggleBtFallback,
+            onToggleAutostart = onToggleAutostart,
+            onRequestBluetooth = onRequestBluetooth,
+            onScan = onScan,
+            onShowLogs = { showLogs = true },
+            onCheckUpdates = { checkUpdates(manual = true) },
         )
-    }) { insets ->
-        var refreshing by remember { mutableStateOf(false) }
-        val refreshScope = rememberCoroutineScope()
-        val pullRefreshState = rememberPullRefreshState(refreshing, {
-            refreshing = true
-            onRefresh()
-            refreshScope.launch { delay(1200); refreshing = false }
-        })
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(insets)
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .widthIn(max = 600.dp)
-                    .fillMaxSize()
-                    .consumeWindowInsets(insets)
-                    .pullRefresh(pullRefreshState, refreshing),
-                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                if (AppProfile.current.isDebug) item { DebugClipboardPanel() }
-
-                if (devices.isEmpty()) {
-                    item {
-                        EmptyPairedDevices(onScan = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onScan()
-                        })
-                    }
-                } else {
-                    items(devices.size, key = { devices[it].deviceId }) { index ->
-                        val device = devices[index]
-                        DeviceCard(
-                            device = device,
-                            phase = state.connectionPhase,
-                            transportType = state.transportType,
-                            onSendFile = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSendFile()
-                            },
-                            onSendClipboard = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSend()
-                            },
-                            onManage = { selectedDevice = device }
-                        )
-                    }
-                }
-
-                val isBackgroundActive = state.shizukuCaptureActive || (state.rootAvailable && state.automaticClipboardEnabled)
-                if (!isBackgroundActive && state.peer != null) {
-                    item {
-                        ClipboardCaptureSetup(state)
-                    }
-                }
-
-                // Pending clipboard ready to copy
-                if (state.pendingText || state.pendingImage) {
-                    item {
-                        ListItem(
-                            headlineContent = {
-                                Text(if (state.pendingImage) stringResource(R.string.image_ready_to_copy) else stringResource(R.string.text_ready_to_copy))
-                            },
-                            trailingContent = {
-                                TextButton(onClick = onCopy) { Text(stringResource(R.string.copy)) }
-                            },
-                        )
-                    }
-                }
-
-                // Permissions
-                if (missingPermissions.isNotEmpty()) {
-                    item { SectionTitle(stringResource(R.string.section_permissions)) }
-                    items(missingPermissions.size, key = { missingPermissions[it].title }) { index ->
-                        PermissionRow(missingPermissions[index])
-                        if (index != missingPermissions.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
-                    }
-                }
-
-                // Settings: Bluetooth fallback and Autostart
-                item { SectionTitle(stringResource(R.string.section_settings)) }
-                item {
-                    PreferenceToggle(
-                        title = stringResource(R.string.bt_fallback_title),
-                        summary = when {
-                            !bluetoothGranted -> stringResource(R.string.bt_fallback_desc_needs_permission)
-                            !state.btFallbackEnabled -> stringResource(R.string.bt_fallback_desc_off)
-                            !state.bluetoothEnabled -> stringResource(R.string.bt_fallback_desc_disabled)
-                            else -> stringResource(R.string.bt_fallback_desc_on)
-                        },
-                        checked = state.btFallbackEnabled,
-                        enabled = bluetoothGranted,
-                        onChanged = onToggleBtFallback,
-                    )
-                }
-                item {
-                    PreferenceToggle(
-                        title = stringResource(R.string.perm_autostart),
-                        summary = stringResource(R.string.perm_autostart_desc),
-                        checked = state.autostartEnabled,
-                        enabled = true,
-                        onChanged = onToggleAutostart,
-                    )
-                }
-                if (state.btFallbackEnabled && !state.bluetoothEnabled) {
-                    item {
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.bt_is_off_title)) },
-                            supportingContent = { Text(stringResource(R.string.bt_is_off_desc)) },
-                            trailingContent = { TextButton(onClick = onRequestBluetooth) { Text(stringResource(R.string.turn_on)) } },
-                        )
-                    }
-                }
-            }
-
-            PullRefreshIndicator(
-                refreshing = refreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-
-            visibleTransfer?.takeUnless { it.transferId != null && it.transferId == hiddenTransferId }?.let { progress ->
-                TransferStatusOverlay(
-                    progress = progress,
-                    onDismiss = {
-                        if (progress.isBusy || progress.canCancel) hiddenTransferId = progress.transferId
-                        visibleTransfer = null
-                    },
-                    onCancel = { progress.transferId?.let(onCancelTransfer) },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                        .widthIn(max = 560.dp),
-                )
-            }
-        }
+        Screen.Home -> HomeScreen(
+            state = state,
+            devices = devices,
+            missingPermissions = missingPermissions,
+            visibleTransfer = visibleTransfer?.takeUnless { it.transferId != null && it.transferId == hiddenTransferId },
+            onDismissTransfer = { progress ->
+                if (progress.isBusy || progress.canCancel) hiddenTransferId = progress.transferId
+                visibleTransfer = null
+            },
+            onCancelTransfer = onCancelTransfer,
+            onScan = onScan,
+            onSend = onSend,
+            onSendFile = onSendFile,
+            onCopy = onCopy,
+            onRefresh = onRefresh,
+            onManage = { selectedDevice = it },
+            onOpenSetup = { screen = Screen.Setup },
+            onOpenSettings = { screen = Screen.Settings },
+        )
     }
 
     // ModalBottomSheet for paired device options (eliminates nested alert dialogs)
@@ -829,132 +674,6 @@ internal fun BinderClipScreen(
 }
 
 @Composable
-private fun DeviceCard(
-    device: RememberedPeer,
-    phase: ConnectionPhase,
-    transportType: TransportType,
-    onSendFile: () -> Unit,
-    onSendClipboard: () -> Unit,
-    onManage: () -> Unit,
-) {
-    val isConnected = device.connected
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(
-                                if (device.platform == "macOS") Icons.Outlined.LaptopMac else Icons.Outlined.Android,
-                                contentDescription = null,
-                                tint = if (isConnected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = device.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isConnected) Color(0xFF2E7D32)
-                                        else if (phase == ConnectionPhase.Connecting || phase == ConnectionPhase.Reconnecting) MaterialTheme.colorScheme.tertiary
-                                        else MaterialTheme.colorScheme.outlineVariant
-                                    )
-                            )
-                            val statusText = when {
-                                isConnected && transportType == TransportType.LAN -> stringResource(R.string.status_connected) + " (LAN)"
-                                isConnected && transportType == TransportType.MESH -> stringResource(R.string.status_connected) + " (Mesh)"
-                                isConnected && transportType == TransportType.BLUETOOTH -> stringResource(R.string.status_connected) + " (Bluetooth)"
-                                isConnected -> stringResource(R.string.status_connected)
-                                phase == ConnectionPhase.Connecting -> stringResource(R.string.status_connecting)
-                                phase == ConnectionPhase.Reconnecting -> stringResource(R.string.status_reconnecting)
-                                else -> stringResource(R.string.offline)
-                            }
-                            Text(
-                                text = statusText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                IconButton(onClick = onManage) {
-                    Icon(
-                        Icons.Outlined.Settings,
-                        contentDescription = stringResource(R.string.device_details),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Compact Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilledTonalButton(
-                    onClick = onSendFile,
-                    enabled = isConnected && transportType != TransportType.BLUETOOTH,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.send_file), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                FilledTonalButton(
-                    onClick = onSendClipboard,
-                    enabled = isConnected,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Outlined.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.send_current_clipboard), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-
-            if (isConnected && transportType == TransportType.BLUETOOTH) {
-                Text(
-                    stringResource(R.string.file_connection_required),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun DeviceDetailsBottomSheet(
     device: RememberedPeer,
     state: AppState,
@@ -1073,7 +792,7 @@ private fun DeviceDetailsBottomSheet(
     }
 }
 
-private data class PermissionNeed(
+internal data class PermissionNeed(
     val title: String,
     val summary: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1082,7 +801,7 @@ private data class PermissionNeed(
 )
 
 @Composable
-private fun PermissionRow(need: PermissionNeed) = ListItem(
+internal fun PermissionRow(need: PermissionNeed) = ListItem(
     headlineContent = { Text(need.title) },
     supportingContent = { Text(need.summary) },
     leadingContent = { Icon(need.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
@@ -1090,7 +809,7 @@ private fun PermissionRow(need: PermissionNeed) = ListItem(
 )
 
 @Composable
-private fun EmptyPairedDevices(onScan: () -> Unit) = Column(
+internal fun EmptyPairedDevices(onScan: () -> Unit) = Column(
     modifier = Modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(8.dp),
 ) {
@@ -1109,7 +828,7 @@ private fun EmptyPairedDevices(onScan: () -> Unit) = Column(
 }
 
 @Composable
-private fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp = 14.dp) = Text(
+internal fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp = 14.dp) = Text(
     text,
     style = MaterialTheme.typography.titleSmall,
     color = MaterialTheme.colorScheme.primary,
@@ -1117,7 +836,7 @@ private fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp =
 )
 
 @Composable
-private fun PreferenceToggle(
+internal fun PreferenceToggle(
     title: String,
     summary: String,
     checked: Boolean,
