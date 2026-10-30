@@ -1,0 +1,21 @@
+# Historical false positives: test vectors in the initial commit and BWS lookup ids since removed.
+42b5dc664e92f6cae7003c6cff30225994f51e97:android/app/src/test/java/net/wastu/clipboard/crypto/E2ECryptoTest.kt:generic-api-key:218
+42b5dc664e92f6cae7003c6cff30225994f51e97:android/app/src/test/java/net/wastu/clipboard/crypto/E2ECryptoTest.kt:generic-api-key:219
+42b5dc664e92f6cae7003c6cff30225994f51e97:android/app/src/test/java/net/wastu/clipboard/crypto/E2ECryptoTest.kt:generic-api-key:220
+42b5dc664e92f6cae7003c6cff30225994f51e97:android/app/src/test/java/net/wastu/clipboard/protocol/SessionTest.kt:generic-api-key:22
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/E2ECryptoKeyDerivationTests.swift:generic-api-key:51
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/E2ECryptoKeyDerivationTests.swift:generic-api-key:52
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/E2ECryptoKeyDerivationTests.swift:generic-api-key:53
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/PairedDeviceTests.swift:generic-api-key:86
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/PairedDeviceTests.swift:generic-api-key:95
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/BinderClipMac/Tests/BinderClipTests/SessionTests.swift:generic-api-key:12
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/ecdh_fixture.json:generic-api-key:27
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/ecdh_fixture.json:generic-api-key:28
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/ecdh_fixture.json:generic-api-key:29
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/image_transfer_fixture.json:generic-api-key:10
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/v2_session_fixture.json:generic-api-key:26
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/v2_session_fixture.json:generic-api-key:29
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/v2_session_fixture.json:generic-api-key:30
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/v2_session_fixture.json:generic-api-key:31
+42b5dc664e92f6cae7003c6cff30225994f51e97:macos/test-fixtures/protocol/l2cap/v2_session_fixture.json:generic-api-key:32
+f9eb1fd2ff81c92202485ac7614fb1f9f7fd4dfa:macos/mac-signing.py:generic-api-key:16
