@@ -8,10 +8,8 @@
 "status_connected" = "Terhubung";
 "status_waiting_for_device" = "Menunggu perangkat";
 "no_phones_yet" = "Belum ada ponsel";
-"device_waiting_suffix" = "%@ (menunggu)";
 "add_device" = "Tambah Perangkat";
 "send_browser_tab" = "Kirim Tab Peramban Saat Ini";
-"all_connected_devices" = "Semua Perangkat Terhubung";
 "more" = "Lainnya";
 "quit_binderclip" = "Keluar dari BinderClip";
 
@@ -103,13 +101,10 @@
 "transfer_invalid" = "Validasi integritas atau urutan transfer gagal";
 "transfer_paused" = "Transfer dijeda; menghubungkan kembali…";
 "share_error_file" = "File gagal masuk antrean. Batas: 100 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.";
-"received_files" = "File Diterima";
 "send_file" = "Kirim File…";
 "file_connection_required" = "File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.";
 "file_picker_help" = "Pilih hingga delapan file, masing-masing maksimal 100 MiB.";
 "file_received_format" = "File diterima: %@";
-"device_options" = "Opsi Perangkat";
-"send_file_to_device" = "Kirim File ke %@…";
 "launch_at_login" = "Buka Saat Masuk";
 "diagnostic_logs" = "Log Diagnostik…";
 "copy_pairing_link" = "Salin Tautan Penyandingan";
@@ -126,3 +121,4 @@
 "log_auto_scroll" = "Gulir Otomatis";
 "log_events_count" = "%d peristiwa";
 "toast_click_to_reveal" = "Klik untuk membuka di Finder";
+"send_clipboard" = "Kirim Papan Klip";

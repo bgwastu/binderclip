@@ -8,10 +8,8 @@
 "status_connected" = "Connecté";
 "status_waiting_for_device" = "En attente de l’appareil";
 "no_phones_yet" = "Aucun téléphone";
-"device_waiting_suffix" = "%@ (en attente)";
 "add_device" = "Ajouter un appareil";
 "send_browser_tab" = "Envoyer l’onglet actif du navigateur";
-"all_connected_devices" = "Tous les appareils connectés";
 "more" = "Plus";
 "quit_binderclip" = "Quitter BinderClip";
 
@@ -103,13 +101,10 @@
 "transfer_invalid" = "Échec de la validation de l’intégrité ou de la séquence";
 "transfer_paused" = "Transfert en pause ; reconnexion…";
 "share_error_file" = "Impossible de mettre le fichier en attente. Limite : 100 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.";
-"received_files" = "Fichiers reçus";
 "send_file" = "Envoyer un fichier…";
 "file_connection_required" = "Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.";
 "file_picker_help" = "Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.";
 "file_received_format" = "Fichier reçu : %@";
-"device_options" = "Options de l'appareil";
-"send_file_to_device" = "Envoyer un fichier à %@…";
 "launch_at_login" = "Lancer à la connexion";
 "diagnostic_logs" = "Journaux de diagnostic…";
 "copy_pairing_link" = "Copier le lien d'association";
@@ -126,3 +121,4 @@
 "log_auto_scroll" = "Défilement auto";
 "log_events_count" = "%d événements";
 "toast_click_to_reveal" = "Cliquer pour afficher dans le Finder";
+"send_clipboard" = "Envoyer le presse-papiers";

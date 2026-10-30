@@ -8,10 +8,8 @@
 "status_connected" = "Connected";
 "status_waiting_for_device" = "Waiting for device";
 "no_phones_yet" = "No phones yet";
-"device_waiting_suffix" = "%@ (waiting)";
 "add_device" = "Add Device";
 "send_browser_tab" = "Send Current Browser Tab";
-"all_connected_devices" = "All Connected Devices";
 "more" = "More";
 "quit_binderclip" = "Quit BinderClip";
 
@@ -106,13 +104,10 @@
 "transfer_invalid" = "Transfer failed integrity or sequence validation";
 "transfer_paused" = "Transfer paused; reconnecting…";
 "share_error_file" = "Couldn’t queue file. Limit: 100 MiB (clipboard images: 30 MiB). Check access and free space.";
-"received_files" = "Received Files";
 "send_file" = "Send File…";
 "file_connection_required" = "Files need Wi-Fi or mesh and updated apps on both devices.";
 "file_picker_help" = "Choose up to eight files, at most 100 MiB each.";
 "file_received_format" = "Received file: %@";
-"device_options" = "Device Options";
-"send_file_to_device" = "Send File to %@…";
 "launch_at_login" = "Launch at Login";
 "diagnostic_logs" = "Diagnostic Logs…";
 "copy_pairing_link" = "Copy Pairing Link";
@@ -129,3 +124,4 @@
 "log_auto_scroll" = "Auto-scroll";
 "log_events_count" = "%d events";
 "toast_click_to_reveal" = "Click to reveal in Finder";
+"send_clipboard" = "Send Clipboard";

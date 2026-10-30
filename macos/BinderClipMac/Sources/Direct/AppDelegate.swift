@@ -107,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             let message = L10n.tr("file_received_format", url.lastPathComponent)
             self?.notifyIncoming(title: AppProfile.current.displayName, body: message, sound: .default, userInfo: ["fileURL": url.path])
             NSSound(named: "Glass")?.play()
-            ToastHUD.shared.show(message: message, icon: "folder.fill", fileURL: url)
+            ToastHUD.shared.showFileReceived(url: url, message: message)
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                         let msg = L10n.tr("transfer_sent", name)
                         self.notifyIncoming(title: AppProfile.current.displayName, body: msg, sound: .default)
                         NSSound(named: "Glass")?.play()
-                        ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill")
+                        if progress.metadata.kind != "file" { ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill") }
                     }
                     self.updateStatusIcon()
                 }
@@ -302,6 +302,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         return "iphone"
     }
 
+    private func connectionStatus(for peer: Peer) -> (text: String, live: Bool) {
+        switch transport.peerTransportType(peer.id) {
+        case .lan: return (L10n.tr("connected_via_lan"), true)
+        case .mesh: return (L10n.tr("connected_via_mesh"), true)
+        case .bluetooth: return (L10n.tr("connected_via_bluetooth"), true)
+        case .none: return peer.connected ? (L10n.tr("status_connected"), true) : (L10n.tr("status_waiting_for_device"), false)
+        }
+    }
+
+    /// One row per device; every action for it lives in its submenu.
+    private func deviceItem(for peer: Peer) -> NSMenuItem {
+        let status = connectionStatus(for: peer)
+        let item = NSMenuItem(title: peer.name, action: nil, keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+
+        if #available(macOS 14.4, *) {
+            item.subtitle = status.text
+        } else {
+            let caption = NSMenuItem(title: status.text, action: nil, keyEquivalent: "")
+            caption.isEnabled = false
+            submenu.addItem(caption)
+            submenu.addItem(.separator())
+        }
+
+        func action(_ title: String, _ selector: Selector, enabled: Bool = true) {
+            let entry = NSMenuItem(title: title, action: selector, keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = peer.id
+            entry.isEnabled = enabled
+            submenu.addItem(entry)
+        }
+        action(L10n.tr("send_clipboard"), #selector(sendClipboardToPeer(_:)), enabled: peer.connected)
+        action(L10n.tr("send_file"), #selector(sendFileToPeer(_:)), enabled: transport.canSendFile(to: peer.id))
+        if let tab = cachedActiveTab {
+            let entry = NSMenuItem(title: L10n.tr("send_browser_tab"), action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = ["url": tab.url, "peerId": peer.id as String? as Any]
+            entry.isEnabled = peer.connected
+            entry.toolTip = tab.url.absoluteString
+            submenu.addItem(entry)
+        }
+        submenu.addItem(.separator())
+        action(L10n.tr("rename_device_menu"), #selector(renameDevice(_:)))
+        action(L10n.tr("unpair_device_menu"), #selector(removePeer(_:)))
+        item.submenu = submenu
+        return item
+    }
+
     private func renderMenu() {
         let menu = statusMenu
         menu.removeAllItems()
@@ -314,7 +364,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             menu.addItem(.separator())
         }
 
-        let headerText = "\(transport.localDeviceName) (Port \(AppProfile.current.port))"
+        let headerText = AppProfile.current.isDebug
+            ? "\(transport.localDeviceName) (Port \(AppProfile.current.port))"
+            : transport.localDeviceName
         addSectionHeader(headerText, to: menu)
 
         if peers.isEmpty {
@@ -322,68 +374,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            let ordered = peers.filter(\.connected) + peers.filter { !$0.connected }
-            for peer in ordered {
-                let transportType = transport.peerTransportType(peer.id)
-                let isLive = peer.connected || transportType != .none
-
-                let badge: String
-                switch transportType {
-                case .lan:
-                    badge = "LAN 🟢"
-                case .mesh:
-                    badge = "Mesh 🔵"
-                case .bluetooth:
-                    badge = "BT ⚪"
-                case .none:
-                    badge = isLive ? "🟢" : "⚪"
-                }
-
-                let rowTitle = isLive ? "\(peer.name)  \(badge)" : "\(peer.name)  ⚪"
-                let rowItem = NSMenuItem(title: rowTitle, action: nil, keyEquivalent: "")
-                rowItem.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
-                if !isLive {
-                    let attributed = NSMutableAttributedString(string: L10n.tr("device_waiting_suffix", peer.name))
-                    attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: attributed.length))
-                    rowItem.attributedTitle = attributed
-                }
-                menu.addItem(rowItem)
-
-                let sendFile = NSMenuItem(
-                    title: L10n.tr("send_file_to_device", peer.name),
-                    action: #selector(sendFileToPeer(_:)),
-                    keyEquivalent: ""
-                )
-                sendFile.target = self
-                sendFile.representedObject = peer.id
-                sendFile.indentationLevel = 1
-                sendFile.isEnabled = transport.canSendFile(to: peer.id)
-                sendFile.toolTip = L10n.tr("file_connection_required")
-                menu.addItem(sendFile)
-
-                let optionsItem = NSMenuItem(title: L10n.tr("device_options"), action: nil, keyEquivalent: "")
-                optionsItem.indentationLevel = 1
-                let optionsMenu = NSMenu()
-                optionsMenu.autoenablesItems = false
-
-                let rename = NSMenuItem(title: L10n.tr("rename_device_menu"), action: #selector(renameDevice(_:)), keyEquivalent: "")
-                rename.target = self
-                rename.representedObject = peer.id
-                optionsMenu.addItem(rename)
-
-                let unpair = NSMenuItem(title: L10n.tr("unpair_device_menu"), action: #selector(removePeer(_:)), keyEquivalent: "")
-                unpair.target = self
-                unpair.representedObject = peer.id
-                optionsMenu.addItem(unpair)
-
-                let sendToDevice = NSMenuItem(title: L10n.tr("send_clipboard_to_peer", peer.name), action: #selector(sendClipboardToPeer(_:)), keyEquivalent: "")
-                sendToDevice.target = self
-                sendToDevice.representedObject = peer.id
-                sendToDevice.isEnabled = peer.connected
-                optionsMenu.addItem(sendToDevice)
-
-                optionsItem.submenu = optionsMenu
-                menu.addItem(optionsItem)
+            for peer in peers.filter(\.connected) + peers.filter({ !$0.connected }) {
+                menu.addItem(deviceItem(for: peer))
             }
         }
 
@@ -393,45 +385,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         pair.target = self
         menu.addItem(pair)
 
-        let received = NSMenuItem(title: L10n.tr("received_files"), action: #selector(showReceivedFiles), keyEquivalent: "")
-        received.target = self
-        menu.addItem(received)
-
         let logs = NSMenuItem(title: L10n.tr("diagnostic_logs"), action: #selector(showLogs), keyEquivalent: "l")
         logs.target = self
         menu.addItem(logs)
-
-        if let browserTab = cachedActiveTab {
-            let sendURLItem = NSMenuItem(title: L10n.tr("send_browser_tab"), action: nil, keyEquivalent: "u")
-            let urlSubmenu = NSMenu()
-            urlSubmenu.autoenablesItems = false
-
-            let truncatedUrlString = browserTab.url.absoluteString.count > 45 ? String(browserTab.url.absoluteString.prefix(42)) + "…" : browserTab.url.absoluteString
-            let urlHeader = NSMenuItem(title: truncatedUrlString, action: nil, keyEquivalent: "")
-            urlHeader.isEnabled = false
-            urlSubmenu.addItem(urlHeader)
-            urlSubmenu.addItem(.separator())
-
-            let allItem = NSMenuItem(title: L10n.tr("all_connected_devices"), action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
-            allItem.target = self
-            allItem.representedObject = ["url": browserTab.url, "peerId": nil as String? as Any]
-            allItem.isEnabled = peers.contains(where: \.connected)
-            urlSubmenu.addItem(allItem)
-
-            if !peers.isEmpty {
-                urlSubmenu.addItem(.separator())
-                for peer in peers {
-                    let peerItem = NSMenuItem(title: peer.name, action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
-                    peerItem.image = NSImage(systemSymbolName: peerSymbolName(for: peer.platform), accessibilityDescription: peer.platform)
-                    peerItem.target = self
-                    peerItem.representedObject = ["url": browserTab.url, "peerId": peer.id as String? as Any]
-                    peerItem.isEnabled = peer.connected
-                    urlSubmenu.addItem(peerItem)
-                }
-            }
-            sendURLItem.submenu = urlSubmenu
-            menu.addItem(sendURLItem)
-        }
 
         if AppProfile.current.isDebug {
             menu.addItem(.separator())
@@ -606,7 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
               let url = dict["url"] as? URL else { return }
         let peerID = dict["peerId"] as? String
         transport.sendOpenURL(url, targetDeviceId: peerID)
-        let peerName = peerID != nil ? (peers.first(where: { $0.id == peerID })?.name ?? "device") : L10n.tr("all_connected_devices")
+        let peerName = peers.first(where: { $0.id == peerID })?.name ?? "device"
         ToastHUD.shared.show(message: L10n.tr("sent_url_to_peer", peerName), icon: "safari.fill")
     }
 
@@ -642,17 +598,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                 return
             }
             for url in panel.urls { self.transport.sendFile(url, targetDeviceID: peerID) }
-        }
-    }
-
-    @objc private func showReceivedFiles() {
-        runAfterMenuCloses { [weak self] in
-            guard let self else { return }
-            let directory = self.transport.receivedFilesDirectory
-            do {
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                NSWorkspace.shared.open(directory)
-            } catch { ToastHUD.shared.show(message: L10n.tr("transfer_failed"), icon: "exclamationmark.circle") }
         }
     }
 

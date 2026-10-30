@@ -1,49 +1,14 @@
 import AppKit
 import SwiftUI
 
-private enum ToastCategory {
-    case clipboard
-    case browser
-    case media
-    case alert
-    case standard
-
-    static func from(icon: String) -> ToastCategory {
-        if icon.contains("clipboard") {
-            return .clipboard
-        } else if icon.contains("safari") || icon.contains("link") || icon.contains("globe") {
-            return .browser
-        } else if icon.contains("photo") || icon.contains("image") {
-            return .media
-        } else if icon.contains("exclamationmark") {
-            return .alert
-        } else {
-            return .standard
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .clipboard:
-            return Color(nsColor: .systemGreen)
-        case .browser:
-            return Color(nsColor: .systemBlue)
-        case .media:
-            return Color(nsColor: .systemPurple)
-        case .alert:
-            return Color(nsColor: .systemOrange)
-        case .standard:
-            return Color(nsColor: .controlAccentColor)
-        }
-    }
-}
-
 private struct ToastCapsuleView: View {
     let message: String
     let icon: String
+    var isAlert = false
     var progress: TransferProgress? = nil
     var fileURL: URL? = nil
     var onClick: (() -> Void)? = nil
+    var onClose: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -51,28 +16,16 @@ private struct ToastCapsuleView: View {
         onClick != nil || fileURL != nil
     }
 
-    private var category: ToastCategory {
-        ToastCategory.from(icon: icon)
+    private var iconTint: Color {
+        isAlert ? Color(nsColor: .systemRed) : Color(nsColor: .secondaryLabelColor)
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Category-tinted circular icon platter
-            ZStack {
-                Circle()
-                    .fill(category.color.opacity(colorScheme == .dark ? 0.22 : 0.14))
-                    .overlay(
-                        Circle()
-                            .strokeBorder(
-                                category.color.opacity(colorScheme == .dark ? 0.38 : 0.24),
-                                lineWidth: 0.5
-                            )
-                    )
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(category.color)
-            }
-            .frame(width: 28, height: 28)
+        HStack(alignment: progress == nil ? .center : .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(iconTint)
+                .frame(width: 22, height: 22)
 
             if let progress {
                 VStack(alignment: .leading, spacing: 5) {
@@ -85,14 +38,18 @@ private struct ToastCapsuleView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    ProgressView(value: progress.fraction)
-                        .progressViewStyle(.linear)
-                        .tint(category.color)
-                    Text(byteCount(progress.completedBytes) + " / " + byteCount(progress.metadata.size))
-                        .font(.system(size: 10).monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    if progress.isActive {
+                        if progress.phase == .preparing {
+                            ProgressView().progressViewStyle(.linear)
+                        } else {
+                            ProgressView(value: progress.fraction).progressViewStyle(.linear)
+                        }
+                        Text(byteCount(progress.completedBytes) + " of " + byteCount(progress.metadata.size))
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .frame(width: 300, alignment: .leading)
+                .frame(width: 280, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: isInteractive ? 2 : 0) {
                     Text(message)
@@ -107,21 +64,33 @@ private struct ToastCapsuleView: View {
                             .lineLimit(1)
                     }
                 }
-                .frame(maxWidth: 380, alignment: .leading)
+                .frame(maxWidth: 340, alignment: .leading)
+            }
+
+            if let onClose {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Color.primary.opacity(isHovered ? 0.12 : 0.06)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("log_close"))
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 16)
-        .padding(.vertical, progress == nil ? (isInteractive ? 8 : 7) : 12)
-        .liquidGlassBacking(colorScheme: colorScheme, cornerRadius: progress == nil ? 100 : 20)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.vertical, progress == nil ? (isInteractive ? 9 : 8) : 12)
+        .liquidGlassBacking(colorScheme: colorScheme, cornerRadius: progress == nil ? 100 : 16)
         .padding(14) // Breathing room for the ambient drop shadow
         .contentShape(Rectangle())
         .onTapGesture {
             onClick?()
         }
         .onHover { hovering in
+            isHovered = hovering
             if isInteractive {
-                isHovered = hovering
                 if hovering {
                     NSCursor.pointingHand.push()
                 } else {
@@ -182,33 +151,49 @@ final class ToastHUD {
     private var currentTransferID: String?
     private var displayedTransfer: TransferProgress?
     private var lastProgressUpdate: TimeInterval = 0
+    private var hiddenTransferID: String?
 
     func show(message: String, icon: String = "checkmark.circle.fill", fileURL: URL? = nil, onClick: (() -> Void)? = nil) {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.activeTransfers.isEmpty else { return }
-            self.displayedTransfer = nil
-
-            let clickAction: (() -> Void)?
-            if let onClick {
-                clickAction = { [weak self] in
-                    onClick()
-                    self?.dismissNow()
-                }
-            } else if let fileURL {
-                clickAction = { [weak self] in
-                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    self?.dismissNow()
-                }
-            } else {
-                clickAction = nil
-            }
-
-            self.render(ToastCapsuleView(message: message, icon: icon, fileURL: fileURL, onClick: clickAction), dismiss: true)
+            self.present(message: message, icon: icon, fileURL: fileURL, onClick: onClick)
         }
     }
 
+    /// The finished file owns the toast: clicking it reveals the file in Finder.
     func showFileReceived(url: URL, message: String) {
-        show(message: message, icon: "folder.fill", fileURL: url)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.progressWorkItem?.cancel()
+            self.progressWorkItem = nil
+            self.activeTransfers.removeAll()
+            self.transferOrder.removeAll()
+            self.currentTransferID = nil
+            self.hiddenTransferID = nil
+            self.present(message: message, icon: "checkmark.circle.fill", fileURL: url, onClick: nil)
+        }
+    }
+
+    private func present(message: String, icon: String, fileURL: URL?, onClick: (() -> Void)?) {
+        displayedTransfer = nil
+        let clickAction: (() -> Void)?
+        if let onClick {
+            clickAction = { [weak self] in
+                onClick()
+                self?.dismissNow()
+            }
+        } else if let fileURL {
+            clickAction = { [weak self] in
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                self?.dismissNow()
+            }
+        } else {
+            clickAction = nil
+        }
+        let isAlert = icon.contains("exclamationmark")
+        render(ToastCapsuleView(message: message, icon: icon, isAlert: isAlert, fileURL: fileURL,
+                                onClick: clickAction, onClose: { [weak self] in self?.dismissNow() }),
+               dismiss: true, interactive: true)
     }
 
     func dismissNow() {
@@ -245,6 +230,8 @@ final class ToastHUD {
             guard let currentID = self.currentTransferID, let current = self.activeTransfers[currentID] else {
                 self.progressWorkItem?.cancel()
                 self.progressWorkItem = nil
+                // The received-file toast is shown by showFileReceived so it can reveal the file.
+                if progress.phase == .received && progress.metadata.kind == "file" { return }
                 self.display(progress)
                 return
             }
@@ -270,18 +257,31 @@ final class ToastHUD {
     }
 
     private func display(_ progress: TransferProgress) {
+        if progress.isActive {
+            if hiddenTransferID == progress.identity { return }
+        } else if hiddenTransferID == progress.identity {
+            hiddenTransferID = nil
+        }
         let sameTransfer = displayedTransfer?.identity == progress.identity
         displayedTransfer = progress
         lastProgressUpdate = ProcessInfo.processInfo.systemUptime
-        render(ToastCapsuleView(message: progress.message, icon: progress.icon, progress: progress),
-               dismiss: !progress.isActive, animateResize: !sameTransfer)
+        let id = progress.identity
+        let close: () -> Void = { [weak self] in
+            if progress.isActive { self?.hiddenTransferID = id }
+            self?.dismissNow()
+        }
+        render(ToastCapsuleView(message: progress.message, icon: progress.icon,
+                                isAlert: progress.icon.contains("exclamationmark"),
+                                progress: progress, onClose: close),
+               dismiss: !progress.isActive, animateResize: !sameTransfer, interactive: true)
     }
 
-    private func render(_ toastView: ToastCapsuleView, dismiss: Bool, animateResize: Bool = true) {
+    private func render(_ toastView: ToastCapsuleView, dismiss: Bool, animateResize: Bool = true, interactive: Bool = false) {
         dismissWorkItem?.cancel()
         dismissWorkItem = nil
 
-        let isInteractive = (toastView.onClick != nil || toastView.fileURL != nil)
+        let isInteractive = interactive || toastView.onClick != nil || toastView.fileURL != nil
+        let isClickable = toastView.onClick != nil || toastView.fileURL != nil
 
         let panel: ToastPanel
         if let existingWindow = window, let hosting = hostingView {
@@ -366,7 +366,7 @@ final class ToastHUD {
         }
         guard let workItem else { return }
         dismissWorkItem = workItem
-        let delay: TimeInterval = isInteractive ? 3.5 : 2.2
+        let delay: TimeInterval = isClickable ? 6 : 3
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 }

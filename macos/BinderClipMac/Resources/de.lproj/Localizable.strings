@@ -8,10 +8,8 @@
 "status_connected" = "Verbunden";
 "status_waiting_for_device" = "Warten auf Gerät";
 "no_phones_yet" = "Noch keine Telefone";
-"device_waiting_suffix" = "%@ (wartend)";
 "add_device" = "Gerät hinzufügen";
 "send_browser_tab" = "Aktuellen Browser-Tab senden";
-"all_connected_devices" = "Alle verbundenen Geräte";
 "more" = "Mehr";
 "quit_binderclip" = "BinderClip beenden";
 
@@ -103,13 +101,10 @@
 "transfer_invalid" = "Integritäts- oder Reihenfolgeprüfung fehlgeschlagen";
 "transfer_paused" = "Übertragung pausiert; Verbindung wird wiederhergestellt…";
 "share_error_file" = "Datei konnte nicht vorgemerkt werden. Limit: 100 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.";
-"received_files" = "Empfangene Dateien";
 "send_file" = "Datei senden…";
 "file_connection_required" = "Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.";
 "file_picker_help" = "Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.";
 "file_received_format" = "Datei empfangen: %@";
-"device_options" = "Geräteoptionen";
-"send_file_to_device" = "Datei an %@ senden…";
 "launch_at_login" = "Beim Login starten";
 "diagnostic_logs" = "Diagnoseprotokolle…";
 "copy_pairing_link" = "Kopplungslink kopieren";
@@ -126,3 +121,4 @@
 "log_auto_scroll" = "Autom. Scrollen";
 "log_events_count" = "%d Ereignisse";
 "toast_click_to_reveal" = "Klicken, um im Finder anzuzeigen";
+"send_clipboard" = "Zwischenablage senden";

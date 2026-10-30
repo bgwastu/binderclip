@@ -8,10 +8,8 @@
 "status_connected" = "已连接";
 "status_waiting_for_device" = "正在等待设备";
 "no_phones_yet" = "暂无手机";
-"device_waiting_suffix" = "%@ (等待中)";
 "add_device" = "添加设备";
 "send_browser_tab" = "发送当前浏览器标签页";
-"all_connected_devices" = "所有已连接设备";
 "more" = "更多";
 "quit_binderclip" = "退出 BinderClip";
 
@@ -103,13 +101,10 @@
 "transfer_invalid" = "传输完整性或顺序验证失败";
 "transfer_paused" = "传输已暂停，正在重新连接…";
 "share_error_file" = "无法将文件加入队列。上限为100 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。";
-"received_files" = "已接收的文件";
 "send_file" = "发送文件…";
 "file_connection_required" = "文件传输需要Wi-Fi或mesh连接，且两端应用均已更新。";
 "file_picker_help" = "最多选择八个文件，每个不超过100 MiB。";
 "file_received_format" = "已收到文件：%@";
-"device_options" = "设备选项";
-"send_file_to_device" = "发送文件到 %@…";
 "launch_at_login" = "登录时启动";
 "diagnostic_logs" = "诊断日志…";
 "copy_pairing_link" = "复制配对链接";
@@ -126,3 +121,4 @@
 "log_auto_scroll" = "自动滚动";
 "log_events_count" = "%d 条事件";
 "toast_click_to_reveal" = "点按以在“访达”中显示";
+"send_clipboard" = "发送剪贴板";
