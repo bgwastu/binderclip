@@ -600,6 +600,7 @@ class BinderClipService : Service() {
             return
         }
         notifyOpenUrl(trimmed)
+        ActivityLog.record(ActivityEvent.Kind.Link, outgoing = false)
         syncToast("Received link")
     }
 
@@ -704,7 +705,15 @@ class BinderClipService : Service() {
                 }
             else -> sendClipboardControl(clipboardState(), websocket)
         }
-        if (sent) { clipboardOrdering.markPublished(stamp.event); saveClipboardVersion() }
+        if (sent) {
+            clipboardOrdering.markPublished(stamp.event); saveClipboardVersion()
+            when (val value = currentClipboard) {
+                is LocalClipboardContent.Text -> ActivityLog.record(
+                    if (isWebUrl(value.value.trim())) ActivityEvent.Kind.Link else ActivityEvent.Kind.Text, outgoing = true)
+                is LocalClipboardContent.Image -> ActivityLog.record(ActivityEvent.Kind.Image, outgoing = true)
+                else -> Unit
+            }
+        }
         return sent
     }
 
@@ -782,12 +791,12 @@ class BinderClipService : Service() {
         when (value) {
             is LocalClipboardContent.Text -> {
                 val applied = runCatching { applyText(value.value); true }.getOrDefault(false)
-                if (applied) { syncToast("Received text"); store.pendingText = null }
+                if (applied) { ActivityLog.record(ActivityEvent.Kind.Text, outgoing = false); syncToast("Received text"); store.pendingText = null }
                 else { store.pendingText = value.value; notifyPending("New clipboard text received", value.value) }
             }
             is LocalClipboardContent.Image -> {
                 val applied = runCatching { applyImage(value.value); true }.getOrDefault(false)
-                if (applied) { syncToast("Received image (${value.value.mimeType})"); pendingImage = null }
+                if (applied) { ActivityLog.record(ActivityEvent.Kind.Image, outgoing = false); syncToast("Received image (${value.value.mimeType})"); pendingImage = null }
                 else { pendingImage = value.value; notifyPending("New image received", "Image (${value.value.mimeType})") }
             }
             else -> Unit
@@ -1072,7 +1081,15 @@ class BinderClipService : Service() {
         if (wasBusy && progress.state == TransferProgress.State.SENT) {
             notifyTransferSent(progress)
         }
+        if (progress.isSuccess) ActivityLog.record(activityKind(progress.kind), outgoing = progress.state == TransferProgress.State.SENT)
         publishState()
+    }
+
+    private fun activityKind(kind: String) = when (kind) {
+        "image" -> ActivityEvent.Kind.Image
+        "text" -> ActivityEvent.Kind.Text
+        "link" -> ActivityEvent.Kind.Link
+        else -> ActivityEvent.Kind.File
     }
 
     private fun reportFailure(message: String) {
