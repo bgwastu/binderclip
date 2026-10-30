@@ -7,9 +7,9 @@ Mac and Android synchronized release:
 - **Android Shizuku Support:** Capture clipboard on unrooted Android devices using Shizuku user service alongside existing root capture.
 - **Synchronized Visual Identity:** Redesigned macOS and Android app icons using the Apple HIG layered squircle specification and Android adaptive icon with a unified brand blue palette.
 - **macOS Menu Bar Animation:** Layered menu bar icon with an animated circular progress ring, smooth spring transitions, zero idle CPU overhead, and sleep/dark wake protection.
-- **File Transfer UX Overhaul:**
-  - Android: Immediate feedback on share, ongoing notification with live progress bar and cancel action, and completion notification.
-  - macOS: System notification and sound on send completion, click-to-reveal received files in Finder, and animated menu bar progress.
+- **macOS UI Overhaul:** Flattened menu hierarchy eliminating nested submenus, modernized pairing window with direct copyable invitation links and step guide, native Console-style log viewer with live search and level filtering, and interactive click-to-reveal Toast HUD.
+- **Android Material 3 & Edge-to-Edge Overhaul:** Full Android 15 Edge-to-Edge support, compact status header and side-by-side action buttons, native M3 ModalBottomSheet for device management, redesigned Received Files screen with TopAppBar and back navigation, and smooth Share Receiver flow.
+- **File Transfer UX Overhaul:** Live background notification progress bar, send completion notifications and sound, and immediate share sheet feedback.
 - **Android In-App Auto-Updater:** Checks for updates from GitHub releases or generic feeds, shows update notes, and guides installation via system package installer.
 ## Android 1.16.1
 
