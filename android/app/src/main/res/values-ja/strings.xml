@@ -112,9 +112,6 @@
     <string name="toast_sent_to_mac">Mac に送信しました</string>
     <string name="toast_sent_image_to_mac">画像を Mac に送信しました</string>
     <string name="toast_nothing_to_send">送信するコンテンツがありません</string>
-    <string name="root_required_title">rootアクセスが必要です</string>
-    <string name="root_required_desc">BinderClipがバックグラウンドでクリップボードを同期するには、KernelSUまたはMagiskのrootアクセスが必要です。要求されたらアクセスを許可し、下のボタンをタップしてください。</string>
-    <string name="root_required_grant">rootアクセスを確認</string>
     <string name="bt_fallback_desc_needs_permission">Bluetoothの代替接続を有効にするには、上で付近のデバイスへのアクセスを許可してください。</string>
     <string name="clear_logs_confirm_title">すべてのログを削除しますか？</string>
     <string name="clear_logs_confirm_message">すべてのログが削除されます。この操作は取り消せません。</string>
@@ -152,4 +149,27 @@
     <string name="hide_transfer">非表示</string>
     <string name="cancel_transfer">転送をキャンセル</string>
     <string name="transfer_cancelled">転送をキャンセルしました</string>
+    <string name="capture_step_of">ステップ %1$d / %2$d</string>
+    <string name="capture_install_title">スマホでコピーした内容を Mac に送る</string>
+    <string name="capture_install_desc">root なしの場合、コピー内容を読み取るには無料アプリ Shizuku が必要です。Mac → スマホはすでに使えます。</string>
+    <string name="capture_install_action">Shizuku を入手</string>
+    <string name="capture_start_title">Shizuku を起動</string>
+    <string name="capture_start_desc">Shizuku を開き、「ワイヤレスデバッグ」の「開始」をタップしてから戻ってください。この画面は自動で進みます。</string>
+    <string name="capture_open_shizuku">Shizuku を開く</string>
+    <string name="capture_update_title">Shizuku を更新</string>
+    <string name="capture_update_desc">この Shizuku は BinderClip には古すぎます。更新してから再度起動してください。</string>
+    <string name="capture_allow_title">Shizuku で BinderClip を許可</string>
+    <string name="capture_allow_desc">Shizuku から一度だけ確認されます。「常に許可」を選んでください。</string>
+    <string name="capture_allow_action">許可</string>
+    <string name="capture_denied_title">BinderClip は Shizuku でブロックされています</string>
+    <string name="capture_denied_desc">Shizuku を開き、「承認済みアプリ」で BinderClip をオンにしてください。</string>
+    <string name="capture_connecting_title">Shizuku に接続中…</string>
+    <string name="capture_connecting_desc">BinderClip がコピー内容を読み取れるか確認しています。</string>
+    <string name="capture_off_title">スマホ → Mac のクリップボード: オフ</string>
+    <string name="capture_off_desc">「クリップボードを送信」や共有を使うか、Shizuku を設定して自動送信してください。</string>
+    <string name="capture_set_up">設定</string>
+    <string name="capture_not_now">後で</string>
+    <string name="capture_paused_title">スマホ → Mac のクリップボードを一時停止中</string>
+    <string name="capture_paused_desc">Shizuku が実行されていません。タップして起動します。</string>
+    <string name="capture_paused_card_desc">Shizuku が停止しました（通常は再起動後）。開いて「開始」をタップしてください。Mac → スマホは引き続き使えます。</string>
 </resources>

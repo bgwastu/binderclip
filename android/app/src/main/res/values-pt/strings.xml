@@ -112,9 +112,6 @@
     <string name="toast_sent_to_mac">Enviado para o Mac</string>
     <string name="toast_sent_image_to_mac">Imagem enviada para o Mac</string>
     <string name="toast_nothing_to_send">Nada para enviar</string>
-    <string name="root_required_title">É necessário acesso root</string>
-    <string name="root_required_desc">O BinderClip precisa de acesso root através do KernelSU ou Magisk para sincronizar a área de transferência em segundo plano. Concede o acesso quando solicitado e toca abaixo.</string>
-    <string name="root_required_grant">Verificar acesso root</string>
     <string name="bt_fallback_desc_needs_permission">Concede acima a permissão para dispositivos próximos para ativar a ligação alternativa por Bluetooth.</string>
     <string name="clear_logs_confirm_title">Limpar todos os registos?</string>
     <string name="clear_logs_confirm_message">Esta ação remove todas as entradas do registo e não pode ser anulada.</string>
@@ -152,4 +149,27 @@
     <string name="hide_transfer">Ocultar</string>
     <string name="cancel_transfer">Cancelar envio</string>
     <string name="transfer_cancelled">Envio cancelado</string>
+    <string name="capture_step_of">Passo %1$d de %2$d</string>
+    <string name="capture_install_title">Envie o que copia no telemóvel para o Mac</string>
+    <string name="capture_install_desc">Sem root, o BinderClip precisa do Shizuku, uma app gratuita, para ver o que copia. Mac → telemóvel já funciona.</string>
+    <string name="capture_install_action">Obter Shizuku</string>
+    <string name="capture_start_title">Inicie o Shizuku</string>
+    <string name="capture_start_desc">Abra o Shizuku, toque em Iniciar em Depuração sem fios e volte. Esta página avança sozinha.</string>
+    <string name="capture_open_shizuku">Abrir Shizuku</string>
+    <string name="capture_update_title">Atualize o Shizuku</string>
+    <string name="capture_update_desc">Esta versão do Shizuku é demasiado antiga para o BinderClip. Atualize-a e inicie-a novamente.</string>
+    <string name="capture_allow_title">Permita o BinderClip no Shizuku</string>
+    <string name="capture_allow_desc">O Shizuku pergunta uma vez. Escolha Permitir sempre.</string>
+    <string name="capture_allow_action">Permitir</string>
+    <string name="capture_denied_title">O BinderClip está bloqueado no Shizuku</string>
+    <string name="capture_denied_desc">Abra o Shizuku, vá a Aplicações autorizadas e ative o BinderClip.</string>
+    <string name="capture_connecting_title">A ligar ao Shizuku…</string>
+    <string name="capture_connecting_desc">A verificar se o BinderClip consegue ver o que copia.</string>
+    <string name="capture_off_title">Área de transferência telemóvel → Mac desativada</string>
+    <string name="capture_off_desc">Use Enviar área de transferência ou Partilhar, ou configure o Shizuku para enviar cópias automaticamente.</string>
+    <string name="capture_set_up">Configurar</string>
+    <string name="capture_not_now">Agora não</string>
+    <string name="capture_paused_title">Área de transferência telemóvel → Mac em pausa</string>
+    <string name="capture_paused_desc">O Shizuku não está em execução. Toque para iniciar.</string>
+    <string name="capture_paused_card_desc">O Shizuku parou, normalmente após reiniciar. Abra-o e toque em Iniciar. Mac → telemóvel continua a funcionar.</string>
 </resources>

@@ -9,3 +9,8 @@
 # Quickie bundles Google ML Kit barcode scanning, whose internals are resolved via
 # reflection and can be over-stripped by R8 full mode. Keep ML Kit to be safe.
 -keep class com.google.mlkit.** { *; }
+
+# Shizuku instantiates the clipboard user service by name in a shell-uid process.
+-keep class net.wastu.binderclip.shizuku.ShizukuClipboardUserService { <init>(...); }
+-keep class android.content.IOnPrimaryClipChangedListener { *; }
+-keep class android.content.IOnPrimaryClipChangedListener$* { *; }

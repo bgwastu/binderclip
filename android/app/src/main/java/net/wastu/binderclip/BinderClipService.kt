@@ -31,6 +31,9 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import net.wastu.binderclip.shizuku.ShizukuAccess
+import net.wastu.binderclip.shizuku.ShizukuClipboardCapture
+import net.wastu.binderclip.shizuku.ShizukuStatus
 
 enum class TransportType {
     LAN,
@@ -53,6 +56,10 @@ data class AppState(
     val members: List<RememberedPeer> = emptyList(),
     val rootAvailable: Boolean = false,
     val automaticClipboardEnabled: Boolean = false,
+    /** The shell-uid Shizuku reader is watching the system clipboard. */
+    val shizukuCaptureActive: Boolean = false,
+    /** Shizuku capture worked before but is not running now (e.g. right after reboot). */
+    val shizukuCapturePaused: Boolean = false,
     val syncToastHidden: Boolean = true,
     val btFallbackEnabled: Boolean = false,
     val bluetoothActive: Boolean = false,
@@ -91,16 +98,16 @@ class BinderClipService : Service() {
         private const val URL_CHANNEL = "binderclip_urls"
         private const val FILE_CHANNEL = "binderclip_files"
         private const val NOTIFICATION_ID = 101
+        private const val CAPTURE_PAUSED_NOTIFICATION_ID = 104
+        /** After boot, Shizuku can take a while to start (e.g. waiting for trusted Wi-Fi). */
+        private const val SHIZUKU_GRACE_MS = 120_000L
+        private const val SHIZUKU_REBIND_MS = 5_000L
         /** Require the WebSocket to stay up this long before we tear down a working Bluetooth
          *  session, so a flaky tunnel cannot cause endless BT reconnect flapping. */
         private const val BT_TO_WS_GRACE_MS = 15_000L
 
         fun startFromBackground(context: Context) {
             DiagnosticLog.initialize(context)
-            if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
-                DiagnosticLog.info("BinderClipService not started: root unavailable")
-                return
-            }
             runCatching {
                 ContextCompat.startForegroundService(
                     context,
@@ -167,6 +174,12 @@ class BinderClipService : Service() {
     @Volatile
     private var automaticClipboardEnabled = false
 
+    private var shizukuCapture: ShizukuClipboardCapture? = null
+    private var shizukuToken: Long? = null
+    private var shizukuPausedNotice: ScheduledFuture<*>? = null
+    private var shizukuRebind: ScheduledFuture<*>? = null
+    private val shizukuStatusListener: (ShizukuStatus) -> Unit = { runServiceWork { updateShizukuCapture(); publishState() } }
+
     private var backgroundPoll: ScheduledFuture<*>? = null
     private val pollInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
     @Volatile private var interactive = true
@@ -210,12 +223,6 @@ class BinderClipService : Service() {
         super.onCreate()
         DiagnosticLog.initialize(this)
         store = DeviceStore(this)
-        rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
-        if (!rootAvailable) {
-            publishRootBlockedState()
-            stopSelf()
-            return
-        }
         clipboard = AppClipboard(this)
         val bootId = runCatching { android.provider.Settings.Global.getInt(contentResolver, "boot_count").toString() }.getOrDefault("unknown")
         clipboardOrdering = ClipboardOrdering(store.deviceId, uptime = android.os.SystemClock::elapsedRealtime,
@@ -240,6 +247,7 @@ class BinderClipService : Service() {
             onPeerIdentity = { id, name ->
                 runServiceWork {
                     if (automaticClipboardEnabled && interactive) startBackgroundPolling()
+                    updateShizukuCapture()
                     drainQueuedShares()
                 }
                 store.peer = store.peer?.copy(name = name, deviceId = id)
@@ -279,7 +287,7 @@ class BinderClipService : Service() {
                 stopNsdDiscovery()
                 bluetoothLink?.stop()
                 DiagnosticLog.info("Mac unpaired this phone")
-                runServiceWork { RootClipboardBridge.syncKeepAlive(this, paired = false) }
+                runServiceWork { pairingChanged() }
                 publishState()
             } },
         )
@@ -347,7 +355,7 @@ class BinderClipService : Service() {
                     bluetoothLink?.stop()
                     client.close()
                     DiagnosticLog.info("Mac unpaired this phone (bluetooth)")
-                    runServiceWork { RootClipboardBridge.syncKeepAlive(this@BinderClipService, paired = false) }
+                    runServiceWork { pairingChanged() }
                     publishState()
                 }
             }
@@ -376,8 +384,14 @@ class BinderClipService : Service() {
         }
         registerReceiver(screenStateReceiver, screenFilter)
 
+        shizukuCapture = ShizukuClipboardCapture(this, executor,
+            onClip = ::receiveShizukuClip,
+            onActiveChanged = { runServiceWork { shizukuCaptureChanged() } })
+        ShizukuAccess.initialize(this)
+        ShizukuAccess.addListener(shizukuStatusListener)
+
         runServiceWork {
-            applyRootClipboardAutomation()
+            applyClipboardAutomation()
             if (stopping) return@runServiceWork
             if (store.groupKey != null) {
                 client.connect()
@@ -389,11 +403,6 @@ class BinderClipService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!::client.isInitialized) {
-            rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
-            if (!rootAvailable) {
-                publishRootBlockedState()
-                return START_NOT_STICKY
-            }
             ContextCompat.startForegroundService(
                 this,
                 Intent(this, BinderClipService::class.java).setAction(ACTION_START),
@@ -412,7 +421,7 @@ class BinderClipService : Service() {
                         }
                         client.pair(uri)
                     }
-                        .onSuccess { RootClipboardBridge.syncKeepAlive(this, store.groupKey != null) }
+                        .onSuccess { pairingChanged() }
                         .onFailure { reportFailure(it.message ?: "Pairing failed") }
                 }
             }
@@ -476,22 +485,11 @@ class BinderClipService : Service() {
             }
 
             ACTION_REFRESH_CAPABILITIES -> runServiceWork {
-                rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
+                ShizukuAccess.refresh()
+                applyClipboardAutomation()
                 if (stopping) return@runServiceWork
-                if (!rootAvailable) {
-                    automaticClipboardEnabled = false
-                    stopBackgroundPolling()
-                    client.close()
-                    bluetoothLink?.stop()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    publishState()
-                    stopSelf()
-                } else {
-                    applyRootClipboardAutomation()
-                    if (stopping) return@runServiceWork
-                    if (store.groupKey != null && !client.isConnected()) client.connect()
-                    publishState()
-                }
+                if (store.groupKey != null && !client.isConnected()) client.connect()
+                publishState()
             }
 
             ACTION_REMOVE_MEMBER -> intent?.getStringExtra(EXTRA_MEMBER_ID)?.let { id ->
@@ -506,7 +504,7 @@ class BinderClipService : Service() {
                         resetClipboardOrdering()
                         client.close()
                     }
-                    RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
+                    pairingChanged()
                     publishState()
                 }
             }
@@ -534,7 +532,11 @@ class BinderClipService : Service() {
             stopping = true
             stopBackgroundPolling()
             networkDebounceFuture?.cancel(false)
+            shizukuPausedNotice?.cancel(false)
+            shizukuRebind?.cancel(false)
         }
+        ShizukuAccess.removeListener(shizukuStatusListener)
+        shizukuCapture?.stop()
         clipboardListener?.let { if (::clipboard.isInitialized) clipboard.removePrimaryClipChangedListener(it) }
         clipboardListener = null
         DiagnosticLog.flush()
@@ -560,7 +562,7 @@ class BinderClipService : Service() {
         resetClipboardOrdering()
         client.close()
         bluetoothLink?.stop()
-        RootClipboardBridge.syncKeepAlive(this, paired = false)
+        pairingChanged()
         publishState()
     }
 
@@ -600,7 +602,15 @@ class BinderClipService : Service() {
 
     private fun saveClipboardVersion() { store.saveClipboardCheckpoint(clipboardOrdering.checkpoint()) }
 
+    /** Root boot keep-alive and Shizuku capture both follow the pairing. */
+    private fun pairingChanged() {
+        RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
+        updateShizukuCapture()
+        publishState()
+    }
+
     private fun resetClipboardOrdering() {
+        shizukuToken = null
         transferProgress = null; transferStatus = null; transferRevision += 1
         clipboardOrdering.reset(); currentClipboard = null; lastReadFingerprint = null; hasObservedClipboard = false
         remoteClipboardEcho = null; remoteClipboardToken = null; lastReadClipboardToken = null
@@ -627,6 +637,7 @@ class BinderClipService : Service() {
 
     private fun captureClipboard(publish: Boolean = false) {
         if (!interactive || !(AppProfile.current.isDebug || uiVisible || automaticClipboardEnabled)) return
+        if (debugBoardMirrorsRemote()) return
         val value = ClipboardClassifier.read(this, clipboard)
         // A denied/locked read is not a user clearing the clipboard.
         if (value == LocalClipboardContent.Unsupported && !AppProfile.current.isDebug && clipboard.primaryClip == null) return
@@ -831,9 +842,15 @@ class BinderClipService : Service() {
         lastReadClipboardToken = remoteClipboardToken
     }
 
-    private fun pollAllowed(): Boolean = !stopping && PowerPolicy.shouldPoll(
+    private fun pollAllowed(): Boolean = !stopping && !debugBoardMirrorsRemote() && PowerPolicy.shouldPoll(
         automaticClipboardEnabled, interactive, store.groupKey != null,
     )
+
+    /**
+     * Once Shizuku reads the system clipboard, debug's private board only mirrors remote content; observing it as a
+     * local copy would re-stamp the Mac's clip over the phone's newer one.
+     */
+    private fun debugBoardMirrorsRemote(): Boolean = AppProfile.current.isDebug && shizukuCapture?.active == true
 
     private fun peerSleeping() {
         remoteSleepUntilMs = android.os.SystemClock.elapsedRealtime() + PowerPolicy.REMOTE_SLEEP_MS
@@ -888,20 +905,111 @@ class BinderClipService : Service() {
         backgroundPoll = null
     }
 
-    private fun applyRootClipboardAutomation() {
+    /**
+     * Root grants background clipboard access to BinderClip itself and polls. Without it, Shizuku (or Sui)
+     * captures through a shell-uid reader. Debug polls only its private board, and may additionally read
+     * the system clipboard through Shizuku once the owner authorizes the debug app there.
+     */
+    private fun applyClipboardAutomation() {
         if (stopping) return
-        rootAvailable = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
-        if (!rootAvailable) {
-            automaticClipboardEnabled = false
-            stopBackgroundPolling()
+        rootAvailable = RootClipboardBridge.isAvailable()
+        automaticClipboardEnabled = when {
+            AppProfile.current.isDebug -> true
+            !rootAvailable -> false
+            else -> {
+                RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
+                RootClipboardBridge.enableBackgroundAccess(this)
+            }
+        }
+        if (stopping) return
+        store.setRootClipboardAutomationEnabled(automaticClipboardEnabled && rootAvailable)
+        if (automaticClipboardEnabled) startBackgroundPolling() else stopBackgroundPolling()
+        updateShizukuCapture()
+    }
+
+    private fun shizukuCaptureWanted(): Boolean =
+        !stopping && store.groupKey != null && (AppProfile.current.isDebug || !automaticClipboardEnabled)
+
+    private fun updateShizukuCapture() {
+        val capture = shizukuCapture ?: return
+        val status = ShizukuAccess.status.value
+        when {
+            !shizukuCaptureWanted() -> capture.stop()
+            status == ShizukuStatus.Ready -> capture.start()
+            else -> capture.binderLost()
+        }
+        scheduleShizukuPausedNotice()
+    }
+
+    private fun shizukuCaptureChanged() {
+        val active = shizukuCapture?.active == true
+        if (active) store.setShizukuCaptureConfigured(true)
+        // The first read after (re)binding precedes this callback; a null token makes it a bootstrap, not a new copy.
+        else {
+            shizukuToken = null
+            // The reader process can die while Shizuku stays up; no status change will follow, so rebind here.
+            if (shizukuCaptureWanted() && ShizukuAccess.status.value == ShizukuStatus.Ready && shizukuRebind?.isDone != false) {
+                shizukuRebind = reconnectExecutor.schedule({ runServiceWork { updateShizukuCapture() } },
+                    SHIZUKU_REBIND_MS, TimeUnit.MILLISECONDS)
+            }
+        }
+        scheduleShizukuPausedNotice()
+        publishState()
+    }
+
+    private fun shizukuCapturePaused(): Boolean =
+        shizukuCaptureWanted() && store.isShizukuCaptureConfigured() && shizukuCapture?.active != true
+
+    /** One quiet notification if capture stays down past the boot grace period; cleared once it recovers. */
+    @Synchronized private fun scheduleShizukuPausedNotice() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (!shizukuCapturePaused()) {
+            shizukuPausedNotice?.cancel(false)
+            shizukuPausedNotice = null
+            manager.cancel(CAPTURE_PAUSED_NOTIFICATION_ID)
             return
         }
-        RootClipboardBridge.syncKeepAlive(this, store.groupKey != null)
-        val enabled = RootClipboardBridge.enableBackgroundAccess(this)
-        if (stopping) return
-        automaticClipboardEnabled = enabled
-        store.setRootClipboardAutomationEnabled(automaticClipboardEnabled)
-        if (automaticClipboardEnabled) startBackgroundPolling() else stopBackgroundPolling()
+        if (shizukuPausedNotice != null) return
+        shizukuPausedNotice = reconnectExecutor.schedule({
+            runServiceWork { if (shizukuCapturePaused()) notifyShizukuPaused() }
+        }, SHIZUKU_GRACE_MS, TimeUnit.MILLISECONDS)
+    }
+
+    private fun notifyShizukuPaused() {
+        val target = ShizukuAccess.launchIntent(this)?.takeIf { ShizukuAccess.status.value == ShizukuStatus.NotRunning }
+            ?: Intent(this, MainActivity::class.java)
+        val open = PendingIntent.getActivity(this, CAPTURE_PAUSED_NOTIFICATION_ID, target,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_binder_clip)
+            .setContentTitle(getString(R.string.capture_paused_title))
+            .setContentText(getString(R.string.capture_paused_desc))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(CAPTURE_PAUSED_NOTIFICATION_ID, notification)
+    }
+
+    /** Shizuku reads the system clipboard even while BinderClip is in the background; it never writes it. */
+    private fun receiveShizukuClip(value: LocalClipboardContent, token: Long) = runServiceWork {
+        if (!shizukuCaptureWanted()) return@runServiceWork
+        val fingerprint = clipboardFingerprint(value)
+        val previous = shizukuToken
+        shizukuToken = token
+        // Debug echoes land on the private board, never on the system clipboard.
+        if (!AppProfile.current.isDebug) {
+            lastReadClipboardToken = token
+            if (remoteClipboardEcho == fingerprint) {
+                remoteClipboardEcho = null
+                lastReadFingerprint = fingerprint
+                hasObservedClipboard = true
+                return@runServiceWork
+            }
+        }
+        // Unsupported content (files, empty clips) is never published as a clear.
+        if (value == LocalClipboardContent.Unsupported) return@runServiceWork
+        val changed = hasObservedClipboard && previous != null && token != previous
+        observeClipboard(value, force = changed, bootstrap = !hasObservedClipboard)
     }
 
     private fun updateStatus(status: String) {
@@ -929,14 +1037,6 @@ class BinderClipService : Service() {
         DiagnosticLog.warning("Failure: $message")
         lastError = message
         publishState()
-    }
-
-    private fun publishRootBlockedState() {
-        AppRuntime.state.value = AppState(
-            rootAvailable = false,
-            localDeviceId = store.deviceId,
-            localDeviceName = DeviceNames.android(this),
-        )
     }
 
     private fun publishState(notify: Boolean = true) {
@@ -987,6 +1087,8 @@ class BinderClipService : Service() {
             members = members,
             rootAvailable = rootAvailable,
             automaticClipboardEnabled = automaticClipboardEnabled,
+            shizukuCaptureActive = shizukuCapture?.active == true,
+            shizukuCapturePaused = shizukuCapturePaused(),
             syncToastHidden = store.isSyncToastHidden(),
             btFallbackEnabled = store.isBtFallbackEnabled(),
             bluetoothActive = bluetoothLink?.isConnected() == true,

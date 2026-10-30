@@ -132,7 +132,6 @@ class ShareReceiverActivity : ComponentActivity() {
     }
 
     private fun importShare(): Int? {
-        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) return R.string.root_required_title
         val deviceStore = DeviceStore(this)
         val peerId = deviceStore.peer?.deviceId?.takeIf { it.isNotBlank() }
         if (deviceStore.groupKey == null || peerId == null) return R.string.tile_not_paired

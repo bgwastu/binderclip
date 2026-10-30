@@ -112,9 +112,6 @@
     <string name="toast_sent_to_mac">Отправлено на Mac</string>
     <string name="toast_sent_image_to_mac">Изображение отправлено на Mac</string>
     <string name="toast_nothing_to_send">Нечего отправлять</string>
-    <string name="root_required_title">Требуется root-доступ</string>
-    <string name="root_required_desc">BinderClip требуется root-доступ через KernelSU или Magisk для синхронизации буфера обмена в фоне. Предоставьте доступ при запросе, затем нажмите кнопку ниже.</string>
-    <string name="root_required_grant">Проверить root-доступ</string>
     <string name="bt_fallback_desc_needs_permission">Предоставьте выше разрешение на доступ к устройствам поблизости, чтобы включить резервное подключение по Bluetooth.</string>
     <string name="clear_logs_confirm_title">Удалить все журналы?</string>
     <string name="clear_logs_confirm_message">Все записи журнала будут удалены. Это действие нельзя отменить.</string>
@@ -152,4 +149,27 @@
     <string name="hide_transfer">Скрыть</string>
     <string name="cancel_transfer">Отменить передачу</string>
     <string name="transfer_cancelled">Передача отменена</string>
+    <string name="capture_step_of">Шаг %1$d из %2$d</string>
+    <string name="capture_install_title">Отправляйте скопированное на телефоне на Mac</string>
+    <string name="capture_install_desc">Без root BinderClip нужен бесплатный Shizuku, чтобы видеть, что вы копируете. Mac → телефон уже работает.</string>
+    <string name="capture_install_action">Установить Shizuku</string>
+    <string name="capture_start_title">Запустите Shizuku</string>
+    <string name="capture_start_desc">Откройте Shizuku, нажмите «Запустить» в разделе «Отладка по Wi-Fi» и вернитесь. Экран продолжит сам.</string>
+    <string name="capture_open_shizuku">Открыть Shizuku</string>
+    <string name="capture_update_title">Обновите Shizuku</string>
+    <string name="capture_update_desc">Эта версия Shizuku слишком старая для BinderClip. Обновите её и запустите снова.</string>
+    <string name="capture_allow_title">Разрешите BinderClip в Shizuku</string>
+    <string name="capture_allow_desc">Shizuku спросит один раз. Выберите «Разрешать всегда».</string>
+    <string name="capture_allow_action">Разрешить</string>
+    <string name="capture_denied_title">BinderClip заблокирован в Shizuku</string>
+    <string name="capture_denied_desc">Откройте Shizuku, перейдите в «Авторизованные приложения» и включите BinderClip.</string>
+    <string name="capture_connecting_title">Подключение к Shizuku…</string>
+    <string name="capture_connecting_desc">Проверяем, что BinderClip видит скопированное.</string>
+    <string name="capture_off_title">Буфер обмена телефон → Mac выключен</string>
+    <string name="capture_off_desc">Используйте «Отправить буфер обмена» или «Поделиться» либо настройте Shizuku для автоматической отправки.</string>
+    <string name="capture_set_up">Настроить</string>
+    <string name="capture_not_now">Не сейчас</string>
+    <string name="capture_paused_title">Буфер обмена телефон → Mac приостановлен</string>
+    <string name="capture_paused_desc">Shizuku не запущен. Нажмите, чтобы запустить.</string>
+    <string name="capture_paused_card_desc">Shizuku остановлен, обычно после перезагрузки. Откройте его и нажмите «Запустить». Mac → телефон по-прежнему работает.</string>
 </resources>

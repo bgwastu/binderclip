@@ -2,7 +2,7 @@
 
 <h1 align="center">BinderClip</h1>
 
-<p align="center">The most toughest clipboard sync for rooted Android phones and Mac over your local network, mesh VPN, or Bluetooth.</p>
+<p align="center">The most toughest clipboard sync for Android phones and Mac over your local network, mesh VPN, or Bluetooth.</p>
 
 <p align="center">AI disclosure: Human validated.</p>
 
@@ -24,7 +24,7 @@
 
 ## Install
 
-Requires **macOS 13 or later** and **Android 12 or later**. Android also requires [KernelSU](https://kernelsu.org/) or [Magisk](https://github.com/topjohnwu/Magisk) root. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
+Requires **macOS 13 or later** and **Android 12 or later**. Automatic phone → Mac clipboard sync needs either [KernelSU](https://kernelsu.org/)/[Magisk](https://github.com/topjohnwu/Magisk) root or [Shizuku](https://shizuku.rikka.app/) (no root); Mac → phone sync and sharing work on any phone. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
 
 ### Mac — option 1: Terminal
 
@@ -51,8 +51,8 @@ curl -fL -o BinderClip.zip \
 
 ### Android and pairing
 
-1. Download the newest `BinderClip-*.apk` from [Releases](https://github.com/bgwastu/BinderClip/releases) and install it on the rooted phone.
-2. Open BinderClip, grant root access, and allow notifications when prompted. Bluetooth permission is only needed if you enable Bluetooth fallback.
+1. Download the newest `BinderClip-*.apk` from [Releases](https://github.com/bgwastu/BinderClip/releases) and install it on the phone.
+2. Open BinderClip, grant root access if the phone is rooted, and allow notifications when prompted. Without root, the setup card walks you through installing, starting, and allowing Shizuku. Bluetooth permission is only needed if you enable Bluetooth fallback.
 3. On the Mac, choose **Add Device** from the BinderClip menu bar icon. On Android, tap **Scan QR to Pair** and scan the code.
 
 

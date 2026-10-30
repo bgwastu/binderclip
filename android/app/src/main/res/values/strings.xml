@@ -1,9 +1,6 @@
 <resources>
     <string name="app_name">BinderClip</string>
     <string name="tile_not_paired">Not paired</string>
-    <string name="root_required_title">Root access required</string>
-    <string name="root_required_desc">BinderClip needs KernelSU or Magisk root to sync the clipboard in the background. Grant root when prompted, then tap below.</string>
-    <string name="root_required_grant">Check root access</string>
 
     <!-- Notification Channels & Notifications -->
     <string name="channel_clipboard_sync">Clipboard Sync</string>
@@ -150,4 +147,27 @@
     <string name="hide_transfer">Hide</string>
     <string name="cancel_transfer">Cancel transfer</string>
     <string name="transfer_cancelled">Transfer cancelled</string>
+    <string name="capture_step_of">Step %1$d of %2$d</string>
+    <string name="capture_install_title">Send your phone’s copies to your Mac</string>
+    <string name="capture_install_desc">Without root, BinderClip needs Shizuku, a free app, to see what you copy. Mac → phone already works.</string>
+    <string name="capture_install_action">Get Shizuku</string>
+    <string name="capture_start_title">Start Shizuku</string>
+    <string name="capture_start_desc">Open Shizuku, tap Start under Wireless debugging, then come back. This page moves on by itself.</string>
+    <string name="capture_open_shizuku">Open Shizuku</string>
+    <string name="capture_update_title">Update Shizuku</string>
+    <string name="capture_update_desc">This Shizuku version is too old for BinderClip. Update it, then start it again.</string>
+    <string name="capture_allow_title">Allow BinderClip in Shizuku</string>
+    <string name="capture_allow_desc">Shizuku asks once. Choose Allow all the time.</string>
+    <string name="capture_allow_action">Allow</string>
+    <string name="capture_denied_title">BinderClip is blocked in Shizuku</string>
+    <string name="capture_denied_desc">Open Shizuku, go to Authorized applications, and turn on BinderClip.</string>
+    <string name="capture_connecting_title">Connecting to Shizuku…</string>
+    <string name="capture_connecting_desc">Checking that BinderClip can see your copies.</string>
+    <string name="capture_off_title">Phone → Mac clipboard is off</string>
+    <string name="capture_off_desc">Use Send clipboard or Share, or set up Shizuku to send copies automatically.</string>
+    <string name="capture_set_up">Set up</string>
+    <string name="capture_not_now">Not now</string>
+    <string name="capture_paused_title">Phone → Mac clipboard paused</string>
+    <string name="capture_paused_desc">Shizuku isn’t running. Tap to start it.</string>
+    <string name="capture_paused_card_desc">Shizuku stopped, usually after a restart. Open it and tap Start. Mac → phone still works.</string>
 </resources>

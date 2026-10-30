@@ -94,6 +94,7 @@ import androidx.core.content.ContextCompat
 import android.widget.Toast
 import java.text.DateFormat
 import java.util.Date
+import net.wastu.binderclip.shizuku.ShizukuAccess
 
 class MainActivity : AppCompatActivity() {
     private var permissionRevision by mutableIntStateOf(0)
@@ -141,9 +142,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         check(packageName == AppProfile.current.applicationId)
         DiagnosticLog.initialize(this)
-        if ((AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
-            startService(BinderClipService.ACTION_START)
-        }
+        ShizukuAccess.initialize(this)
+        startService(BinderClipService.ACTION_START)
         intent?.dataString?.takeIf { it.startsWith(AppProfile.current.pairingScheme + "://") }?.let(::pair)
         setContent {
             BinderClipTheme {
@@ -158,12 +158,6 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 var showBluetoothGuide by remember { mutableStateOf(false) }
-                if (!state.rootAvailable) {
-                    RootRequiredScreen(
-                        onGrantRoot = ::refreshRootAccess,
-                    )
-                    return@BinderClipTheme
-                }
                 DisposableEffect(Unit) {
                     startService(BinderClipService.ACTION_UI_VISIBLE, visible = true)
                     onDispose { startService(BinderClipService.ACTION_UI_VISIBLE, visible = false) }
@@ -251,17 +245,9 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         permissionRevision += 1
-        refreshRootAccess()
-    }
-
-    private fun refreshRootAccess() {
-        val granted = (AppProfile.current.isDebug || RootClipboardBridge.isAvailable())
-        AppRuntime.state.value = AppRuntime.state.value.copy(rootAvailable = granted)
-        if (granted) {
-            RootClipboardBridge.ensureAutostart(this)
-            startService(BinderClipService.ACTION_START)
-            startService(BinderClipService.ACTION_REFRESH_CAPABILITIES)
-        }
+        // Re-check after returning from Shizuku or a store; root is probed off the main thread by the service.
+        ShizukuAccess.refresh()
+        startService(BinderClipService.ACTION_REFRESH_CAPABILITIES)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -285,10 +271,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pair(uri: String) {
-        if (!(AppProfile.current.isDebug || RootClipboardBridge.isAvailable())) {
-            Toast.makeText(this, getString(R.string.root_required_title), Toast.LENGTH_LONG).show()
-            return
-        }
         android.util.Log.i("BinderClip", "Pairing invitation received")
         val macName = SyncProtocol.parsePairingUrl(uri)?.deviceName?.takeIf { it.isNotBlank() }
         Toast.makeText(this, macName ?: "Connecting…", Toast.LENGTH_SHORT).show()
@@ -497,6 +479,9 @@ internal fun BinderClipScreen(
                         PermissionRow(missingPermissions[index])
                         if (index != missingPermissions.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
                     }
+                }
+                if (state.peer != null) item {
+                    ClipboardCaptureSetup(state, modifier = Modifier.padding(top = 16.dp))
                 }
                 if (state.pendingText || state.pendingImage) item {
                     ListItem(
@@ -751,54 +736,6 @@ internal fun BinderClipScreen(
             },
             confirmButton = { TextButton(onClick = { showLogs = false }) { Text(stringResource(R.string.close)) } },
         )
-    }
-}
-
-@Composable
-private fun RootRequiredScreen(onGrantRoot: () -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    Scaffold { insets ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(insets)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_binder_clip),
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.root_required_title),
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.root_required_desc),
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onGrantRoot()
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Text(stringResource(R.string.root_required_grant))
-            }
-        }
     }
 }
 

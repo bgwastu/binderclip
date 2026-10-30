@@ -242,6 +242,9 @@ class DeviceStore(context: Context) {
         set(value) = prefs.edit().apply { if (value == null) remove("pending_text") else putString("pending_text", value) }.apply()
     fun isRootClipboardAutomationEnabled(): Boolean = prefs.getBoolean("root_clipboard_automation", false)
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
+    /** Set after Shizuku capture first works, so a later missing Shizuku is reported as paused rather than unset. */
+    fun isShizukuCaptureConfigured(): Boolean = prefs.getBoolean("shizuku_capture_configured", false)
+    fun setShizukuCaptureConfigured(configured: Boolean) { prefs.edit().putBoolean("shizuku_capture_configured", configured).apply() }
 
 
     /** When true, automatically copy text and images received from Mac to this device's clipboard. */

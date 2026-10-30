@@ -112,9 +112,6 @@
     <string name="toast_sent_to_mac">Terkirim ke Mac</string>
     <string name="toast_sent_image_to_mac">Gambar terkirim ke Mac</string>
     <string name="toast_nothing_to_send">Tidak ada yang dapat dikirim</string>
-    <string name="root_required_title">Akses root diperlukan</string>
-    <string name="root_required_desc">BinderClip memerlukan root KernelSU atau Magisk untuk menyinkronkan clipboard di latar belakang. Berikan akses root saat diminta, lalu ketuk di bawah.</string>
-    <string name="root_required_grant">Periksa akses root</string>
     <string name="bt_fallback_desc_needs_permission">Berikan izin Perangkat di sekitar di atas untuk mengaktifkan cadangan Bluetooth.</string>
     <string name="clear_logs_confirm_title">Hapus semua log?</string>
     <string name="clear_logs_confirm_message">Ini menghapus semua entri log. Tindakan ini tidak dapat dibatalkan.</string>
@@ -152,4 +149,27 @@
     <string name="hide_transfer">Sembunyikan</string>
     <string name="cancel_transfer">Batalkan kiriman</string>
     <string name="transfer_cancelled">Kiriman dibatalkan</string>
+    <string name="capture_step_of">Langkah %1$d dari %2$d</string>
+    <string name="capture_install_title">Kirim salinan dari ponsel ke Mac</string>
+    <string name="capture_install_desc">Tanpa root, BinderClip membutuhkan Shizuku, aplikasi gratis, untuk melihat yang Anda salin. Mac → ponsel sudah berfungsi.</string>
+    <string name="capture_install_action">Dapatkan Shizuku</string>
+    <string name="capture_start_title">Mulai Shizuku</string>
+    <string name="capture_start_desc">Buka Shizuku, ketuk Mulai di bagian Debugging nirkabel, lalu kembali. Halaman ini akan lanjut sendiri.</string>
+    <string name="capture_open_shizuku">Buka Shizuku</string>
+    <string name="capture_update_title">Perbarui Shizuku</string>
+    <string name="capture_update_desc">Versi Shizuku ini terlalu lama untuk BinderClip. Perbarui, lalu mulai lagi.</string>
+    <string name="capture_allow_title">Izinkan BinderClip di Shizuku</string>
+    <string name="capture_allow_desc">Shizuku akan bertanya sekali. Pilih Selalu izinkan.</string>
+    <string name="capture_allow_action">Izinkan</string>
+    <string name="capture_denied_title">BinderClip diblokir di Shizuku</string>
+    <string name="capture_denied_desc">Buka Shizuku, masuk ke Aplikasi yang diotorisasi, lalu aktifkan BinderClip.</string>
+    <string name="capture_connecting_title">Menghubungkan ke Shizuku…</string>
+    <string name="capture_connecting_desc">Memeriksa apakah BinderClip dapat melihat salinan Anda.</string>
+    <string name="capture_off_title">Papan klip ponsel → Mac nonaktif</string>
+    <string name="capture_off_desc">Gunakan Kirim papan klip atau Bagikan, atau siapkan Shizuku untuk mengirim salinan otomatis.</string>
+    <string name="capture_set_up">Siapkan</string>
+    <string name="capture_not_now">Nanti</string>
+    <string name="capture_paused_title">Papan klip ponsel → Mac dijeda</string>
+    <string name="capture_paused_desc">Shizuku tidak berjalan. Ketuk untuk memulai.</string>
+    <string name="capture_paused_card_desc">Shizuku berhenti, biasanya setelah restart. Buka dan ketuk Mulai. Mac → ponsel tetap berfungsi.</string>
 </resources>

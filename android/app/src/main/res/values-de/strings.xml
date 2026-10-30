@@ -112,9 +112,6 @@
     <string name="toast_sent_to_mac">An Mac gesendet</string>
     <string name="toast_sent_image_to_mac">Bild an Mac gesendet</string>
     <string name="toast_nothing_to_send">Nichts zu senden</string>
-    <string name="root_required_title">Root-Zugriff erforderlich</string>
-    <string name="root_required_desc">BinderClip benötigt Root-Zugriff über KernelSU oder Magisk, um die Zwischenablage im Hintergrund zu synchronisieren. Erlaube den Zugriff bei der Aufforderung und tippe dann unten.</string>
-    <string name="root_required_grant">Root-Zugriff prüfen</string>
     <string name="bt_fallback_desc_needs_permission">Erlaube oben den Zugriff auf Geräte in der Nähe, um Bluetooth als Ausweichverbindung zu aktivieren.</string>
     <string name="clear_logs_confirm_title">Alle Protokolle löschen?</string>
     <string name="clear_logs_confirm_message">Dadurch werden alle Protokolleinträge gelöscht. Dies kann nicht rückgängig gemacht werden.</string>
@@ -152,4 +149,27 @@
     <string name="hide_transfer">Ausblenden</string>
     <string name="cancel_transfer">Übertragung abbrechen</string>
     <string name="transfer_cancelled">Übertragung abgebrochen</string>
+    <string name="capture_step_of">Schritt %1$d von %2$d</string>
+    <string name="capture_install_title">Kopiertes vom Telefon an den Mac senden</string>
+    <string name="capture_install_desc">Ohne Root braucht BinderClip die kostenlose App Shizuku, um zu sehen, was du kopierst. Mac → Telefon funktioniert bereits.</string>
+    <string name="capture_install_action">Shizuku holen</string>
+    <string name="capture_start_title">Shizuku starten</string>
+    <string name="capture_start_desc">Öffne Shizuku, tippe unter „Drahtloses Debugging“ auf Starten und komm zurück. Diese Seite geht von selbst weiter.</string>
+    <string name="capture_open_shizuku">Shizuku öffnen</string>
+    <string name="capture_update_title">Shizuku aktualisieren</string>
+    <string name="capture_update_desc">Diese Shizuku-Version ist für BinderClip zu alt. Aktualisiere sie und starte sie erneut.</string>
+    <string name="capture_allow_title">BinderClip in Shizuku erlauben</string>
+    <string name="capture_allow_desc">Shizuku fragt einmal. Wähle „Immer erlauben“.</string>
+    <string name="capture_allow_action">Erlauben</string>
+    <string name="capture_denied_title">BinderClip ist in Shizuku blockiert</string>
+    <string name="capture_denied_desc">Öffne Shizuku, gehe zu „Autorisierte Apps“ und aktiviere BinderClip.</string>
+    <string name="capture_connecting_title">Verbindung zu Shizuku…</string>
+    <string name="capture_connecting_desc">Prüfe, ob BinderClip deine Kopien sehen kann.</string>
+    <string name="capture_off_title">Telefon → Mac-Zwischenablage ist aus</string>
+    <string name="capture_off_desc">Nutze „Zwischenablage senden“ oder Teilen, oder richte Shizuku ein, um Kopien automatisch zu senden.</string>
+    <string name="capture_set_up">Einrichten</string>
+    <string name="capture_not_now">Nicht jetzt</string>
+    <string name="capture_paused_title">Telefon → Mac-Zwischenablage pausiert</string>
+    <string name="capture_paused_desc">Shizuku läuft nicht. Tippe zum Starten.</string>
+    <string name="capture_paused_card_desc">Shizuku wurde beendet, meist nach einem Neustart. Öffne es und tippe auf Starten. Mac → Telefon funktioniert weiterhin.</string>
 </resources>
