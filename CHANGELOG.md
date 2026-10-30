@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.17.0
+
+Mac and Android synchronized release:
+
+- **Android Shizuku Support:** Capture clipboard on unrooted Android devices using Shizuku user service alongside existing root capture.
+- **Synchronized Visual Identity:** Redesigned macOS and Android app icons using the Apple HIG layered squircle specification and Android adaptive icon with a unified brand blue palette.
+- **macOS Menu Bar Animation:** Layered menu bar icon with an animated circular progress ring, smooth spring transitions, zero idle CPU overhead, and sleep/dark wake protection.
+- **File Transfer UX Overhaul:**
+  - Android: Immediate feedback on share, ongoing notification with live progress bar and cancel action, and completion notification.
+  - macOS: System notification and sound on send completion, click-to-reveal received files in Finder, and animated menu bar progress.
+- **Android In-App Auto-Updater:** Checks for updates from GitHub releases or generic feeds, shows update notes, and guides installation via system package installer.
 ## Android 1.16.1
 
 - Show file transfer progress in an overlay with a single-line filename, file-type icon, and consistent spacing.
