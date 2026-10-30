@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private let pairing = PairingWindow()
     private let logWindow = LogWindowController()
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let statusIconView = StatusItemIconView()
+    private var activeTransferProgress: TransferProgress?
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: !AppProfile.current.isDebug,
         updaterDelegate: self,
@@ -61,15 +63,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         statusMenu.autoenablesItems = false
         statusItem.isVisible = true
         statusItem.menu = statusMenu
+        if let button = statusItem.button {
+            button.image = NSImage(size: NSSize(width: 18, height: 18))
+            statusIconView.setImage(binderClipStatusIcon())
+            statusIconView.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(statusIconView)
+            NSLayoutConstraint.activate([
+                statusIconView.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 8),
+                statusIconView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                statusIconView.widthAnchor.constraint(equalToConstant: 18),
+                statusIconView.heightAnchor.constraint(equalToConstant: 18)
+            ])
+        }
         updateStatusIcon()
 
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         transport.onClipboard = { [weak self] text in
             guard self?.clipboard.applyRemote(text) == true else { return }
             let msg = L10n.tr("received_text")
             self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
+            self?.statusIconView.pulseSync()
         }
         transport.onOpenURL = { [weak self] url in
             if AppProfile.current.isDebug { self?.clipboard.applyRemote(url.absoluteString); return }
@@ -77,16 +94,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             let msg = L10n.tr("opened_link_in_browser")
             self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "safari.fill")
+            self?.statusIconView.pulseSync()
         }
         transport.onImage = { [weak self] image in
             guard self?.clipboard.applyRemote(image) == true else { return }
             let msg = L10n.tr("received_image_format", image.mimeType)
             self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "photo.fill")
+            self?.statusIconView.pulseSync()
         }
         transport.onFile = { [weak self] url in
             let message = L10n.tr("file_received_format", url.lastPathComponent)
-            self?.notifyIncoming(title: AppProfile.current.displayName, body: message)
+            self?.notifyIncoming(title: AppProfile.current.displayName, body: message, sound: .default, userInfo: ["fileURL": url.path])
+            NSSound(named: "Glass")?.play()
+            ToastHUD.shared.show(message: message, icon: "folder.fill")
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
@@ -99,7 +120,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             self?.lastTransferStatus = message
             self?.status = message
         }
-        transport.onTransferProgress = { progress in ToastHUD.shared.showTransfer(progress) }
+        transport.onTransferProgress = { [weak self] progress in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if progress.isActive {
+                    self.activeTransferProgress = progress
+                    self.statusIconView.transition(to: .progress(fraction: progress.fraction))
+                } else {
+                    let wasActive = self.activeTransferProgress != nil
+                    self.activeTransferProgress = nil
+                    if wasActive && progress.phase == .sent {
+                        let kind = L10n.tr(progress.metadata.kind == "image" ? "transfer_kind_image" : "transfer_kind_file")
+                        let name = progress.metadata.name.isEmpty ? kind : progress.metadata.name
+                        let msg = L10n.tr("transfer_sent", name)
+                        self.notifyIncoming(title: AppProfile.current.displayName, body: msg, sound: .default)
+                        NSSound(named: "Glass")?.play()
+                        ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill")
+                    }
+                    self.updateStatusIcon()
+                }
+                ToastHUD.shared.showTransfer(progress)
+            }
+        }
         transport.onLocalNetworkPermissionRequired = { [weak self] required in
             DispatchQueue.main.async { self?.localNetworkPermissionRequired = required }
         }
@@ -121,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             self.waitingForUserWake = true
             self.clipboard.stop()
             self.transport.setSystemSleeping(true)
+            self.statusIconView.resetToIdle(disabled: true)
             DiagnosticLog.shared.flush()
         })
         sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -192,10 +235,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         DispatchQueue.main.async(execute: action)
     }
 
-    private func notifyIncoming(title: String, body: String) {
+    private func notifyIncoming(title: String, body: String, sound: UNNotificationSound? = .default, userInfo: [AnyHashable: Any] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
+        if let sound { content.sound = sound }
+        content.userInfo = userInfo
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
@@ -206,19 +251,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     private func updateStatusIcon() {
         guard let button = statusItem.button else { return }
-        button.image = binderClipStatusIcon()
+        statusIconView.setImage(binderClipStatusIcon())
         button.title = AppProfile.current.isDebug ? "D" : ""
         button.imagePosition = AppProfile.current.isDebug ? .imageLeft : .imageOnly
         let hasConnectedPeers = peers.contains(where: \.connected)
-        button.appearsDisabled = !hasConnectedPeers && !isTransferring
+        let disabled = !hasConnectedPeers && !isTransferring
+        button.appearsDisabled = disabled
         if isTransferring {
             button.toolTip = "\(AppProfile.current.displayName): \(status)"
-        } else if hasConnectedPeers {
-            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_connected"))"
-        } else if peers.isEmpty {
-            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("listening"))"
+            if let progress = activeTransferProgress, progress.fraction > 0 {
+                statusIconView.transition(to: .progress(fraction: progress.fraction))
+            } else {
+                statusIconView.transition(to: .indeterminate)
+            }
         } else {
-            button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_waiting_for_device"))"
+            statusIconView.transition(to: .idle(appearsDisabled: disabled))
+            if hasConnectedPeers {
+                button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_connected"))"
+            } else if peers.isEmpty {
+                button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("listening"))"
+            } else {
+                button.toolTip = "\(AppProfile.current.displayName): \(L10n.tr("status_waiting_for_device"))"
+            }
         }
     }
 
@@ -804,5 +858,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         case .unsupported:
             break
         }
+    }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        if #available(macOS 11.0, *) {
+            completionHandler([.banner, .sound])
+        } else {
+            completionHandler([.alert, .sound])
+        }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let path = response.notification.request.content.userInfo["fileURL"] as? String {
+            let url = URL(fileURLWithPath: path)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+        completionHandler()
     }
 }
