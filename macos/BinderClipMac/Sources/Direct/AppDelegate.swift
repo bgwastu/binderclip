@@ -64,12 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         statusItem.isVisible = true
         statusItem.menu = statusMenu
         if let button = statusItem.button {
-            button.image = NSImage(size: NSSize(width: 18, height: 18))
+            statusItem.length = 26
+            button.image = NSImage(size: NSSize(width: 1, height: 18))
             statusIconView.setImage(binderClipStatusIcon())
             statusIconView.translatesAutoresizingMaskIntoConstraints = false
             button.addSubview(statusIconView)
             NSLayoutConstraint.activate([
-                statusIconView.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 8),
+                statusIconView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
                 statusIconView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
                 statusIconView.widthAnchor.constraint(equalToConstant: 18),
                 statusIconView.heightAnchor.constraint(equalToConstant: 18)
@@ -426,7 +427,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         let resource = Bundle.main.url(forResource: "BinderClipMenuIcon", withExtension: "svg")
             ?? Bundle.module.url(forResource: "BinderClipMenuIcon", withExtension: "svg")
         if let resource, let image = NSImage(contentsOf: resource) {
-            image.size = NSSize(width: 18, height: 18)
+            // The glyph is cropped to its bounds, so size it by aspect instead of padding it inside a square.
+            image.size = NSSize(width: 18 * 424 / 512, height: 18)
             image.isTemplate = true
             return image
         }
