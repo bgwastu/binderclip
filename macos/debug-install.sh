@@ -64,6 +64,7 @@ cp "$EXECUTABLE" "$STAGING_PATH/Contents/MacOS/BinderClip"
 chmod 755 "$STAGING_PATH/Contents/MacOS/BinderClip"
 ditto "$SPARKLE_FRAMEWORK" "$STAGING_PATH/Contents/Frameworks/Sparkle.framework"
 cp "$PACKAGE_DIR/Resources/AppIcon.icns" "$STAGING_PATH/Contents/Resources/AppIcon.icns"
+cp "$PACKAGE_DIR/../AppIcon/Assets.car" "$STAGING_PATH/Contents/Resources/Assets.car"
 cp "$PACKAGE_DIR/Resources/BinderClipMenuIcon.svg" "$STAGING_PATH/Contents/Resources/BinderClipMenuIcon.svg"
 cp -R "$PACKAGE_DIR"/Resources/*.lproj "$STAGING_PATH/Contents/Resources/"
 print -n 'APPL????' > "$STAGING_PATH/Contents/PkgInfo"
@@ -89,6 +90,7 @@ cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>BinderClip Debug</string>
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>BinderClipEnvironment</key><string>debug</string>
   <key>CFBundleName</key><string>BinderClip Debug</string>

@@ -52,6 +52,7 @@ fi
 }
 ditto "$SPARKLE_FRAMEWORK" "$APP_PATH/Contents/Frameworks/Sparkle.framework"
 cp "$PACKAGE_DIR/Resources/AppIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
+cp "$PACKAGE_DIR/../AppIcon/Assets.car" "$APP_PATH/Contents/Resources/Assets.car"
 cp "$PACKAGE_DIR/Resources/BinderClipMenuIcon.svg" "$APP_PATH/Contents/Resources/BinderClipMenuIcon.svg"
 cp -R "$PACKAGE_DIR"/Resources/*.lproj "$APP_PATH/Contents/Resources/"
 chmod 755 "$APP_PATH/Contents/MacOS/BinderClip"
@@ -76,6 +77,7 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>BinderClip</string>
   <key>CFBundleExecutable</key><string>BinderClip</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>net.wastu.binderclip</string>
   <key>BinderClipEnvironment</key><string>production</string>
   <key>CFBundleName</key><string>BinderClip</string>

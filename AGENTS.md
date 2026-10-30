@@ -7,6 +7,7 @@ Mac menu bar app and Android app that sync the clipboard. The Mac hosts the WebS
 - macOS tests: `swift test --package-path macos/BinderClipMac`
 - macOS debug install: `./macos/debug-install.sh`
 - macOS release package: `./macos/package-release.sh`
+- macOS app icon: edit `macos/AppIcon/AppIcon.icon`, then run `./macos/app-icon.sh` and commit the output (CI's Xcode cannot compile it).
 - Android tests: `./android/gradlew -p android testDebugUnitTest`, with `JAVA_HOME=$HOME/.local/share/mise/installs/java/21.0.2` (Java 26 fails)
 
 ## Rules
