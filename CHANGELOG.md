@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.18.0
 
 - **Android:** Received files save straight to Downloads and the notification opens them; the Received Files screen is gone. The transfer toast is neutral and always has a close button.
 - **Android:** New status-first home with a recent activity list. Phone to Mac copying has its own step-by-step setup screen for root and Shizuku, and settings moved to a separate screen.
