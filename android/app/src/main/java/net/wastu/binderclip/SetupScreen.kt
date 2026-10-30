@@ -3,6 +3,18 @@ package net.wastu.binderclip
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,27 +100,71 @@ internal fun SetupScreen(state: AppState, onBack: () -> Unit, onCheckAgain: () -
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets)) {
             Column(
-                Modifier.align(Alignment.TopCenter).widthIn(max = 600.dp).fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 600.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                if (done) {
-                    Text(stringResource(R.string.setup_done_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                StatusCard(done)
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                ) {
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                        steps.forEachIndexed { index, item -> StepRow(index + 1, item, last = index == steps.lastIndex) }
+                    }
                 }
-                Text(
-                    stringResource(if (done) R.string.setup_done_desc else R.string.setup_intro),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                steps.forEachIndexed { index, item -> StepRow(index + 1, item) }
-                if (!done && !state.rootAvailable) {
-                    Text(
-                        stringResource(R.string.setup_root_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(onClick = onCheckAgain) { Text(stringResource(R.string.setup_check_again)) }
+                if (done) {
+                    Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.close)) }
+                } else if (!state.rootAvailable) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.setup_root_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedButton(onClick = onCheckAgain) { Text(stringResource(R.string.setup_check_again)) }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(done: Boolean) {
+    val container = if (done) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+    val content = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
+    ) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = CircleShape, color = content.copy(alpha = 0.12f), modifier = Modifier.size(56.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (done) Icons.Outlined.CheckCircle else Icons.Outlined.ContentPaste,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+            }
+            Text(
+                stringResource(if (done) R.string.setup_done_title else R.string.capture_row_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(stringResource(if (done) R.string.setup_done_desc else R.string.setup_intro), style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
@@ -148,32 +204,42 @@ private fun shizukuSteps(context: Context, step: CaptureStep, paused: Boolean, d
 }
 
 @Composable
-private fun StepRow(number: Int, step: SetupStep) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        val container = when (step.mark) {
-            StepMark.Done -> MaterialTheme.colorScheme.primary
-            StepMark.Current -> MaterialTheme.colorScheme.primaryContainer
-            StepMark.Waiting -> MaterialTheme.colorScheme.surfaceVariant
-        }
-        Surface(shape = CircleShape, color = container, modifier = Modifier.size(32.dp)) {
-            Box(contentAlignment = Alignment.Center) {
-                when {
-                    step.mark == StepMark.Done -> Icon(
-                        Icons.Outlined.Check, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp),
-                    )
-                    step.busy -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else -> Text(
-                        number.toString(), style = MaterialTheme.typography.labelLarge,
-                        color = if (step.mark == StepMark.Current) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+private fun StepRow(number: Int, step: SetupStep, last: Boolean) {
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val container = when (step.mark) {
+                StepMark.Done -> MaterialTheme.colorScheme.primary
+                StepMark.Current -> MaterialTheme.colorScheme.primaryContainer
+                StepMark.Waiting -> MaterialTheme.colorScheme.surfaceContainerHighest
+            }
+            Surface(shape = CircleShape, color = container, modifier = Modifier.size(32.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    when {
+                        step.mark == StepMark.Done -> Icon(
+                            Icons.Outlined.Check, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp),
+                        )
+                        step.busy -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else -> Text(
+                            number.toString(), style = MaterialTheme.typography.labelLarge,
+                            color = if (step.mark == StepMark.Current) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+            if (!last) Box(Modifier.width(2.dp).weight(1f).padding(vertical = 4.dp).background(line))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.weight(1f).padding(bottom = if (last) 0.dp else 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                stringResource(step.title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                stringResource(step.title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp),
                 color = if (step.mark == StepMark.Waiting) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
             if (step.mark == StepMark.Current) {
@@ -181,7 +247,7 @@ private fun StepRow(number: Int, step: SetupStep) {
                     Text(stringResource(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 step.action?.let {
-                    Button(onClick = step.onAction, modifier = Modifier.padding(top = 4.dp)) { Text(stringResource(it)) }
+                    FilledTonalButton(onClick = step.onAction) { Text(stringResource(it)) }
                 }
             }
         }

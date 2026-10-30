@@ -39,6 +39,12 @@ import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -191,7 +197,20 @@ internal fun HomeScreen(
                             )
                         }
                     } else {
-                        items(activity, key = { "${it.atMs}-${it.kind}-${it.outgoing}" }) { ActivityRow(it) }
+                        item {
+                            Card(
+                                Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            ) {
+                                Column {
+                                    activity.forEachIndexed { index, event ->
+                                        ActivityRow(event)
+                                        if (index != activity.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -237,19 +256,26 @@ private fun HeroCard(
         state.connectionPhase == ConnectionPhase.Connecting || state.connectionPhase == ConnectionPhase.Reconnecting -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.outlineVariant
     }
-    OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (connected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (connected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = if (connected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.size(52.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             if (device.platform == "macOS") Icons.Outlined.LaptopMac else Icons.Outlined.Android,
                             contentDescription = null,
-                            tint = if (connected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (connected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(28.dp),
                         )
                     }
@@ -258,11 +284,11 @@ private fun HeroCard(
                     Text(device.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-                        Text(statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(statusText, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 IconButton(onClick = onManage) {
-                    Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.device_details), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.device_details), tint = LocalContentColor.current)
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -271,8 +297,12 @@ private fun HeroCard(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.send_current_clipboard), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedButton(
+                FilledTonalButton(
                     onClick = onSendFile,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ),
                     enabled = connected && transport != TransportType.BLUETOOTH,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -300,8 +330,14 @@ private fun CaptureRow(state: AppState, onClick: () -> Unit) {
         state.shizukuCapturePaused -> R.string.capture_row_paused
         else -> R.string.capture_row_off
     }
-    OutlinedCard(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick), shape = RoundedCornerShape(12.dp)) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
         ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             leadingContent = { Icon(Icons.Outlined.ContentPaste, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             headlineContent = { Text(stringResource(R.string.capture_row_title)) },
             supportingContent = { Text(stringResource(summary)) },
@@ -327,6 +363,7 @@ private fun ActivityRow(event: ActivityEvent) {
         ActivityEvent.Kind.File -> Icons.Outlined.FolderOpen
     }
     ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         headlineContent = { Text(stringResource(if (event.outgoing) R.string.transfer_sent else R.string.transfer_received, kind)) },
         supportingContent = {
