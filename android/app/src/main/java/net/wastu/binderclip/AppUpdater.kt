@@ -69,39 +69,19 @@ class GitHubReleaseSource(
     }
 }
 
-class GenericJsonUpdateSource(
-    private val feedUrl: String,
-) : UpdateSource {
-    override suspend fun checkLatestRelease(): AppRelease? = withContext(Dispatchers.IO) {
-        runCatching {
-            val conn = (URL(feedUrl).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15_000
-                readTimeout = 15_000
-                setRequestProperty("Accept", "application/json")
-            }
-            if (conn.responseCode != 200) return@runCatching null
-            val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-            AppRelease(
-                versionName = json.getString("versionName"),
-                downloadUrl = json.getString("downloadUrl"),
-                releaseNotes = json.optString("releaseNotes", "").takeIf { it.isNotEmpty() },
-                fileName = json.optString("fileName", "BinderClip-update.apk"),
-            )
-        }.getOrNull()
-    }
-}
-
 class AppUpdater(
     private val context: Context,
     private val source: UpdateSource = GitHubReleaseSource(),
 ) {
-    suspend fun checkForUpdate(): AppRelease? = withContext(Dispatchers.IO) {
-        val latest = source.checkLatestRelease() ?: return@withContext null
-        if (isNewer(latest.versionName, currentVersionName())) {
-            latest
-        } else {
-            null
+    /** Automatic checks reuse a recent result so reopening the app does not hit GitHub each time. */
+    suspend fun checkForUpdate(force: Boolean = true): AppRelease? = withContext(Dispatchers.IO) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force) synchronized(Companion) {
+            if (lastCheckMs != 0L && now - lastCheckMs < AUTO_CHECK_INTERVAL_MS) return@withContext lastResult
         }
+        val latest = source.checkLatestRelease()?.takeIf { isNewer(it.versionName, currentVersionName()) }
+        synchronized(Companion) { lastCheckMs = now; lastResult = latest }
+        latest
     }
 
     suspend fun downloadApk(release: AppRelease, onProgress: ((Int) -> Unit)? = null): File? = withContext(Dispatchers.IO) {
@@ -184,6 +164,10 @@ class AppUpdater(
     }
 
     companion object {
+        private const val AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+        private var lastCheckMs = 0L
+        private var lastResult: AppRelease? = null
+
         fun isNewer(latest: String, current: String): Boolean {
             val v1 = latest.split('.').mapNotNull { it.toIntOrNull() }
             val v2 = current.split('.').mapNotNull { it.toIntOrNull() }

@@ -113,6 +113,8 @@ import net.wastu.binderclip.shizuku.ShizukuAccess
 
 class MainActivity : AppCompatActivity() {
     private var permissionRevision by mutableIntStateOf(0)
+    /** A pairing link from outside the app (browser, chat) waiting for the user to confirm. */
+    private var pendingInvite by mutableStateOf<Pair<String, PairingInfo>?>(null)
     private val chooseFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) startActivity(Intent(this, ShareReceiverActivity::class.java).apply {
             action = Intent.ACTION_SEND_MULTIPLE
@@ -140,7 +142,7 @@ class MainActivity : AppCompatActivity() {
             }
             is io.github.g00fy2.quickie.QRResult.QRError -> {
                 android.util.Log.e("BinderClip", "QR Scan error", result.exception)
-                Toast.makeText(this, "Scan error: ${result.exception.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.scan_error, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -160,7 +162,8 @@ class MainActivity : AppCompatActivity() {
         DiagnosticLog.initialize(this)
         ShizukuAccess.initialize(this)
         startService(BinderClipService.ACTION_START)
-        intent?.dataString?.takeIf { it.startsWith(AppProfile.current.pairingScheme + "://") }?.let(::pair)
+        // Only on a fresh launch: a recreated activity would otherwise replay the same link.
+        if (savedInstanceState == null) intent?.dataString?.let(::offerPairingLink)
         setContent {
             BinderClipTheme {
                 val state by AppRuntime.state.collectAsState()
@@ -238,6 +241,15 @@ class MainActivity : AppCompatActivity() {
                     },
                     onRefresh = { startService(BinderClipService.ACTION_SEARCH_RECONNECT) },
                 )
+                pendingInvite?.let { (uri, info) ->
+                    val current = remember(info) { DeviceStore(this@MainActivity).peer }
+                    PairingConfirmDialog(
+                        info = info,
+                        replacing = current?.takeIf { it.deviceId != info.deviceId }?.name,
+                        onConfirm = { pendingInvite = null; pair(uri) },
+                        onDismiss = { pendingInvite = null },
+                    )
+                }
                 if (showBluetoothGuide) {
                     AlertDialog(
                         onDismissRequest = { showBluetoothGuide = false },
@@ -277,7 +289,19 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.dataString?.takeIf { it.startsWith(AppProfile.current.pairingScheme + "://") }?.let(::pair)
+        intent.dataString?.let(::offerPairingLink)
+    }
+
+    /** Deep links can be triggered by any web page, so they need explicit consent before they
+     *  replace the current pairing. QR scans are already a deliberate user action. */
+    private fun offerPairingLink(uri: String) {
+        if (!uri.startsWith(AppProfile.current.pairingScheme + "://")) return
+        val info = SyncProtocol.parsePairingUrl(uri)
+        if (info == null) {
+            Toast.makeText(this, R.string.pair_invalid_code, Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingInvite = uri to info
     }
 
     private fun scan() {
@@ -297,8 +321,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun pair(uri: String) {
         android.util.Log.i("BinderClip", "Pairing invitation received")
-        val macName = SyncProtocol.parsePairingUrl(uri)?.deviceName?.takeIf { it.isNotBlank() }
-        Toast.makeText(this, macName ?: "Connecting…", Toast.LENGTH_SHORT).show()
+        val macName = SyncProtocol.parsePairingUrl(uri)?.deviceName
+        Toast.makeText(this, macName ?: getString(R.string.pair_connecting), Toast.LENGTH_SHORT).show()
         ContextCompat.startForegroundService(
             this,
             Intent(this, BinderClipService::class.java).setAction(BinderClipService.ACTION_PAIR)
@@ -399,7 +423,7 @@ internal fun BinderClipScreen(
 
     fun checkUpdates(manual: Boolean = false) {
         updateScope.launch {
-            val release = updater.checkForUpdate()
+            val release = updater.checkForUpdate(force = manual)
             if (release != null) {
                 availableUpdate = release
             } else if (manual) {
@@ -523,11 +547,11 @@ internal fun BinderClipScreen(
                         onValueChange = { logQuery = it },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text(stringResource(R.string.logs_search_placeholder), style = MaterialTheme.typography.bodyMedium) },
-                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Search") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.search)) },
                         trailingIcon = {
                             if (logQuery.isNotEmpty()) {
                                 IconButton(onClick = { logQuery = "" }) {
-                                    Icon(Icons.Outlined.Close, contentDescription = "Clear")
+                                    Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.clear))
                                 }
                             }
                         },
@@ -797,7 +821,7 @@ internal data class PermissionNeed(
     val summary: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val onClick: () -> Unit,
-    val actionLabel: String = "Allow",
+    val actionLabel: String? = null,
 )
 
 @Composable
@@ -805,7 +829,7 @@ internal fun PermissionRow(need: PermissionNeed) = ListItem(
     headlineContent = { Text(need.title) },
     supportingContent = { Text(need.summary) },
     leadingContent = { Icon(need.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    trailingContent = { TextButton(onClick = need.onClick) { Text(need.actionLabel) } },
+    trailingContent = { TextButton(onClick = need.onClick) { Text(need.actionLabel ?: stringResource(R.string.allow)) } },
 )
 
 @Composable
@@ -847,3 +871,22 @@ internal fun PreferenceToggle(
     supportingContent = { Text(summary) },
     trailingContent = { Switch(checked = checked, onCheckedChange = onChanged, enabled = enabled) },
 )
+
+@Composable
+private fun PairingConfirmDialog(info: PairingInfo, replacing: String?, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pair_confirm_title, info.deviceName)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.pair_confirm_message))
+                if (info.endpoints.isNotEmpty()) {
+                    Text(info.endpoints.joinToString("\n"), style = MaterialTheme.typography.bodySmall)
+                }
+                replacing?.let { Text(stringResource(R.string.pair_confirm_replace, it), color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.pair_confirm_action)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}

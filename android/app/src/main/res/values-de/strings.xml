@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_not_paired">Nicht gekoppelt</string>
@@ -9,21 +8,16 @@
     <string name="channel_clipboard_sync_desc">Hält eine dauerhafte Verbindung mit dem gekoppelten Mac aufrecht</string>
     <string name="channel_browser_links">Browser-Links</string>
     <string name="channel_browser_links_desc">Benachrichtigungen beim Empfang von Weblinks</string>
-    <string name="notif_copy_to_clipboard">In Zwischenablage kopieren</string>
     <string name="notif_open_link">Link öffnen</string>
     <string name="notif_bluetooth_fallback_title">Bluetooth-Ausweichmodus bereit</string>
     <string name="notif_bluetooth_fallback_desc">Aktivieren Sie Bluetooth, um ohne WLAN weiter zu synchronisieren</string>
-    <string name="notif_image_waiting_title">Bild wartet auf WLAN</string>
-    <string name="notif_image_waiting_desc">Bilder (%1$s) benötigen WLAN oder Mesh; Text wird weiterhin über Bluetooth synchronisiert</string>
     <string name="notif_received_text">Text empfangen</string>
     <string name="notif_received_image">Bild empfangen (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">Protokolle anzeigen</string>
-    <string name="paired_devices">Gekoppelte Geräte</string>
     <string name="no_devices_paired">Noch keine Geräte gekoppelt</string>
     <string name="no_devices_paired_desc">Scannen Sie einen QR-Code von Ihrem Mac zum Koppeln.</string>
-    <string name="reconnect">Neu verbinden</string>
     <string name="scan_qr_to_pair">QR-Code scannen zum Koppeln</string>
     <string name="send_current_clipboard">Aktuelle Zwischenablage senden</string>
     <string name="section_permissions">Berechtigungen</string>
@@ -34,12 +28,9 @@
     <string name="perm_notifications_desc">Empfangene Zwischenablage anzeigen</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Erforderlich für Offline-Ausweichsynchronisierung</string>
-    <string name="perm_battery_opt">Akku-Optimierung</string>
-    <string name="perm_battery_opt_desc">Zuverlässige Hintergrundsynchronisierung erlauben</string>
     <string name="perm_autostart">Autostart</string>
     <string name="perm_autostart_desc">Hintergrundstart für zuverlässige Synchronisierung erlauben</string>
     <string name="allow">Erlauben</string>
-    <string name="open">Öffnen</string>
 
     <!-- Pending Copy -->
     <string name="copy">Kopieren</string>
@@ -57,26 +48,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL erfolgreich gesendet</string>
-    <string name="image_sent_success">Bild erfolgreich gesendet</string>
     <string name="status_connected_bluetooth">Über Bluetooth verbunden</string>
     <string name="status_connected_mesh">Über Mesh verbunden</string>
     <string name="status_connected_lan">Über LAN verbunden</string>
     <string name="status_connected">Verbunden</string>
     <string name="status_connecting">Verbinden…</string>
     <string name="status_reconnecting">Erneut verbinden…</string>
-    <string name="this_device">Dieses Gerät</string>
     <string name="transport_bt_label">Übertragung: Bluetooth BLE</string>
     <string name="ip_label">IP: %1$s</string>
     <string name="ip_unavailable">Nicht verfügbar</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">Gerät umbenennen</string>
-    <string name="device_rename_prompt">Geben Sie einen neuen Namen für dieses Gerät ein:</string>
     <string name="save">Speichern</string>
     <string name="cancel">Abbrechen</string>
     <string name="close">Schließen</string>
-    <string name="rename">Umbenennen</string>
-    <string name="unpair_this_device">Dieses Gerät trennen</string>
     <string name="unpair_device">Gerät trennen</string>
     <string name="logs_title">Protokolle (%1$d)</string>
     <string name="logs_search_placeholder">Protokolle durchsuchen…</string>
@@ -92,26 +78,13 @@
     <string name="open_settings">Einstellungen öffnen</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">Link auf Gerät öffnen</string>
-    <string name="share_to_device_title">Auf Gerät teilen</string>
-    <string name="share_all_devices">Alle verbundenen Geräte</string>
-    <string name="share_all_devices_url_sub">Öffnet im Browser auf allen Geräten</string>
-    <string name="share_all_devices_sub">Sendet an alle Geräte</string>
-    <string name="share_opens_browser_on">Öffnet Browser auf %1$s</string>
-    <string name="share_image_label">Bild (%1$s)</string>
     <string name="share_text_content">Textinhalt</string>
     <string name="share_error_unsupported">Dieser Inhalt konnte nicht gesendet werden</string>
-    <string name="share_sending_link">Link wird gesendet…</string>
-    <string name="share_sending">Wird gesendet…</string>
     <string name="share_queued">Für Mac vorgemerkt; wird nach Verbindung gesendet</string>
     <string name="share_error_queue_full">Freigabe konnte nicht vorgemerkt werden. Öffne BinderClip und versuche es erneut.</string>
     <string name="share_error_delivery">Senden konnte nicht gestartet werden. Öffne BinderClip und versuche es erneut.</string>
-    <string name="share_error_image_connection">Bilder benötigen eine aktive WLAN- oder Mesh-Verbindung zum Mac.</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">An Mac gesendet</string>
-    <string name="toast_sent_image_to_mac">Bild an Mac gesendet</string>
-    <string name="toast_nothing_to_send">Nichts zu senden</string>
     <string name="bt_fallback_desc_needs_permission">Erlaube oben den Zugriff auf Geräte in der Nähe, um Bluetooth als Ausweichverbindung zu aktivieren.</string>
     <string name="clear_logs_confirm_title">Alle Protokolle löschen?</string>
     <string name="clear_logs_confirm_message">Dadurch werden alle Protokolleinträge gelöscht. Dies kann nicht rückgängig gemacht werden.</string>
@@ -128,13 +101,11 @@
     <string name="transfer_failed">Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen</string>
     <string name="transfer_invalid">Integritäts- oder Reihenfolgeprüfung fehlgeschlagen</string>
     <string name="transfer_paused">Übertragung pausiert; Verbindung wird wiederhergestellt…</string>
-    <string name="transfer_update_required">Beide Apps aktualisieren, um Dateien und große Bilder zu teilen</string>
     <string name="share_error_file">Datei konnte nicht vorgemerkt werden. Limit: 100 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.</string>
     <string name="received_files">Empfangene Dateien</string>
     <string name="send_file">Datei senden…</string>
     <string name="file_connection_required">Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.</string>
     <string name="file_picker_help">Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.</string>
-    <string name="file_received">Datei empfangen</string>
     <string name="share_preparing">Senden wird vorbereitet…</string>
     <string name="transfer_queued">Warten auf WLAN oder Mesh. Die Dateien werden gesendet, sobald dein Mac wieder verbunden ist.</string>
     <string name="transfer_kind_text">Text</string>
@@ -164,19 +135,11 @@
     <string name="update_check">Nach Updates suchen</string>
     <string name="update_up_to_date">BinderClip ist auf dem neuesten Stand (%1$s)</string>
     <string name="update_error">Updates konnten nicht gesucht werden</string>
-    <string name="listening_for_connections">Warten auf Verbindungen</string>
-    <string name="shizuku_active">Shizuku-Dienst aktiv</string>
-    <string name="root_active">Root-Dienst aktiv</string>
-    <string name="automatic_sync_active">Automatische Synchronisierung aktiv</string>
-    <string name="send_current_clip">Zwischenablage senden</string>
-    <string name="send_file_compact">Datei senden</string>
     <string name="back">Zurück</string>
     <string name="device_details">Verbindungsdetails</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">An %1$s gesendet</string>
     <string name="share_sending_to">Wird an %1$s gesendet…</string>
-    <string name="share_queued_for">In Warteschlange für %1$s</string>
-    <string name="background_engine">Hintergrunddienst</string>
     <string name="file_saved_downloads">In Downloads gespeichert</string>
     <string name="file_save_downloads_failed">Speichern in Downloads fehlgeschlagen</string>
     <string name="capture_row_title">Kopieren Telefon an Mac</string>
@@ -199,4 +162,38 @@
     <string name="activity_title">Letzte Aktivität</string>
     <string name="activity_empty">Noch nichts gesendet oder empfangen.</string>
     <string name="transfer_kind_link">Link</string>
+    <string name="pair_confirm_title">Mit %1$s koppeln?</string>
+    <string name="pair_confirm_message">Fahre nur fort, wenn du diesen Link von deinem eigenen Mac geöffnet hast. Zwischenablage-Inhalte werden mit diesem Computer synchronisiert.</string>
+    <string name="pair_confirm_replace">Dies ersetzt deine aktuelle Kopplung mit %1$s.</string>
+    <string name="pair_confirm_action">Koppeln</string>
+    <string name="pair_invalid_code">Das ist kein gültiger BinderClip-Kopplungscode.</string>
+    <string name="pair_failed">Kopplung fehlgeschlagen</string>
+    <string name="pair_connecting">Verbinden…</string>
+    <string name="scan_error">QR-Code konnte nicht gelesen werden. Versuche es erneut.</string>
+    <string name="search">Suchen</string>
+    <string name="share_error_too_many">Du kannst bis zu acht Dateien gleichzeitig teilen.</string>
+    <plurals name="share_file_count">
+        <item quantity="one">%d Datei</item>
+        <item quantity="other">%d Dateien</item>
+    </plurals>
+    <string name="status_pairing_with">Kopplung mit %1$s…</string>
+    <string name="error_no_address">Keine Mac-Adresse zum Verbinden. Scanne einen neuen QR-Code vom Mac.</string>
+    <string name="error_key_rejected">Kopplungsschlüssel abgelehnt. Scanne einen neuen QR-Code vom Mac.</string>
+    <string name="error_unreachable">Mac unter %1$s nicht erreichbar. Gleiches WLAN?</string>
+    <string name="error_open_link">Link konnte nicht geöffnet werden</string>
+    <string name="error_clear_share">Wartende Freigabe konnte nicht gelöscht werden</string>
+    <string name="toast_copied_text">Text kopiert</string>
+    <string name="toast_copied_image">Bild kopiert</string>
+    <string name="toast_received_link">Link empfangen</string>
+    <string name="toast_clipboard_unsupported">Inhalt der Zwischenablage wird nicht unterstützt</string>
+    <string name="status_via_bluetooth">%1$s (Bluetooth)</string>
+    <string name="status_via_mesh">%1$s (Mesh)</string>
+    <string name="debug_clip_title">Private Debug-Zwischenablage</string>
+    <string name="debug_clip_desc">Testinhalte bleiben in der Debug-Gruppe. Die System-Zwischenablage bleibt unberührt.</string>
+    <string name="debug_clip_field">Zu sendender Text</string>
+    <string name="debug_clip_send_text">Text senden</string>
+    <string name="debug_clip_send_png">Test-PNG senden</string>
+    <string name="debug_clip_content">Privater Inhalt: %1$s</string>
+    <string name="debug_clip_image">Privates Bild empfangen/bereit</string>
+    <string name="debug_clip_empty">Private Zwischenablage ist leer</string>
 </resources>

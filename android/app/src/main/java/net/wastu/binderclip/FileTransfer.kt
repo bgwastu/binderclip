@@ -112,13 +112,13 @@ data class TransferProgress(
     val mimeType: String? = null,
     val isOutgoing: Boolean = true,
 ) {
-    enum class State { QUEUED, OFFERING, RECEIVING, SENDING, SENT, RECEIVED, CANCELLED, DECLINED, FAILED, INVALID, PAUSED, UPDATE_REQUIRED }
+    enum class State { QUEUED, OFFERING, RECEIVING, SENDING, SENT, RECEIVED, CANCELLED, DECLINED, FAILED, INVALID, PAUSED }
     val canCancel: Boolean get() = isOutgoing && transferId != null &&
         (state == State.SENDING && percent < 100 || state in
-            setOf(State.QUEUED, State.OFFERING, State.PAUSED, State.UPDATE_REQUIRED))
+            setOf(State.QUEUED, State.OFFERING, State.PAUSED))
     val isBusy: Boolean get() = state in setOf(State.OFFERING, State.RECEIVING, State.SENDING)
     val isSuccess: Boolean get() = state in setOf(State.SENT, State.RECEIVED)
-    val isError: Boolean get() = state in setOf(State.DECLINED, State.FAILED, State.INVALID, State.UPDATE_REQUIRED)
+    val isError: Boolean get() = state in setOf(State.DECLINED, State.FAILED, State.INVALID)
     fun message(context: android.content.Context): String {
         val label = context.getString(when (kind) {
             "image" -> R.string.transfer_kind_image
@@ -137,7 +137,6 @@ data class TransferProgress(
             State.FAILED -> context.getString(R.string.transfer_failed)
             State.INVALID -> context.getString(R.string.transfer_invalid)
             State.PAUSED -> context.getString(R.string.transfer_paused)
-            State.UPDATE_REQUIRED -> context.getString(R.string.transfer_update_required)
         }
     }
 }

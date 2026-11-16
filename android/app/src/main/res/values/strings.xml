@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
     <string name="tile_not_paired">Not paired</string>
 
     <!-- Notification Channels & Notifications -->
@@ -7,21 +6,16 @@
     <string name="channel_clipboard_sync_desc">Maintains persistent connection with paired Mac</string>
     <string name="channel_browser_links">Browser Links</string>
     <string name="channel_browser_links_desc">Notifications when web links are received</string>
-    <string name="notif_copy_to_clipboard">Copy to Clipboard</string>
     <string name="notif_open_link">Open link</string>
     <string name="notif_bluetooth_fallback_title">Bluetooth fallback ready</string>
     <string name="notif_bluetooth_fallback_desc">Enable Bluetooth to keep syncing without Wi-Fi</string>
-    <string name="notif_image_waiting_title">Image waiting for Wi-Fi</string>
-    <string name="notif_image_waiting_desc">Images (%1$s) need Wi-Fi or mesh; text still syncs over Bluetooth</string>
     <string name="notif_received_text">Received text</string>
     <string name="notif_received_image">Received image (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">Show logs</string>
-    <string name="paired_devices">Paired devices</string>
     <string name="no_devices_paired">No devices paired yet</string>
     <string name="no_devices_paired_desc">Scan a QR code from your Mac to pair.</string>
-    <string name="reconnect">Reconnect</string>
     <string name="scan_qr_to_pair">Scan QR to Pair</string>
     <string name="send_current_clipboard">Send current clipboard</string>
     <string name="section_permissions">Permissions</string>
@@ -32,12 +26,9 @@
     <string name="perm_notifications_desc">Show received clipboard</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Needed for offline fallback sync</string>
-    <string name="perm_battery_opt">Battery Optimization</string>
-    <string name="perm_battery_opt_desc">Allow reliable background sync</string>
     <string name="perm_autostart">Auto Start</string>
     <string name="perm_autostart_desc">Allow background start for reliable sync</string>
     <string name="allow">Allow</string>
-    <string name="open">Open</string>
 
     <!-- Pending Copy -->
     <string name="copy">Copy</string>
@@ -56,26 +47,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL sent successfully</string>
-    <string name="image_sent_success">Image sent successfully</string>
     <string name="status_connected_bluetooth">Connected via Bluetooth</string>
     <string name="status_connected_mesh">Connected via Mesh</string>
     <string name="status_connected_lan">Connected via LAN</string>
     <string name="status_connected">Connected</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_reconnecting">Reconnecting…</string>
-    <string name="this_device">This device</string>
     <string name="transport_bt_label">Transport: Bluetooth BLE</string>
     <string name="ip_label">IP: %1$s</string>
     <string name="ip_unavailable">Unavailable</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">Rename Device</string>
-    <string name="device_rename_prompt">Enter a new name for this device:</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
-    <string name="rename">Rename</string>
-    <string name="unpair_this_device">Unpair This Device</string>
     <string name="unpair_device">Unpair Device</string>
     <string name="logs_title">Logs (%1$d)</string>
     <string name="logs_search_placeholder">Search logs…</string>
@@ -93,26 +79,13 @@
     <string name="open_settings">Open Settings</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">Open Link on Device</string>
-    <string name="share_to_device_title">Share to Device</string>
-    <string name="share_all_devices">All Connected Devices</string>
-    <string name="share_all_devices_url_sub">Opens in browser on all devices</string>
-    <string name="share_all_devices_sub">Sends to all devices</string>
-    <string name="share_opens_browser_on">Opens browser on %1$s</string>
-    <string name="share_image_label">Image (%1$s)</string>
     <string name="share_text_content">Text content</string>
     <string name="share_error_unsupported">Couldn’t send this content</string>
-    <string name="share_sending_link">Sending link…</string>
-    <string name="share_sending">Sending…</string>
     <string name="share_queued">Queued for Mac; sends when connected</string>
     <string name="share_error_queue_full">Couldn’t queue share. Open BinderClip and try again.</string>
     <string name="share_error_delivery">Couldn’t start share delivery. Open BinderClip to retry.</string>
-    <string name="share_error_image_connection">Images need a live Wi-Fi or mesh connection to the Mac.</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">Sent to Mac</string>
-    <string name="toast_sent_image_to_mac">Sent image to Mac</string>
-    <string name="toast_nothing_to_send">Nothing to send</string>
     <string name="secure_connection_failed">Secure connection failed. Update BinderClip on your Mac and phone, or pair again.</string>
 
     <string name="transfer_kind_file">file</string>
@@ -127,7 +100,6 @@
     <string name="transfer_failed">Transfer failed; check file size and available storage</string>
     <string name="transfer_invalid">Transfer failed integrity or sequence validation</string>
     <string name="transfer_paused">Transfer paused; reconnecting…</string>
-    <string name="transfer_update_required">Update both apps to share files and large images</string>
     <string name="share_error_file">Couldn’t prepare files. Nothing from this selection was sent. Check file access, free space, and the size limit: 100 MiB per file (30 MiB for clipboard images).</string>
     <string name="share_preparing">Preparing to send…</string>
     <string name="transfer_queued">Waiting for Wi-Fi or mesh. Files will send when your Mac reconnects.</string>
@@ -135,7 +107,6 @@
     <string name="send_file">Send File…</string>
     <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
     <string name="file_picker_help">Choose up to eight files, at most 100 MiB each.</string>
-    <string name="file_received">File received</string>
     <string name="hide_transfer">Hide</string>
     <string name="cancel_transfer">Cancel transfer</string>
     <string name="transfer_cancelled">Transfer cancelled</string>
@@ -162,19 +133,11 @@
     <string name="update_check">Check for updates</string>
     <string name="update_up_to_date">BinderClip is up to date (%1$s)</string>
     <string name="update_error">Couldn’t check for updates</string>
-    <string name="listening_for_connections">Listening for connections</string>
-    <string name="shizuku_active">Shizuku service active</string>
-    <string name="root_active">Root service active</string>
-    <string name="automatic_sync_active">Automatic sync active</string>
-    <string name="send_current_clip">Send Current Clip</string>
-    <string name="send_file_compact">Send File</string>
     <string name="back">Back</string>
     <string name="device_details">Connection Details</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">Sent to %1$s</string>
     <string name="share_sending_to">Sending to %1$s…</string>
-    <string name="share_queued_for">Queued for %1$s</string>
-    <string name="background_engine">Background Service</string>
     <string name="file_saved_downloads">Saved to Downloads</string>
     <string name="file_save_downloads_failed">Couldn’t save to Downloads</string>
     <string name="capture_row_title">Phone to Mac copying</string>
@@ -197,4 +160,38 @@
     <string name="activity_title">Recent activity</string>
     <string name="activity_empty">Nothing sent or received yet.</string>
     <string name="transfer_kind_link">link</string>
+    <string name="pair_confirm_title">Pair with %1$s?</string>
+    <string name="pair_confirm_message">Only continue if you opened this link from your own Mac. Clipboard content will sync with this computer.</string>
+    <string name="pair_confirm_replace">This replaces your current pairing with %1$s.</string>
+    <string name="pair_confirm_action">Pair</string>
+    <string name="pair_invalid_code">This isn\'t a valid BinderClip pairing code.</string>
+    <string name="pair_failed">Pairing failed</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="scan_error">Couldn\'t read the QR code. Try again.</string>
+    <string name="search">Search</string>
+    <string name="share_error_too_many">You can share up to eight files at once.</string>
+    <plurals name="share_file_count">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="status_pairing_with">Pairing with %1$s…</string>
+    <string name="error_no_address">No Mac address to connect to. Scan a fresh QR from the Mac.</string>
+    <string name="error_key_rejected">Pairing key rejected. Scan a fresh QR from the Mac.</string>
+    <string name="error_unreachable">Could not reach Mac at %1$s. Same Wi-Fi?</string>
+    <string name="error_open_link">Could not open link</string>
+    <string name="error_clear_share">Could not clear queued share</string>
+    <string name="toast_copied_text">Copied text</string>
+    <string name="toast_copied_image">Copied image</string>
+    <string name="toast_received_link">Received link</string>
+    <string name="toast_clipboard_unsupported">Clipboard content is unsupported</string>
+    <string name="status_via_bluetooth">%1$s (Bluetooth)</string>
+    <string name="status_via_mesh">%1$s (Mesh)</string>
+    <string name="debug_clip_title">Private Debug Clipboard</string>
+    <string name="debug_clip_desc">Test content stays in the debug group. The system clipboard is untouched.</string>
+    <string name="debug_clip_field">Text to send</string>
+    <string name="debug_clip_send_text">Send Text</string>
+    <string name="debug_clip_send_png">Send Test PNG</string>
+    <string name="debug_clip_content">Private content: %1$s</string>
+    <string name="debug_clip_image">Private image received/ready</string>
+    <string name="debug_clip_empty">Private clipboard is empty</string>
 </resources>

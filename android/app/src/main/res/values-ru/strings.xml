@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_not_paired">Не сопряжено</string>
@@ -9,21 +8,16 @@
     <string name="channel_clipboard_sync_desc">Поддерживает постоянное соединение с сопряжённым Mac</string>
     <string name="channel_browser_links">Ссылки браузера</string>
     <string name="channel_browser_links_desc">Уведомления при получении веб-ссылок</string>
-    <string name="notif_copy_to_clipboard">Копировать в буфер обмена</string>
     <string name="notif_open_link">Открыть ссылку</string>
     <string name="notif_bluetooth_fallback_title">Резервный Bluetooth готов</string>
     <string name="notif_bluetooth_fallback_desc">Включите Bluetooth для синхронизации без Wi-Fi</string>
-    <string name="notif_image_waiting_title">Изображение ожидает Wi-Fi</string>
-    <string name="notif_image_waiting_desc">Изображениям (%1$s) требуется Wi-Fi или mesh; текст синхронизируется по Bluetooth</string>
     <string name="notif_received_text">Текст получен</string>
     <string name="notif_received_image">Изображение получено (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">Показать логи</string>
-    <string name="paired_devices">Сопряжённые устройства</string>
     <string name="no_devices_paired">Нет сопряжённых устройств</string>
     <string name="no_devices_paired_desc">Отсканируйте QR-код с экрана Mac для сопряжения.</string>
-    <string name="reconnect">Переподключить</string>
     <string name="scan_qr_to_pair">Сканировать QR для сопряжения</string>
     <string name="send_current_clipboard">Отправить текущий буфер обмена</string>
     <string name="section_permissions">Разрешения</string>
@@ -34,12 +28,9 @@
     <string name="perm_notifications_desc">Показывать полученный буфер обмена</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Требуется для офлайн-синхронизации</string>
-    <string name="perm_battery_opt">Оптимизация батареи</string>
-    <string name="perm_battery_opt_desc">Разрешить стабильную работу в фоне</string>
     <string name="perm_autostart">Автозапуск</string>
     <string name="perm_autostart_desc">Разрешить запуск в фоне для надёжной синхронизации</string>
     <string name="allow">Разрешить</string>
-    <string name="open">Открыть</string>
 
     <!-- Pending Copy -->
     <string name="copy">Копировать</string>
@@ -57,26 +48,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL успешно отправлен</string>
-    <string name="image_sent_success">Изображение успешно отправлено</string>
     <string name="status_connected_bluetooth">Подключено по Bluetooth</string>
     <string name="status_connected_mesh">Подключено по Mesh</string>
     <string name="status_connected_lan">Подключено по LAN</string>
     <string name="status_connected">Подключено</string>
     <string name="status_connecting">Подключение…</string>
     <string name="status_reconnecting">Переподключение…</string>
-    <string name="this_device">Это устройство</string>
     <string name="transport_bt_label">Протокол: Bluetooth BLE</string>
     <string name="ip_label">IP: %1$s</string>
     <string name="ip_unavailable">Недоступно</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">Переименовать устройство</string>
-    <string name="device_rename_prompt">Введите новое имя для этого устройства:</string>
     <string name="save">Сохранить</string>
     <string name="cancel">Отмена</string>
     <string name="close">Закрыть</string>
-    <string name="rename">Переименовать</string>
-    <string name="unpair_this_device">Разорвать пару с этим устройством</string>
     <string name="unpair_device">Разорвать пару</string>
     <string name="logs_title">Логи (%1$d)</string>
     <string name="logs_search_placeholder">Поиск по логам…</string>
@@ -92,26 +78,13 @@
     <string name="open_settings">Открыть настройки</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">Открыть ссылку на устройстве</string>
-    <string name="share_to_device_title">Поделиться с устройством</string>
-    <string name="share_all_devices">Все подключённые устройства</string>
-    <string name="share_all_devices_url_sub">Открывает в браузере на всех устройствах</string>
-    <string name="share_all_devices_sub">Отправляет на все устройства</string>
-    <string name="share_opens_browser_on">Открывает браузер на %1$s</string>
-    <string name="share_image_label">Изображение (%1$s)</string>
     <string name="share_text_content">Текстовое содержимое</string>
     <string name="share_error_unsupported">Не удалось отправить этот контент</string>
-    <string name="share_sending_link">Отправка ссылки…</string>
-    <string name="share_sending">Отправка…</string>
     <string name="share_queued">В очереди для Mac; отправится после подключения</string>
     <string name="share_error_queue_full">Не удалось добавить в очередь. Откройте BinderClip и повторите попытку.</string>
     <string name="share_error_delivery">Не удалось начать отправку. Откройте BinderClip и повторите попытку.</string>
-    <string name="share_error_image_connection">Для изображений требуется активное подключение к Mac по Wi-Fi или mesh-сети.</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">Отправлено на Mac</string>
-    <string name="toast_sent_image_to_mac">Изображение отправлено на Mac</string>
-    <string name="toast_nothing_to_send">Нечего отправлять</string>
     <string name="bt_fallback_desc_needs_permission">Предоставьте выше разрешение на доступ к устройствам поблизости, чтобы включить резервное подключение по Bluetooth.</string>
     <string name="clear_logs_confirm_title">Удалить все журналы?</string>
     <string name="clear_logs_confirm_message">Все записи журнала будут удалены. Это действие нельзя отменить.</string>
@@ -128,13 +101,11 @@
     <string name="transfer_failed">Ошибка передачи; проверьте размер файла и свободное место</string>
     <string name="transfer_invalid">Ошибка проверки целостности или порядка передачи</string>
     <string name="transfer_paused">Передача приостановлена; повторное подключение…</string>
-    <string name="transfer_update_required">Обновите оба приложения для передачи файлов и больших изображений</string>
     <string name="share_error_file">Не удалось добавить файл в очередь. Лимит: 100 MiB (изображения буфера: 30 MiB). Проверьте доступ и свободное место.</string>
     <string name="received_files">Полученные файлы</string>
     <string name="send_file">Отправить файл…</string>
     <string name="file_connection_required">Для файлов нужны Wi-Fi или mesh и обновлённые приложения на обоих устройствах.</string>
     <string name="file_picker_help">Выберите до восьми файлов размером не более 100 MiB каждый.</string>
-    <string name="file_received">Файл получен</string>
     <string name="share_preparing">Подготовка к отправке…</string>
     <string name="transfer_queued">Ожидание Wi-Fi или mesh. Файлы будут отправлены, когда Mac подключится снова.</string>
     <string name="transfer_kind_text">текст</string>
@@ -164,19 +135,11 @@
     <string name="update_check">Проверить обновления</string>
     <string name="update_up_to_date">Установлена последняя версия BinderClip (%1$s)</string>
     <string name="update_error">Не удалось проверить обновления</string>
-    <string name="listening_for_connections">Ожидание подключений</string>
-    <string name="shizuku_active">Служба Shizuku активна</string>
-    <string name="root_active">Служба Root активна</string>
-    <string name="automatic_sync_active">Автосинхронизация активна</string>
-    <string name="send_current_clip">Отправить буфер</string>
-    <string name="send_file_compact">Отправить файл</string>
     <string name="back">Назад</string>
     <string name="device_details">Сведения о подключении</string>
     <string name="offline">Не в сети</string>
     <string name="share_sent_confirmation">Отправлено на %1$s</string>
     <string name="share_sending_to">Отправка на %1$s…</string>
-    <string name="share_queued_for">В очереди для %1$s</string>
-    <string name="background_engine">Фоновая служба</string>
     <string name="file_saved_downloads">Сохранено в «Загрузки»</string>
     <string name="file_save_downloads_failed">Не удалось сохранить в «Загрузки»</string>
     <string name="capture_row_title">Копирование Телефон на Mac</string>
@@ -199,4 +162,40 @@
     <string name="activity_title">Недавняя активность</string>
     <string name="activity_empty">Пока ничего не отправлено и не получено.</string>
     <string name="transfer_kind_link">ссылка</string>
+    <string name="pair_confirm_title">Создать пару с %1$s?</string>
+    <string name="pair_confirm_message">Продолжайте, только если вы открыли эту ссылку со своего Mac. Содержимое буфера обмена будет синхронизироваться с этим компьютером.</string>
+    <string name="pair_confirm_replace">Это заменит текущую пару с %1$s.</string>
+    <string name="pair_confirm_action">Создать пару</string>
+    <string name="pair_invalid_code">Это недействительный код сопряжения BinderClip.</string>
+    <string name="pair_failed">Не удалось создать пару</string>
+    <string name="pair_connecting">Подключение…</string>
+    <string name="scan_error">Не удалось прочитать QR-код. Попробуйте ещё раз.</string>
+    <string name="search">Поиск</string>
+    <string name="share_error_too_many">За один раз можно отправить до восьми файлов.</string>
+    <plurals name="share_file_count">
+        <item quantity="one">%d файл</item>
+        <item quantity="few">%d файла</item>
+        <item quantity="many">%d файлов</item>
+        <item quantity="other">%d файла</item>
+    </plurals>
+    <string name="status_pairing_with">Сопряжение с %1$s…</string>
+    <string name="error_no_address">Нет адреса Mac для подключения. Отсканируйте новый QR-код на Mac.</string>
+    <string name="error_key_rejected">Ключ сопряжения отклонён. Отсканируйте новый QR-код на Mac.</string>
+    <string name="error_unreachable">Не удалось связаться с Mac по адресу %1$s. Та же сеть Wi-Fi?</string>
+    <string name="error_open_link">Не удалось открыть ссылку</string>
+    <string name="error_clear_share">Не удалось удалить отправку из очереди</string>
+    <string name="toast_copied_text">Текст скопирован</string>
+    <string name="toast_copied_image">Изображение скопировано</string>
+    <string name="toast_received_link">Ссылка получена</string>
+    <string name="toast_clipboard_unsupported">Содержимое буфера обмена не поддерживается</string>
+    <string name="status_via_bluetooth">%1$s (Bluetooth)</string>
+    <string name="status_via_mesh">%1$s (Mesh)</string>
+    <string name="debug_clip_title">Частный отладочный буфер обмена</string>
+    <string name="debug_clip_desc">Тестовые данные остаются в отладочной группе. Системный буфер обмена не затрагивается.</string>
+    <string name="debug_clip_field">Текст для отправки</string>
+    <string name="debug_clip_send_text">Отправить текст</string>
+    <string name="debug_clip_send_png">Отправить тестовый PNG</string>
+    <string name="debug_clip_content">Частное содержимое: %1$s</string>
+    <string name="debug_clip_image">Частное изображение получено/готово</string>
+    <string name="debug_clip_empty">Частный буфер обмена пуст</string>
 </resources>

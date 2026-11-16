@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_not_paired">Non associé</string>
@@ -9,21 +8,16 @@
     <string name="channel_clipboard_sync_desc">Maintient une connexion permanente avec le Mac associé</string>
     <string name="channel_browser_links">Liens du navigateur</string>
     <string name="channel_browser_links_desc">Notifications lors de la réception de liens web</string>
-    <string name="notif_copy_to_clipboard">Copier dans le presse-papiers</string>
     <string name="notif_open_link">Ouvrir le lien</string>
     <string name="notif_bluetooth_fallback_title">Relais Bluetooth prêt</string>
     <string name="notif_bluetooth_fallback_desc">Activez le Bluetooth pour continuer la synchronisation sans Wi-Fi</string>
-    <string name="notif_image_waiting_title">Image en attente de Wi-Fi</string>
-    <string name="notif_image_waiting_desc">Les images (%1$s) nécessitent le Wi-Fi ou Mesh ; le texte se synchronise via Bluetooth</string>
     <string name="notif_received_text">Texte reçu</string>
     <string name="notif_received_image">Image reçue (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">Afficher les historiques</string>
-    <string name="paired_devices">Appareils associés</string>
     <string name="no_devices_paired">Aucun appareil associé</string>
     <string name="no_devices_paired_desc">Scannez un code QR depuis votre Mac pour associer.</string>
-    <string name="reconnect">Reconnecter</string>
     <string name="scan_qr_to_pair">Scanner le QR pour associer</string>
     <string name="send_current_clipboard">Envoyer le presse-papiers actuel</string>
     <string name="section_permissions">Autorisations</string>
@@ -34,12 +28,9 @@
     <string name="perm_notifications_desc">Afficher le presse-papiers reçu</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Requis pour la synchronisation de secours hors ligne</string>
-    <string name="perm_battery_opt">Optimisation de la batterie</string>
-    <string name="perm_battery_opt_desc">Permettre la synchronisation en arrière-plan</string>
     <string name="perm_autostart">Démarrage automatique</string>
     <string name="perm_autostart_desc">Permettre le démarrage en arrière-plan</string>
     <string name="allow">Autoriser</string>
-    <string name="open">Ouvrir</string>
 
     <!-- Pending Copy -->
     <string name="copy">Copier</string>
@@ -57,26 +48,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL envoyée avec succès</string>
-    <string name="image_sent_success">Image envoyée avec succès</string>
     <string name="status_connected_bluetooth">Connecté via Bluetooth</string>
     <string name="status_connected_mesh">Connecté via Mesh</string>
     <string name="status_connected_lan">Connecté via le réseau local</string>
     <string name="status_connected">Connecté</string>
     <string name="status_connecting">Connexion en cours…</string>
     <string name="status_reconnecting">Reconnexion…</string>
-    <string name="this_device">Cet appareil</string>
     <string name="transport_bt_label">Transport : Bluetooth BLE</string>
     <string name="ip_label">IP : %1$s</string>
     <string name="ip_unavailable">Indisponible</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">Renommer l’appareil</string>
-    <string name="device_rename_prompt">Saisissez un nouveau nom pour cet appareil :</string>
     <string name="save">Enregistrer</string>
     <string name="cancel">Annuler</string>
     <string name="close">Fermer</string>
-    <string name="rename">Renommer</string>
-    <string name="unpair_this_device">Dissocier cet appareil</string>
     <string name="unpair_device">Dissocier l’appareil</string>
     <string name="logs_title">Historiques (%1$d)</string>
     <string name="logs_search_placeholder">Rechercher dans les historiques…</string>
@@ -92,26 +78,13 @@
     <string name="open_settings">Ouvrir les paramètres</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">Ouvrir le lien sur l’appareil</string>
-    <string name="share_to_device_title">Partager avec l’appareil</string>
-    <string name="share_all_devices">Tous les appareils connectés</string>
-    <string name="share_all_devices_url_sub">Ouvre dans le navigateur de tous les appareils</string>
-    <string name="share_all_devices_sub">Envoie à tous les appareils</string>
-    <string name="share_opens_browser_on">Ouvre le navigateur sur %1$s</string>
-    <string name="share_image_label">Image (%1$s)</string>
     <string name="share_text_content">Contenu texte</string>
     <string name="share_error_unsupported">Impossible d’envoyer ce contenu</string>
-    <string name="share_sending_link">Envoi du lien…</string>
-    <string name="share_sending">Envoi en cours…</string>
     <string name="share_queued">En attente pour le Mac ; envoi après connexion</string>
     <string name="share_error_queue_full">Impossible de mettre le partage en attente. Ouvrez BinderClip et réessayez.</string>
     <string name="share_error_delivery">Impossible de démarrer l’envoi. Ouvrez BinderClip pour réessayer.</string>
-    <string name="share_error_image_connection">Les images nécessitent une connexion Wi-Fi ou maillée active avec le Mac.</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">Envoyé au Mac</string>
-    <string name="toast_sent_image_to_mac">Image envoyée au Mac</string>
-    <string name="toast_nothing_to_send">Rien à envoyer</string>
     <string name="bt_fallback_desc_needs_permission">Autorisez les appareils à proximité ci-dessus pour activer la connexion de secours Bluetooth.</string>
     <string name="clear_logs_confirm_title">Effacer tous les journaux ?</string>
     <string name="clear_logs_confirm_message">Toutes les entrées seront supprimées. Cette action est irréversible.</string>
@@ -128,13 +101,11 @@
     <string name="transfer_failed">Échec du transfert ; vérifiez la taille et l’espace disponible</string>
     <string name="transfer_invalid">Échec de la validation de l’intégrité ou de la séquence</string>
     <string name="transfer_paused">Transfert en pause ; reconnexion…</string>
-    <string name="transfer_update_required">Mettez à jour les deux applications pour partager des fichiers et de grandes images</string>
     <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 100 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
     <string name="received_files">Fichiers reçus</string>
     <string name="send_file">Envoyer un fichier…</string>
     <string name="file_connection_required">Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.</string>
     <string name="file_picker_help">Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.</string>
-    <string name="file_received">Fichier reçu</string>
     <string name="share_preparing">Préparation de l’envoi…</string>
     <string name="transfer_queued">En attente du Wi-Fi ou du mesh. Les fichiers seront envoyés dès que votre Mac sera reconnecté.</string>
     <string name="transfer_kind_text">texte</string>
@@ -164,19 +135,11 @@
     <string name="update_check">Rechercher des mises à jour</string>
     <string name="update_up_to_date">BinderClip est à jour (%1$s)</string>
     <string name="update_error">Impossible de rechercher les mises à jour</string>
-    <string name="listening_for_connections">En attente de connexions</string>
-    <string name="shizuku_active">Service Shizuku actif</string>
-    <string name="root_active">Service Root actif</string>
-    <string name="automatic_sync_active">Synchronisation automatique active</string>
-    <string name="send_current_clip">Envoyer le presse-papiers</string>
-    <string name="send_file_compact">Envoyer un fichier</string>
     <string name="back">Retour</string>
     <string name="device_details">Détails de connexion</string>
     <string name="offline">Hors ligne</string>
     <string name="share_sent_confirmation">Envoyé à %1$s</string>
     <string name="share_sending_to">Envoi à %1$s…</string>
-    <string name="share_queued_for">En file d\'attente pour %1$s</string>
-    <string name="background_engine">Service d\'arrière-plan</string>
     <string name="file_saved_downloads">Enregistré dans Téléchargements</string>
     <string name="file_save_downloads_failed">Impossible d’enregistrer dans Téléchargements</string>
     <string name="capture_row_title">Copie Téléphone vers Mac</string>
@@ -199,4 +162,38 @@
     <string name="activity_title">Activité récente</string>
     <string name="activity_empty">Rien n\'a encore été envoyé ou reçu.</string>
     <string name="transfer_kind_link">lien</string>
+    <string name="pair_confirm_title">Associer à %1$s ?</string>
+    <string name="pair_confirm_message">Continuez uniquement si vous avez ouvert ce lien depuis votre propre Mac. Le contenu du presse-papiers sera synchronisé avec cet ordinateur.</string>
+    <string name="pair_confirm_replace">Cela remplace votre association actuelle avec %1$s.</string>
+    <string name="pair_confirm_action">Associer</string>
+    <string name="pair_invalid_code">Ce n\'est pas un code d\'association BinderClip valide.</string>
+    <string name="pair_failed">Échec de l\'association</string>
+    <string name="pair_connecting">Connexion…</string>
+    <string name="scan_error">Impossible de lire le code QR. Réessayez.</string>
+    <string name="search">Rechercher</string>
+    <string name="share_error_too_many">Vous pouvez partager jusqu\'à huit fichiers à la fois.</string>
+    <plurals name="share_file_count">
+        <item quantity="one">%d fichier</item>
+        <item quantity="other">%d fichiers</item>
+    </plurals>
+    <string name="status_pairing_with">Association avec %1$s…</string>
+    <string name="error_no_address">Aucune adresse de Mac à laquelle se connecter. Scannez un nouveau QR depuis le Mac.</string>
+    <string name="error_key_rejected">Clé d’association refusée. Scannez un nouveau QR depuis le Mac.</string>
+    <string name="error_unreachable">Impossible de joindre le Mac à %1$s. Même Wi-Fi ?</string>
+    <string name="error_open_link">Impossible d’ouvrir le lien</string>
+    <string name="error_clear_share">Impossible d’effacer le partage en attente</string>
+    <string name="toast_copied_text">Texte copié</string>
+    <string name="toast_copied_image">Image copiée</string>
+    <string name="toast_received_link">Lien reçu</string>
+    <string name="toast_clipboard_unsupported">Le contenu du presse-papiers n’est pas pris en charge</string>
+    <string name="status_via_bluetooth">%1$s (Bluetooth)</string>
+    <string name="status_via_mesh">%1$s (Mesh)</string>
+    <string name="debug_clip_title">Presse-papiers de débogage privé</string>
+    <string name="debug_clip_desc">Le contenu de test reste dans le groupe de débogage. Le presse-papiers système n’est pas modifié.</string>
+    <string name="debug_clip_field">Texte à envoyer</string>
+    <string name="debug_clip_send_text">Envoyer le texte</string>
+    <string name="debug_clip_send_png">Envoyer un PNG de test</string>
+    <string name="debug_clip_content">Contenu privé : %1$s</string>
+    <string name="debug_clip_image">Image privée reçue/prête</string>
+    <string name="debug_clip_empty">Le presse-papiers privé est vide</string>
 </resources>

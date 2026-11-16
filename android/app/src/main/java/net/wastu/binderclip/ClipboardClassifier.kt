@@ -11,50 +11,51 @@ sealed interface LocalClipboardContent {
 }
 
 /**
- * Classifies only text and supported image media. URI items are never coerced
- * to text: Android would turn a copied file into its display name.
+ * The one classification policy shared by the foreground reader, the root reader, and the
+ * Shizuku UserService, so the three capture paths cannot drift apart. It fails closed: URI
+ * items are never coerced to text, because Android would turn a copied file into its name.
  */
+object ClipboardRules {
+    enum class Plan { DirectText, Image, WebUri, Coerce, Unsupported }
+
+    fun isWebUrl(text: String): Boolean {
+        val trimmed = text.trim().lowercase()
+        return trimmed.startsWith("http://") || trimmed.startsWith("https://")
+    }
+
+    /** @param imageMime the first allowed image MIME type the clip declares, if any. */
+    fun plan(directText: String?, uriScheme: String?, hasUri: Boolean, imageMime: String?): Plan = when {
+        directText != null && (isWebUrl(directText) || imageMime == null) -> Plan.DirectText
+        hasUri && (uriScheme == "content" || uriScheme == "file" || imageMime != null) -> Plan.Image
+        hasUri && (uriScheme == "http" || uriScheme == "https") -> Plan.WebUri
+        directText != null -> Plan.DirectText
+        !hasUri -> Plan.Coerce
+        else -> Plan.Unsupported
+    }
+
+    /** An image URI that could not be read only falls back to text the clip carried directly. */
+    fun afterImageFailure(directText: String?): Plan =
+        if (directText != null) Plan.DirectText else Plan.Unsupported
+}
+
 object ClipboardClassifier {
     fun read(context: Context, clipboard: AppClipboard): LocalClipboardContent {
         val clip = clipboard.primaryClip ?: return LocalClipboardContent.Unsupported
         val item = clip.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return LocalClipboardContent.Unsupported
-
-        val hasImageMime = clip.description?.filterMimeTypes("image/*")?.isNotEmpty() == true
+        val imageMime = clip.description?.filterMimeTypes("image/*")?.firstOrNull { it in ImagePayload.ALLOWED_MIME_TYPES }
         val directText = item.text?.toString()?.takeIf { it.isNotBlank() }
-
-        // 1. Direct text / URL precedence: If plain text contains an HTTP/HTTPS URL or description is text-only, prioritize text
-        if (directText != null) {
-            val trimmed = directText.trim().lowercase()
-            if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || !hasImageMime) {
-                return LocalClipboardContent.Text(directText)
-            }
+        val uri = item.uri
+        var plan = ClipboardRules.plan(directText, uri?.scheme?.lowercase(), uri != null, imageMime)
+        if (plan == ClipboardRules.Plan.Image) {
+            ImageClipboard.readUri(context, uri!!, imageMime)?.let { return LocalClipboardContent.Image(it) }
+            plan = ClipboardRules.afterImageFailure(directText)
         }
-
-        // 2. Image content (via image MIME description, file URI, or image content URI)
-        if (item.uri != null) {
-            val scheme = item.uri.scheme?.lowercase()
-            if (scheme == "content" || scheme == "file" || hasImageMime) {
-                ImageClipboard.readUri(context, item.uri, clip.description?.getMimeType(0))?.let {
-                    return LocalClipboardContent.Image(it)
-                }
-                // If it's a file scheme and not a supported image, fail-closed
-                if (scheme == "file") return LocalClipboardContent.Unsupported
-            } else if (scheme == "http" || scheme == "https") {
-                return LocalClipboardContent.Text(item.uri.toString())
-            }
+        return when (plan) {
+            ClipboardRules.Plan.DirectText -> LocalClipboardContent.Text(directText!!)
+            ClipboardRules.Plan.WebUri -> LocalClipboardContent.Text(uri.toString())
+            ClipboardRules.Plan.Coerce -> runCatching { item.coerceToText(context)?.toString() }.getOrNull()
+                ?.takeIf { it.isNotBlank() }?.let(LocalClipboardContent::Text) ?: LocalClipboardContent.Unsupported
+            else -> LocalClipboardContent.Unsupported
         }
-
-        // 3. Fallback to direct plain text
-        if (directText != null) {
-            return LocalClipboardContent.Text(directText)
-        }
-
-        // 4. Coerced text (HTML or formatted text)
-        val coerced = runCatching { item.coerceToText(context)?.toString() }.getOrNull()?.takeIf { it.isNotBlank() }
-        if (coerced != null) {
-            return LocalClipboardContent.Text(coerced)
-        }
-
-        return LocalClipboardContent.Unsupported
     }
 }

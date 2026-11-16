@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import net.wastu.binderclip.ClipboardRules
 import net.wastu.binderclip.ImagePayload
 import java.lang.reflect.Method
 
@@ -77,22 +78,16 @@ class ShizukuClipboardUserService() : IShizukuClipboardService.Stub() {
         }
         val imageMime = clip.description?.filterMimeTypes("image/*")?.firstOrNull { it in ImagePayload.ALLOWED_MIME_TYPES }
         val directText = item.text?.toString()?.takeIf { it.isNotBlank() }
-        if (directText != null && (isWebUrl(directText) || imageMime == null)) {
-            target.onText(directText, token)
-            return
-        }
         val uri = item.uri
-        val scheme = uri?.scheme?.lowercase()
-        when {
-            uri != null && (scheme == "content" || scheme == "file" || imageMime != null) -> {
-                // File URIs that are not supported images fail closed; they are never coerced to a filename.
-                if (!streamImage(target, uri, imageMime, token)) {
-                    if (directText != null) target.onText(directText, token) else target.onUnsupported(token)
-                }
-            }
-            uri != null && (scheme == "http" || scheme == "https") -> target.onText(uri.toString(), token)
-            directText != null -> target.onText(directText, token)
-            uri == null -> {
+        var plan = ClipboardRules.plan(directText, uri?.scheme?.lowercase(), uri != null, imageMime)
+        if (plan == ClipboardRules.Plan.Image) {
+            if (streamImage(target, uri!!, imageMime, token)) return
+            plan = ClipboardRules.afterImageFailure(directText)
+        }
+        when (plan) {
+            ClipboardRules.Plan.DirectText -> target.onText(directText!!, token)
+            ClipboardRules.Plan.WebUri -> target.onText(uri.toString(), token)
+            ClipboardRules.Plan.Coerce -> {
                 val coerced = context?.let { runCatching { item.coerceToText(it)?.toString() }.getOrNull() }
                 if (!coerced.isNullOrBlank()) target.onText(coerced, token) else target.onUnsupported(token)
             }
@@ -148,11 +143,6 @@ class ShizukuClipboardUserService() : IShizukuClipboardService.Stub() {
             listener?.takeIf { type.isInstance(it) }
         }
         return method.invoke(target, *args)
-    }
-
-    private fun isWebUrl(text: String): Boolean {
-        val trimmed = text.trim().lowercase()
-        return trimmed.startsWith("http://") || trimmed.startsWith("https://")
     }
 
     companion object {

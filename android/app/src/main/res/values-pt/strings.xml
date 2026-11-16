@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_not_paired">Não emparelhado</string>
@@ -9,21 +8,16 @@
     <string name="channel_clipboard_sync_desc">Mantém uma conexão persistente com o Mac emparelhado</string>
     <string name="channel_browser_links">Links do Navegador</string>
     <string name="channel_browser_links_desc">Notificações ao receber links da web</string>
-    <string name="notif_copy_to_clipboard">Copiar para Área de Transferência</string>
     <string name="notif_open_link">Abrir link</string>
     <string name="notif_bluetooth_fallback_title">Contingência Bluetooth pronta</string>
     <string name="notif_bluetooth_fallback_desc">Ative o Bluetooth para continuar sincronizando sem Wi-Fi</string>
-    <string name="notif_image_waiting_title">Imagem aguardando Wi-Fi</string>
-    <string name="notif_image_waiting_desc">Imagens (%1$s) precisam de Wi-Fi ou mesh; o texto ainda sincroniza via Bluetooth</string>
     <string name="notif_received_text">Texto recebido</string>
     <string name="notif_received_image">Imagem recebida (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">Mostrar registros</string>
-    <string name="paired_devices">Dispositivos emparelhados</string>
     <string name="no_devices_paired">Nenhum dispositivo emparelhado ainda</string>
     <string name="no_devices_paired_desc">Escaneie um código QR do seu Mac para emparelhar.</string>
-    <string name="reconnect">Reconectar</string>
     <string name="scan_qr_to_pair">Escanear QR para emparelhar</string>
     <string name="send_current_clipboard">Enviar área de transferência atual</string>
     <string name="section_permissions">Permissões</string>
@@ -34,12 +28,9 @@
     <string name="perm_notifications_desc">Mostrar área de transferência recebida</string>
     <string name="perm_bluetooth">Bluetooth</string>
     <string name="perm_bluetooth_desc">Necessário para sincronização offline de contingência</string>
-    <string name="perm_battery_opt">Otimização de Bateria</string>
-    <string name="perm_battery_opt_desc">Permitir sincronização confiável em segundo plano</string>
     <string name="perm_autostart">Início Automático</string>
     <string name="perm_autostart_desc">Permitir início em segundo plano para sincronização estável</string>
     <string name="allow">Permitir</string>
-    <string name="open">Abrir</string>
 
     <!-- Pending Copy -->
     <string name="copy">Copiar</string>
@@ -57,26 +48,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL enviada com sucesso</string>
-    <string name="image_sent_success">Imagem enviada com sucesso</string>
     <string name="status_connected_bluetooth">Conectado via Bluetooth</string>
     <string name="status_connected_mesh">Conectado via Mesh</string>
     <string name="status_connected_lan">Conectado via LAN</string>
     <string name="status_connected">Conectado</string>
     <string name="status_connecting">Conectando…</string>
     <string name="status_reconnecting">Reconectando…</string>
-    <string name="this_device">Este dispositivo</string>
     <string name="transport_bt_label">Transporte: Bluetooth BLE</string>
     <string name="ip_label">IP: %1$s</string>
     <string name="ip_unavailable">Indisponível</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">Renomear Dispositivo</string>
-    <string name="device_rename_prompt">Digite um novo nome para este dispositivo:</string>
     <string name="save">Salvar</string>
     <string name="cancel">Cancelar</string>
     <string name="close">Fechar</string>
-    <string name="rename">Renomear</string>
-    <string name="unpair_this_device">Desemparelhar este dispositivo</string>
     <string name="unpair_device">Desemparelhar dispositivo</string>
     <string name="logs_title">Registros (%1$d)</string>
     <string name="logs_search_placeholder">Pesquisar registros…</string>
@@ -92,30 +78,17 @@
     <string name="open_settings">Abrir configurações</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">Abrir Link no Dispositivo</string>
-    <string name="share_to_device_title">Compartilhar com Dispositivo</string>
-    <string name="share_all_devices">Todos os Dispositivos Conectados</string>
-    <string name="share_all_devices_url_sub">Abre no navegador de todos os dispositivos</string>
-    <string name="share_all_devices_sub">Envia para todos os dispositivos</string>
-    <string name="share_opens_browser_on">Abre o navegador em %1$s</string>
-    <string name="share_image_label">Imagem (%1$s)</string>
     <string name="share_text_content">Conteúdo de texto</string>
     <string name="share_error_unsupported">Não foi possível enviar este conteúdo</string>
-    <string name="share_sending_link">Enviando link…</string>
-    <string name="share_sending">Enviando…</string>
     <string name="share_queued">Na fila para o Mac; será enviado ao conectar</string>
     <string name="share_error_queue_full">Não foi possível colocar na fila. Abra o BinderClip e tente novamente.</string>
     <string name="share_error_delivery">Não foi possível iniciar o envio. Abra o BinderClip para tentar novamente.</string>
-    <string name="share_error_image_connection">As imagens precisam de uma ligação Wi-Fi ou mesh ativa ao Mac.</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">Enviado para o Mac</string>
-    <string name="toast_sent_image_to_mac">Imagem enviada para o Mac</string>
-    <string name="toast_nothing_to_send">Nada para enviar</string>
-    <string name="bt_fallback_desc_needs_permission">Concede acima a permissão para dispositivos próximos para ativar a ligação alternativa por Bluetooth.</string>
-    <string name="clear_logs_confirm_title">Limpar todos os registos?</string>
-    <string name="clear_logs_confirm_message">Esta ação remove todas as entradas do registo e não pode ser anulada.</string>
-    <string name="secure_connection_failed">A ligação segura falhou. Atualiza o BinderClip no Mac e no telemóvel ou emparelha-os novamente.</string>
+    <string name="bt_fallback_desc_needs_permission">Conceda acima a permissão de dispositivos próximos para ativar a conexão alternativa por Bluetooth.</string>
+    <string name="clear_logs_confirm_title">Limpar todos os registros?</string>
+    <string name="clear_logs_confirm_message">Isso remove todas as entradas do registro. Esta ação não pode ser desfeita.</string>
+    <string name="secure_connection_failed">Falha na conexão segura. Atualize o BinderClip no Mac e no celular ou emparelhe novamente.</string>
 
     <string name="transfer_kind_file">arquivo</string>
     <string name="transfer_kind_image">imagem</string>
@@ -128,34 +101,32 @@
     <string name="transfer_failed">Falha na transferência; verifique o tamanho e o espaço disponível</string>
     <string name="transfer_invalid">Falha na validação de integridade ou sequência</string>
     <string name="transfer_paused">Transferência pausada; reconectando…</string>
-    <string name="transfer_update_required">Atualize os dois aplicativos para compartilhar arquivos e imagens grandes</string>
     <string name="share_error_file">Não foi possível colocar o arquivo na fila. Limite: 100 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.</string>
     <string name="received_files">Arquivos recebidos</string>
     <string name="send_file">Enviar arquivo…</string>
     <string name="file_connection_required">Arquivos exigem Wi-Fi ou mesh e aplicativos atualizados nos dois dispositivos.</string>
     <string name="file_picker_help">Escolha até oito arquivos de no máximo 100 MiB cada.</string>
-    <string name="file_received">Arquivo recebido</string>
-    <string name="share_preparing">A preparar o envio…</string>
-    <string name="transfer_queued">A aguardar Wi-Fi ou mesh. Os ficheiros serão enviados quando o Mac voltar a ligar-se.</string>
+    <string name="share_preparing">Preparando o envio…</string>
+    <string name="transfer_queued">Aguardando Wi-Fi ou mesh. Os arquivos serão enviados quando o Mac se reconectar.</string>
     <string name="transfer_kind_text">texto</string>
     <string name="hide_transfer">Ocultar</string>
     <string name="cancel_transfer">Cancelar envio</string>
     <string name="transfer_cancelled">Envio cancelado</string>
-    <string name="capture_install_desc">Sem root, o BinderClip precisa do Shizuku, uma app gratuita, para ver o que copia.</string>
-    <string name="capture_install_action">Obter Shizuku</string>
-    <string name="capture_start_desc">Abra o Shizuku, toque em Iniciar em Depuração sem fios e volte.</string>
+    <string name="capture_install_desc">Sem root, o BinderClip precisa do Shizuku, um app gratuito, para ver o que você copia.</string>
+    <string name="capture_install_action">Baixar Shizuku</string>
+    <string name="capture_start_desc">Abra o Shizuku, toque em Iniciar em Depuração por Wi-Fi e volte.</string>
     <string name="capture_open_shizuku">Abrir Shizuku</string>
     <string name="capture_update_title">Atualize o Shizuku</string>
-    <string name="capture_update_desc">Esta versão do Shizuku é demasiado antiga para o BinderClip. Atualize-a e inicie-a novamente.</string>
+    <string name="capture_update_desc">Esta versão do Shizuku é antiga demais para o BinderClip. Atualize e inicie de novo.</string>
     <string name="capture_allow_desc">O Shizuku pergunta uma vez. Escolha Permitir sempre.</string>
     <string name="capture_allow_action">Permitir</string>
     <string name="capture_denied_title">O BinderClip está bloqueado no Shizuku</string>
-    <string name="capture_denied_desc">Abra o Shizuku, vá a Aplicações autorizadas e ative o BinderClip.</string>
-    <string name="capture_connecting_title">A ligar ao Shizuku…</string>
-    <string name="capture_connecting_desc">A verificar se o BinderClip consegue ver o que copia.</string>
-    <string name="capture_paused_title">Área de transferência telemóvel para Mac em pausa</string>
+    <string name="capture_denied_desc">Abra o Shizuku, vá em Apps autorizados e ative o BinderClip.</string>
+    <string name="capture_connecting_title">Conectando ao Shizuku…</string>
+    <string name="capture_connecting_desc">Verificando se o BinderClip consegue ver o que você copia.</string>
+    <string name="capture_paused_title">Área de transferência celular para Mac pausada</string>
     <string name="capture_paused_desc">O Shizuku não está em execução. Toque para iniciar.</string>
-    <string name="capture_paused_card_desc">O Shizuku parou, normalmente após reiniciar. Abra-o e toque em Iniciar.</string>
+    <string name="capture_paused_card_desc">O Shizuku parou, geralmente após reiniciar. Abra e toque em Iniciar.</string>
     <string name="update_available">Atualização disponível</string>
     <string name="update_message">Uma nova versão do BinderClip (%1$s) está disponível.</string>
     <string name="update_button">Atualizar</string>
@@ -164,21 +135,13 @@
     <string name="update_check">Verificar atualizações</string>
     <string name="update_up_to_date">O BinderClip está atualizado (%1$s)</string>
     <string name="update_error">Não foi possível verificar atualizações</string>
-    <string name="listening_for_connections">Aguardando conexões</string>
-    <string name="shizuku_active">Serviço Shizuku ativo</string>
-    <string name="root_active">Serviço root ativo</string>
-    <string name="automatic_sync_active">Sincronização automática ativa</string>
-    <string name="send_current_clip">Enviar área de transferência</string>
-    <string name="send_file_compact">Enviar arquivo</string>
     <string name="back">Voltar</string>
     <string name="device_details">Detalhes da conexão</string>
     <string name="offline">Offline</string>
     <string name="share_sent_confirmation">Enviado para %1$s</string>
     <string name="share_sending_to">Enviando para %1$s…</string>
-    <string name="share_queued_for">Na fila para %1$s</string>
-    <string name="background_engine">Serviço em segundo plano</string>
-    <string name="file_saved_downloads">Guardado em Transferências</string>
-    <string name="file_save_downloads_failed">Não foi possível guardar em Transferências</string>
+    <string name="file_saved_downloads">Salvo em Downloads</string>
+    <string name="file_save_downloads_failed">Não foi possível salvar em Downloads</string>
     <string name="capture_row_title">Cópia Telefone para Mac</string>
     <string name="capture_row_root">Ativada, usando root</string>
     <string name="capture_row_shizuku">Ativada, usando Shizuku</string>
@@ -199,4 +162,38 @@
     <string name="activity_title">Atividade recente</string>
     <string name="activity_empty">Nada enviado ou recebido ainda.</string>
     <string name="transfer_kind_link">link</string>
+    <string name="pair_confirm_title">Parear com %1$s?</string>
+    <string name="pair_confirm_message">Continue apenas se você abriu este link no seu próprio Mac. O conteúdo da área de transferência será sincronizado com este computador.</string>
+    <string name="pair_confirm_replace">Isso substitui seu pareamento atual com %1$s.</string>
+    <string name="pair_confirm_action">Parear</string>
+    <string name="pair_invalid_code">Este não é um código de pareamento do BinderClip válido.</string>
+    <string name="pair_failed">Falha no pareamento</string>
+    <string name="pair_connecting">Conectando…</string>
+    <string name="scan_error">Não foi possível ler o código QR. Tente novamente.</string>
+    <string name="search">Pesquisar</string>
+    <string name="share_error_too_many">Você pode compartilhar até oito arquivos por vez.</string>
+    <plurals name="share_file_count">
+        <item quantity="one">%d arquivo</item>
+        <item quantity="other">%d arquivos</item>
+    </plurals>
+    <string name="status_pairing_with">Pareando com %1$s…</string>
+    <string name="error_no_address">Nenhum endereço do Mac para conectar. Escaneie um QR novo no Mac.</string>
+    <string name="error_key_rejected">Chave de pareamento recusada. Escaneie um QR novo no Mac.</string>
+    <string name="error_unreachable">Não foi possível alcançar o Mac em %1$s. Mesma rede Wi-Fi?</string>
+    <string name="error_open_link">Não foi possível abrir o link</string>
+    <string name="error_clear_share">Não foi possível limpar o compartilhamento na fila</string>
+    <string name="toast_copied_text">Texto copiado</string>
+    <string name="toast_copied_image">Imagem copiada</string>
+    <string name="toast_received_link">Link recebido</string>
+    <string name="toast_clipboard_unsupported">O conteúdo da área de transferência não é compatível</string>
+    <string name="status_via_bluetooth">%1$s (Bluetooth)</string>
+    <string name="status_via_mesh">%1$s (Mesh)</string>
+    <string name="debug_clip_title">Área de transferência privada de depuração</string>
+    <string name="debug_clip_desc">O conteúdo de teste fica no grupo de depuração. A área de transferência do sistema não é alterada.</string>
+    <string name="debug_clip_field">Texto para enviar</string>
+    <string name="debug_clip_send_text">Enviar texto</string>
+    <string name="debug_clip_send_png">Enviar PNG de teste</string>
+    <string name="debug_clip_content">Conteúdo privado: %1$s</string>
+    <string name="debug_clip_image">Imagem privada recebida/pronta</string>
+    <string name="debug_clip_empty">A área de transferência privada está vazia</string>
 </resources>

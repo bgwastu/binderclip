@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Bereit";
 "connected_count_one" = "1 verbunden";
 "connected_count_many" = "%d verbunden";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Noch keine Telefone";
 "add_device" = "Gerät hinzufügen";
 "send_browser_tab" = "Aktuellen Browser-Tab senden";
-"more" = "Mehr";
 "quit_binderclip" = "BinderClip beenden";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Lokales Netzwerk erlauben";
 "allow_clipboard_access" = "Zugriff auf Zwischenablage erlauben";
 "allow_browser_automation" = "Browser-Automatisierung erlauben";
-"allow_launch_at_login" = "Öffnen bei der Anmeldung erlauben";
-"enable_launch_at_login" = "Bei der Anmeldung öffnen";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Diesen Mac umbenennen…";
 "unpair_all_devices" = "Alle Geräte trennen…";
 "reset_pairing_key" = "Kopplungsschlüssel zurücksetzen…";
-"show_logs" = "Protokolle anzeigen";
 "check_for_updates" = "Nach Updates suchen…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Über Bluetooth verbunden";
 "connected_via_mesh" = "Über Mesh verbunden";
 "connected_via_lan" = "Über LAN verbunden";
-"transport_bluetooth_ble" = "Übertragung: Bluetooth BLE";
-"send_clipboard_to_peer" = "Zwischenablage an %@ senden";
 "rename_device_menu" = "Gerät umbenennen…";
 "unpair_device_menu" = "Gerät trennen…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d Ereignisse";
 "toast_click_to_reveal" = "Klicken, um im Finder anzuzeigen";
 "send_clipboard" = "Zwischenablage senden";
+"sent_clipboard_to_phones" = "An verbundene Telefone gesendet";
+"sent_url_to_phones" = "Link an verbundene Telefone gesendet";
+"sent_image_to_phones" = "Bild an verbundene Telefone gesendet";
+"text_too_large" = "Text ist zu groß zum Senden (max. 1 MB)";
+"log_no_matching" = "$ Keine passenden Ereignisse.";
+"debug_clip_menu" = "Private Debug-Zwischenablage…";
+"debug_bt_menu" = "Bluetooth-Test (gemeinsames Funkmodul)";
+"debug_clip_window" = "BinderClip Debug — Private Zwischenablage";
+"debug_clip_desc" = "Testinhalte bleiben in der Debug-Gruppe. Die System-Zwischenablage bleibt unberührt.";
+"debug_clip_field" = "Text für das Debug-Telefon";
+"debug_clip_send_text" = "Text senden";
+"debug_clip_send_image" = "Bild senden…";
+"debug_clip_content" = "Privater Inhalt: %@";
+"debug_clip_image" = "Privates Bild: %@, %d Byte";
+"debug_clip_empty" = "Private Zwischenablage ist leer oder nicht unterstützt";

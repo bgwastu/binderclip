@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Mendengarkan";
 "connected_count_one" = "1 terhubung";
 "connected_count_many" = "%d terhubung";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Belum ada ponsel";
 "add_device" = "Tambah Perangkat";
 "send_browser_tab" = "Kirim Tab Peramban Saat Ini";
-"more" = "Lainnya";
 "quit_binderclip" = "Keluar dari BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Izinkan Jaringan Lokal";
 "allow_clipboard_access" = "Izinkan Akses Papan Klip";
 "allow_browser_automation" = "Izinkan Otomatisasi Peramban";
-"allow_launch_at_login" = "Izinkan Buka Saat Masuk";
-"enable_launch_at_login" = "Aktifkan Buka Saat Masuk";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Ubah Nama Mac Ini…";
 "unpair_all_devices" = "Putuskan Semua Perangkat…";
 "reset_pairing_key" = "Atur Ulang Kunci Penyandingan…";
-"show_logs" = "Tampilkan Log";
 "check_for_updates" = "Periksa Pembaruan…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Terhubung via Bluetooth";
 "connected_via_mesh" = "Terhubung via Mesh";
 "connected_via_lan" = "Terhubung via LAN";
-"transport_bluetooth_ble" = "Transport: Bluetooth BLE";
-"send_clipboard_to_peer" = "Kirim Papan Klip ke %@";
 "rename_device_menu" = "Ubah Nama Perangkat…";
 "unpair_device_menu" = "Putuskan Perangkat…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d peristiwa";
 "toast_click_to_reveal" = "Klik untuk membuka di Finder";
 "send_clipboard" = "Kirim Papan Klip";
+"sent_clipboard_to_phones" = "Terkirim ke ponsel yang terhubung";
+"sent_url_to_phones" = "Tautan terkirim ke ponsel yang terhubung";
+"sent_image_to_phones" = "Gambar terkirim ke ponsel yang terhubung";
+"text_too_large" = "Teks terlalu besar untuk dikirim (maks. 1 MB)";
+"log_no_matching" = "$ Tidak ada peristiwa yang cocok.";
+"debug_clip_menu" = "Papan Klip Debug Privat…";
+"debug_bt_menu" = "Pengujian Bluetooth (Radio Bersama)";
+"debug_clip_window" = "BinderClip Debug — Papan Klip Privat";
+"debug_clip_desc" = "Konten uji tetap di grup debug. Papan klip sistem tidak disentuh.";
+"debug_clip_field" = "Teks untuk dikirim ke ponsel debug";
+"debug_clip_send_text" = "Kirim Teks";
+"debug_clip_send_image" = "Kirim Gambar…";
+"debug_clip_content" = "Konten privat: %@";
+"debug_clip_image" = "Gambar privat: %@, %d byte";
+"debug_clip_empty" = "Papan klip privat kosong atau tidak didukung";

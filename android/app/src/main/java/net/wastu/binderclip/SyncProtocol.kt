@@ -3,10 +3,8 @@ package net.wastu.binderclip
 import org.json.JSONObject
 import java.net.URLDecoder
 import java.net.URLEncoder
-import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.Base64
-import java.util.UUID
 
 data class PairingInfo(
     val version: Int,
@@ -14,15 +12,6 @@ data class PairingInfo(
     val deviceName: String,
     val psk: String,
     val endpoints: List<String>,
-)
-
-data class ImageMetadata(
-    val id: String,
-    val mimeType: String,
-    val hash: String,
-    val originId: String,
-    val size: Int,
-    internal val clipboard: ClipboardStamp? = null,
 )
 
 object SyncProtocol {
@@ -133,6 +122,21 @@ object SyncProtocol {
         }
     }
 
+    private val PAIRING_ID = Regex("[A-Za-z0-9._-]{1,128}")
+    private const val MAX_PAIRING_ENDPOINTS = 8
+    private const val MAX_DEVICE_NAME = 64
+
+    fun sanitizeDeviceName(raw: String?): String =
+        raw.orEmpty().filterNot { it.isISOControl() }.trim().take(MAX_DEVICE_NAME).ifBlank { "Mac" }
+
+    /** Pairing never trusts loopback: a link pointing at 127.0.0.1 would aim the phone at itself. */
+    fun isAdvertisableEndpoint(raw: String): Boolean {
+        val (host, port) = parseEndpoint(raw) ?: return false
+        if (port !in 1..65535 || host.isBlank()) return false
+        val h = host.lowercase()
+        return !(h == "localhost" || h == "::1" || h.startsWith("127.") || h == "0.0.0.0")
+    }
+
     fun parsePairingUrl(uriString: String, profile: AppProfile = AppProfile.current): PairingInfo? = runCatching {
         val trimmed = uriString.trim()
         val uri = java.net.URI(trimmed)
@@ -160,14 +164,17 @@ object SyncProtocol {
             }
         }
 
-        val id = params["id"]?.takeIf { it.isNotBlank() } ?: return null
-        val psk = params["psk"]?.takeIf { it.isNotBlank() } ?: return null
-        val version = params["v"]?.toIntOrNull() ?: VERSION
-        val name = params["name"] ?: "Mac"
-        val rawEndpoints = params["endpoints"].orEmpty()
-        val endpoints = rawEndpoints.split(",")
+        // A pairing link can arrive from any web page, so reject anything a real Mac would not emit.
+        val version = params["v"]?.toIntOrNull() ?: return null
+        if (version != VERSION) return null
+        val id = params["id"]?.takeIf { PAIRING_ID.matches(it) } ?: return null
+        val psk = params["psk"]?.takeIf { decodeBase64(it)?.size == 32 } ?: return null
+        val name = sanitizeDeviceName(params["name"])
+        val endpoints = params["endpoints"].orEmpty().split(",")
             .map { it.trim() }
-            .filter { it.isNotBlank() }
+            .filter(::isAdvertisableEndpoint)
+            .distinct()
+            .take(MAX_PAIRING_ENDPOINTS)
 
         PairingInfo(
             version = version,
@@ -188,47 +195,4 @@ object SyncProtocol {
         }
         return "${profile.pairingScheme}://pair?$query"
     }
-
-    internal fun packImage(image: ImagePayload, originId: String, clipboard: ClipboardStamp? = null): ByteArray {
-        val hash = sha256Hex(image.data)
-        val json = JSONObject().apply {
-            put("type", "image")
-            put("id", image.id)
-            put("mimeType", image.mimeType)
-            put("hash", hash)
-            put("originId", originId)
-            put("size", image.data.size)
-            clipboard?.let { put("clipboard", it.putInto(JSONObject())) }
-        }
-        val metaBytes = json.toString().toByteArray(Charsets.UTF_8)
-        val buffer = ByteBuffer.allocate(4 + metaBytes.size + image.data.size)
-        buffer.putInt(metaBytes.size)
-        buffer.put(metaBytes)
-        buffer.put(image.data)
-        return buffer.array()
-    }
-
-    fun unpackImage(packet: ByteArray): Pair<ImageMetadata, ByteArray>? = runCatching {
-        if (packet.size < 4) return null
-        val buffer = ByteBuffer.wrap(packet)
-        val headerLen = buffer.int
-        if (headerLen <= 0 || packet.size < 4 + headerLen) return null
-
-        val metaBytes = ByteArray(headerLen)
-        buffer.get(metaBytes)
-        val json = JSONObject(metaBytes.toString(Charsets.UTF_8))
-
-        val meta = ImageMetadata(
-            id = json.optString("id", UUID.randomUUID().toString()),
-            mimeType = json.getString("mimeType"),
-            hash = json.getString("hash"),
-            originId = json.optString("originId", ""),
-            size = json.getInt("size"),
-            clipboard = if (json.has("clipboard")) requireNotNull(ClipboardStamp.parse(json.getJSONObject("clipboard"))) else null
-        )
-        val imageData = ByteArray(packet.size - 4 - headerLen)
-        buffer.get(imageData)
-        if (imageData.size != meta.size) return null
-        Pair(meta, imageData)
-    }.getOrNull()
 }

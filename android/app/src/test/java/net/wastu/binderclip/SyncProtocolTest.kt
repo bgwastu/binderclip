@@ -6,7 +6,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.UUID
 
 class SyncProtocolTest {
     @Test
@@ -47,31 +46,44 @@ class SyncProtocolTest {
     }
 
     @Test
-    fun parsePreservesPlusInLegacyPsk() {
-        val psk = "abc+def/ghi="
-        val url = "binderclip://pair?v=2&id=mac&name=Mac&psk=$psk&endpoints=192.168.1.1:39421"
+    fun parsePreservesPlusInStandardBase64Psk() {
+        val raw = byteArrayOf(0xfb.toByte(), 0xff.toByte(), 0xef.toByte()) + ByteArray(29) { 1 }
+        val psk = java.util.Base64.getEncoder().encodeToString(raw)
+        assertTrue(psk.contains("+") && psk.contains("/"))
+        val url = "binderclip://pair?v=${SyncProtocol.VERSION}&id=mac&name=Mac&psk=$psk&endpoints=192.168.1.1:39421"
         val parsed = SyncProtocol.parsePairingUrl(url, AppProfile.production)
         assertEquals(psk, parsed?.psk)
     }
 
+    private val validPsk = SyncProtocol.urlSafeBase64(ByteArray(32) { 7 })
+
+    private fun invite(v: String = SyncProtocol.VERSION.toString(), id: String = "mac-1", psk: String = validPsk,
+                       name: String = "Mac", endpoints: String = "192.168.1.1:39421") =
+        "binderclip://pair?v=$v&id=$id&name=$name&psk=$psk&endpoints=$endpoints"
+
     @Test
-    fun imagePackingAndUnpackingRoundTrip() {
-        val imageData = ByteArray(1024) { (it % 255).toByte() }
-        val id = UUID.randomUUID().toString()
-        val imagePayload = ImagePayload(id = id, mimeType = "image/png", data = imageData)
+    fun parseRejectsMalformedInvites() {
+        val p = AppProfile.production
+        assertNotNull(SyncProtocol.parsePairingUrl(invite(), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite(v = "2"), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite().replace("v=${SyncProtocol.VERSION}&", ""), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite(psk = "short"), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite(psk = SyncProtocol.urlSafeBase64(ByteArray(16))), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite(id = "a%20b"), p))
+        assertNull(SyncProtocol.parsePairingUrl(invite(id = "x".repeat(129)), p))
+    }
 
-        val packet = SyncProtocol.packImage(imagePayload, "android-device-1")
-        assertTrue(packet.size > 1024)
-
-        val unpacked = SyncProtocol.unpackImage(packet)
-        assertNotNull(unpacked)
-        val (meta, extractedBytes) = unpacked!!
-
-        assertEquals("image/png", meta.mimeType)
-        assertEquals("android-device-1", meta.originId)
-        assertEquals(id, meta.id)
-        assertEquals(1024, meta.size)
-        assertTrue(imageData.contentEquals(extractedBytes))
+    @Test
+    fun parseDropsLoopbackAndBadEndpointsAndSanitizesName() {
+        val parsed = SyncProtocol.parsePairingUrl(
+            invite(name = "%0AEvil%07Mac", endpoints = "127.0.0.1:39421,localhost:1,[::1]:39421,100.64.0.1:39421,10.0.0.2:0,10.0.0.3:70000,100.64.0.1:39421"),
+            AppProfile.production
+        )
+        assertNotNull(parsed)
+        assertEquals(listOf("100.64.0.1:39421"), parsed!!.endpoints)
+        assertEquals("EvilMac", parsed.deviceName)
+        assertEquals("Mac", SyncProtocol.sanitizeDeviceName("  \n "))
+        assertEquals(64, SyncProtocol.sanitizeDeviceName("x".repeat(100)).length)
     }
 
     @Test

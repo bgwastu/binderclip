@@ -38,28 +38,19 @@ final class SyncProtocolTests: XCTestCase {
         XCTAssertEqual(SyncProtocol.decodeBase64(urlSafe), data)
     }
 
-    func testImagePacketPackAndUnpack() throws {
-        let imageData = try XCTUnwrap(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL2OwAAAABJRU5ErkJggg=="))
-        let payload = try ImagePayload(mimeType: "image/png", data: imageData)
-
-        let packet = SyncProtocol.packImage(image: payload, originId: "sender-123")
-        XCTAssertFalse(packet.isEmpty)
-
-        let unpacked = SyncProtocol.unpackImage(packet)
-        XCTAssertNotNil(unpacked)
-
-        guard let (meta, extractedData) = unpacked else { return }
-        XCTAssertEqual(meta.mimeType, "image/png")
-        XCTAssertEqual(meta.originId, "sender-123")
-        XCTAssertEqual(meta.hash, payload.sha256)
-        XCTAssertEqual(meta.size, imageData.count)
-        XCTAssertEqual(extractedData, imageData)
-    }
-
     func testSha256Hex() {
         let text = "hello binderclip"
         let hash = SyncProtocol.sha256Hex(text)
         XCTAssertEqual(hash.count, 64)
         XCTAssertEqual(hash, SyncProtocol.sha256Hex(Data(text.utf8)))
+    }
+
+    func testOnlyWebLinksAreBrowsable() {
+        XCTAssertTrue(SyncProtocol.isBrowsableURL(URL(string: "https://example.com/a")!))
+        XCTAssertTrue(SyncProtocol.isBrowsableURL(URL(string: "HTTP://example.com")!))
+        XCTAssertFalse(SyncProtocol.isBrowsableURL(URL(string: "file:///etc/passwd")!))
+        XCTAssertFalse(SyncProtocol.isBrowsableURL(URL(string: "x-apple.systempreferences:com.apple")!))
+        XCTAssertFalse(SyncProtocol.isBrowsableURL(URL(string: "javascript:alert(1)")!))
+        XCTAssertFalse(SyncProtocol.isBrowsableURL(URL(string: "https:")!))
     }
 }

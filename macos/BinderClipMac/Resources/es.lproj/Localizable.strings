@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Escuchando";
 "connected_count_one" = "1 conectado";
 "connected_count_many" = "%d conectados";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Sin teléfonos aún";
 "add_device" = "Añadir dispositivo";
 "send_browser_tab" = "Enviar pestaña actual del navegador";
-"more" = "Más";
 "quit_binderclip" = "Salir de BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Permitir red local";
 "allow_clipboard_access" = "Permitir acceso al portapapeles";
 "allow_browser_automation" = "Permitir automatización del navegador";
-"allow_launch_at_login" = "Permitir abrir al iniciar sesión";
-"enable_launch_at_login" = "Abrir al iniciar sesión";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Renombrar este Mac…";
 "unpair_all_devices" = "Desvincular todos los dispositivos…";
 "reset_pairing_key" = "Restablecer clave de emparejamiento…";
-"show_logs" = "Mostrar registros";
 "check_for_updates" = "Buscar actualizaciones…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Conectado por Bluetooth";
 "connected_via_mesh" = "Conectado por Mesh";
 "connected_via_lan" = "Conectado por LAN";
-"transport_bluetooth_ble" = "Transporte: Bluetooth BLE";
-"send_clipboard_to_peer" = "Enviar portapapeles a %@";
 "rename_device_menu" = "Renombrar dispositivo…";
 "unpair_device_menu" = "Desvincular dispositivo…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d eventos";
 "toast_click_to_reveal" = "Haz clic para ver en Finder";
 "send_clipboard" = "Enviar portapapeles";
+"sent_clipboard_to_phones" = "Enviado a los teléfonos conectados";
+"sent_url_to_phones" = "Enlace enviado a los teléfonos conectados";
+"sent_image_to_phones" = "Imagen enviada a los teléfonos conectados";
+"text_too_large" = "El texto es demasiado grande para enviarlo (máx. 1 MB)";
+"log_no_matching" = "$ No hay eventos coincidentes.";
+"debug_clip_menu" = "Portapapeles privado de depuración…";
+"debug_bt_menu" = "Pruebas de Bluetooth (radio compartida)";
+"debug_clip_window" = "BinderClip Debug — Portapapeles privado";
+"debug_clip_desc" = "El contenido de prueba se queda en el grupo de depuración. El portapapeles del sistema no se modifica.";
+"debug_clip_field" = "Texto para enviar al teléfono de depuración";
+"debug_clip_send_text" = "Enviar texto";
+"debug_clip_send_image" = "Enviar imagen…";
+"debug_clip_content" = "Contenido privado: %@";
+"debug_clip_image" = "Imagen privada: %@, %d bytes";
+"debug_clip_empty" = "El portapapeles privado está vacío o no es compatible";

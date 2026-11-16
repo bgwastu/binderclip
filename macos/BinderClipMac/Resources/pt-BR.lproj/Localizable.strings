@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Ouvindo";
 "connected_count_one" = "1 conectado";
 "connected_count_many" = "%d conectados";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Nenhum telefone ainda";
 "add_device" = "Adicionar Dispositivo";
 "send_browser_tab" = "Enviar Aba Atual do Navegador";
-"more" = "Mais";
 "quit_binderclip" = "Encerrar BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Permitir Rede Local";
 "allow_clipboard_access" = "Permitir Acesso à Área de Transferência";
 "allow_browser_automation" = "Permitir Automação do Navegador";
-"allow_launch_at_login" = "Permitir Abrir no Início da Sessão";
-"enable_launch_at_login" = "Abrir no Início da Sessão";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Renomear este Mac…";
 "unpair_all_devices" = "Desemparelhar Todos os Dispositivos…";
 "reset_pairing_key" = "Redefinir Chave de Emparelhamento…";
-"show_logs" = "Mostrar Registros";
 "check_for_updates" = "Buscar Atualizações…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Conectado via Bluetooth";
 "connected_via_mesh" = "Conectado via Mesh";
 "connected_via_lan" = "Conectado via LAN";
-"transport_bluetooth_ble" = "Transporte: Bluetooth BLE";
-"send_clipboard_to_peer" = "Enviar Área de Transferência para %@";
 "rename_device_menu" = "Renomear Dispositivo…";
 "unpair_device_menu" = "Desemparelhar Dispositivo…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d eventos";
 "toast_click_to_reveal" = "Clique para exibir no Finder";
 "send_clipboard" = "Enviar área de transferência";
+"sent_clipboard_to_phones" = "Enviado para os celulares conectados";
+"sent_url_to_phones" = "Link enviado para os celulares conectados";
+"sent_image_to_phones" = "Imagem enviada para os celulares conectados";
+"text_too_large" = "O texto é grande demais para enviar (máx. 1 MB)";
+"log_no_matching" = "$ Nenhum evento correspondente.";
+"debug_clip_menu" = "Área de transferência privada de depuração…";
+"debug_bt_menu" = "Teste de Bluetooth (rádio compartilhado)";
+"debug_clip_window" = "BinderClip Debug — Área de transferência privada";
+"debug_clip_desc" = "O conteúdo de teste fica no grupo de depuração. A área de transferência do sistema não é alterada.";
+"debug_clip_field" = "Texto para enviar ao celular de depuração";
+"debug_clip_send_text" = "Enviar texto";
+"debug_clip_send_image" = "Enviar imagem…";
+"debug_clip_content" = "Conteúdo privado: %@";
+"debug_clip_image" = "Imagem privada: %@, %d bytes";
+"debug_clip_empty" = "A área de transferência privada está vazia ou não é compatível";

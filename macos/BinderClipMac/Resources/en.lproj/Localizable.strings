@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Listening";
 "connected_count_one" = "1 connected";
 "connected_count_many" = "%d connected";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "No phones yet";
 "add_device" = "Add Device";
 "send_browser_tab" = "Send Current Browser Tab";
-"more" = "More";
 "quit_binderclip" = "Quit BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Allow Local Network";
 "allow_clipboard_access" = "Allow Clipboard Access";
 "allow_browser_automation" = "Allow Browser Automation";
-"allow_launch_at_login" = "Allow Launch At Login";
-"enable_launch_at_login" = "Enable Launch At Login";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Rename This Mac…";
 "unpair_all_devices" = "Unpair All Devices…";
 "reset_pairing_key" = "Reset Pairing Key…";
-"show_logs" = "Show Logs";
 "check_for_updates" = "Check for Updates…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Connected via Bluetooth";
 "connected_via_mesh" = "Connected via Mesh";
 "connected_via_lan" = "Connected via LAN";
-"transport_bluetooth_ble" = "Transport: Bluetooth BLE";
-"send_clipboard_to_peer" = "Send Clipboard to %@";
 "rename_device_menu" = "Rename Device…";
 "unpair_device_menu" = "Unpair Device…";
 
@@ -44,9 +36,6 @@
 "received_image_format" = "Received image (%@)";
 "sent_url_to_peer" = "Sent URL to %@";
 "sent_clipboard_to_peer" = "Sent clipboard to %@";
-"sent_clipboard_to_phones" = "Sent to connected phones";
-"sent_url_to_phones" = "Sent link to connected phones";
-"sent_image_to_phones" = "Sent image to connected phones";
 "sent_image_to_peer" = "Sent image to %@";
 "nothing_to_send" = "Nothing to send";
 
@@ -125,3 +114,18 @@
 "log_events_count" = "%d events";
 "toast_click_to_reveal" = "Click to reveal in Finder";
 "send_clipboard" = "Send Clipboard";
+"sent_clipboard_to_phones" = "Sent to connected phones";
+"sent_url_to_phones" = "Sent link to connected phones";
+"sent_image_to_phones" = "Sent image to connected phones";
+"text_too_large" = "Text is too large to send (1 MB max)";
+"log_no_matching" = "$ No matching events.";
+"debug_clip_menu" = "Private Debug Clipboard…";
+"debug_bt_menu" = "Bluetooth Testing (Shared Radio)";
+"debug_clip_window" = "BinderClip Debug — Private Clipboard";
+"debug_clip_desc" = "Test content stays in the debug group. The system clipboard is untouched.";
+"debug_clip_field" = "Text to send to the debug phone";
+"debug_clip_send_text" = "Send Text";
+"debug_clip_send_image" = "Send Image…";
+"debug_clip_content" = "Private content: %@";
+"debug_clip_image" = "Private image: %@, %d bytes";
+"debug_clip_empty" = "Private clipboard is empty or unsupported";

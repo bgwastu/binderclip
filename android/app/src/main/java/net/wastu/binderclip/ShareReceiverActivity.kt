@@ -37,13 +37,17 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class ShareReceiverActivity : ComponentActivity() {
     private var message by mutableIntStateOf(R.string.share_preparing)
     private var importing by mutableStateOf(true)
     private var failed by mutableStateOf(false)
     private var success by mutableStateOf(false)
+    /** Handed to the service but not yet confirmed by the Mac; never shown as "Sent". */
+    private var sending by mutableStateOf(false)
     private var fileShare = false
     private var deliveryRevision by mutableLongStateOf(0)
     private var stagedTransferIds = emptySet<String>()
@@ -74,7 +78,7 @@ class ShareReceiverActivity : ComponentActivity() {
                                 modifier = Modifier.size(32.dp),
                                 tint = MaterialTheme.colorScheme.primary,
                             )
-                            importing || progress?.isBusy == true -> CircularProgressIndicator(
+                            importing || sending || progress?.isBusy == true -> CircularProgressIndicator(
                                 modifier = Modifier.size(32.dp),
                                 strokeWidth = 3.dp,
                             )
@@ -102,7 +106,8 @@ class ShareReceiverActivity : ComponentActivity() {
                         val titleText = when {
                             importing -> stringResource(R.string.share_preparing)
                             failed -> stringResource(R.string.share_error_unsupported)
-                            success -> stringResource(R.string.share_sent_confirmation, targetPeerName)
+                            success || progress?.isSuccess == true -> stringResource(R.string.share_sent_confirmation, targetPeerName)
+                            sending || progress?.isBusy == true -> stringResource(R.string.share_sending_to, targetPeerName)
                             else -> targetPeerName
                         }
                         Text(titleText, style = MaterialTheme.typography.titleMedium)
@@ -191,11 +196,26 @@ class ShareReceiverActivity : ComponentActivity() {
                     importing = false
                     message = if (fileShare) R.string.transfer_queued else R.string.share_queued
                     delay(2000)
+                } else if (fileShare) {
+                    // Files keep sending in the background; their progress lives in the notification.
+                    importing = false
+                    sending = true
+                    message = R.string.transfer_kind_file
+                    delay(1200)
                 } else {
                     importing = false
-                    success = true
-                    message = if (fileShare) R.string.transfer_kind_file else R.string.share_text_content
-                    delay(1200)
+                    sending = true
+                    message = R.string.share_text_content
+                    // Only claim "Sent" once the service reports the Mac received it.
+                    val delivered = withTimeoutOrNull(4_000) {
+                        AppRuntime.state.first { state ->
+                            state.transferRevision > deliveryRevision &&
+                                state.transferProgress?.let { it.kind in setOf("text", "link") && it.isSuccess } == true
+                        }
+                    } != null
+                    sending = false
+                    if (delivered) { success = true; delay(1200) }
+                    else { message = R.string.share_queued; delay(2000) }
                 }
             } catch (_: RuntimeException) {
                 DiagnosticLog.warning("Could not start share delivery")
@@ -233,7 +253,7 @@ class ShareReceiverActivity : ComponentActivity() {
             intent.clipData?.let { clip -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }.orEmpty()
         }.distinct()
         if (streams.isEmpty()) return R.string.share_error_unsupported
-        if (streams.size > 8) return R.string.file_picker_help
+        if (streams.size > 8) return R.string.share_error_too_many
         fileShare = true
         val transfers = FileTransferStore.forContext(this)
         return try {
@@ -247,7 +267,8 @@ class ShareReceiverActivity : ComponentActivity() {
                 val kind = if (!intent.getBooleanExtra("share_as_file", false) && mime in ImagePayload.ALLOWED_MIME_TYPES) "image" else "file"
                 SharedFileSource(name, mime, kind) { contentResolver.openInputStream(uri) ?: error("Unreadable shared content") }
             }
-            sharedFileName = if (sources.size == 1) sources.first().name else "${sources.size} files"
+            sharedFileName = if (sources.size == 1) sources.first().name
+                else resources.getQuantityString(R.plurals.share_file_count, sources.size, sources.size)
             stagedTransferIds = transfers.stageBatch(peerId, sources) {
                 val current = DeviceStore(this)
                 check(current.groupKey != null && current.peer?.deviceId == peerId)

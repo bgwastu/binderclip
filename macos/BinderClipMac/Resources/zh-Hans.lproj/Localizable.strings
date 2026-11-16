@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "正在监听";
 "connected_count_one" = "1 台已连接";
 "connected_count_many" = "%d 台已连接";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "暂无手机";
 "add_device" = "添加设备";
 "send_browser_tab" = "发送当前浏览器标签页";
-"more" = "更多";
 "quit_binderclip" = "退出 BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "允许本地网络";
 "allow_clipboard_access" = "允许剪贴板访问";
 "allow_browser_automation" = "允许浏览器自动化";
-"allow_launch_at_login" = "允许开机自启动";
-"enable_launch_at_login" = "开机自启动";
 
 /* More Menu & Actions */
-"rename_this_mac" = "重命名此 Mac…";
 "unpair_all_devices" = "取消配对所有设备…";
 "reset_pairing_key" = "重置配对密钥…";
-"show_logs" = "查看日志";
 "check_for_updates" = "检查更新…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "已通过蓝牙连接";
 "connected_via_mesh" = "已通过 Mesh 连接";
 "connected_via_lan" = "已通过局域网连接";
-"transport_bluetooth_ble" = "传输协议: 蓝牙 BLE";
-"send_clipboard_to_peer" = "发送剪贴板至 %@";
 "rename_device_menu" = "重命名设备…";
 "unpair_device_menu" = "取消配对设备…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d 条事件";
 "toast_click_to_reveal" = "点按以在“访达”中显示";
 "send_clipboard" = "发送剪贴板";
+"sent_clipboard_to_phones" = "已发送到已连接的手机";
+"sent_url_to_phones" = "已将链接发送到已连接的手机";
+"sent_image_to_phones" = "已将图片发送到已连接的手机";
+"text_too_large" = "文本过大，无法发送（最大 1 MB）";
+"log_no_matching" = "$ 没有匹配的事件。";
+"debug_clip_menu" = "私有调试剪贴板…";
+"debug_bt_menu" = "蓝牙测试（共享无线电）";
+"debug_clip_window" = "BinderClip 调试 — 私有剪贴板";
+"debug_clip_desc" = "测试内容仅留在调试组中，不会改动系统剪贴板。";
+"debug_clip_field" = "要发送到调试手机的文本";
+"debug_clip_send_text" = "发送文本";
+"debug_clip_send_image" = "发送图片…";
+"debug_clip_content" = "私有内容：%@";
+"debug_clip_image" = "私有图片：%@，%d 字节";
+"debug_clip_empty" = "私有剪贴板为空或内容不受支持";

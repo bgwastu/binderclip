@@ -17,25 +17,6 @@ public struct PairingInfo: Sendable, Equatable {
     }
 }
 
-public struct ImageMetadata: Codable, Sendable, Equatable {
-    public let type: String
-    public let id: String
-    public let mimeType: String
-    public let hash: String
-    public let originId: String
-    public let size: Int
-    var clipboard: ClipboardStamp? = nil
-
-    public init(id: String, mimeType: String, hash: String, originId: String, size: Int) {
-        self.type = "image"
-        self.id = id
-        self.mimeType = mimeType
-        self.hash = hash
-        self.originId = originId
-        self.size = size
-    }
-}
-
 public enum SyncProtocol {
     public static let version = 3
     public static let btServiceUuid = AppProfile.current.bluetoothUUID(1)
@@ -44,6 +25,8 @@ public enum SyncProtocol {
     public static let btNotifyCharUuid = AppProfile.current.bluetoothUUID(4)
     public static let defaultPort: UInt16 = AppProfile.current.port
     public static let maximumTextBytes = 1_048_576
+    /// How long a pairing QR stays valid; Bluetooth pairing advertising runs for the same window.
+    public static let pairingWindowSeconds: TimeInterval = 300
     public static let maximumImageBytes = 32 * 1024 * 1024
     public static let maximumAdvertisedEndpoints = 4
     public static let heartbeatInterval: TimeInterval = 2
@@ -114,6 +97,12 @@ public enum SyncProtocol {
         return 2
     }
 
+    /// Links a phone may open in the Mac's browser: http(s) with a host and nothing else.
+    public static func isBrowsableURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
+        return !(url.host ?? "").isEmpty
+    }
+
     public static func createPairingURL(deviceId: String, deviceName: String, psk: String, endpoints: [String], profile: AppProfile = .current) -> URL? {
         var components = URLComponents()
         components.scheme = profile.pairingScheme
@@ -151,44 +140,5 @@ public enum SyncProtocol {
             .filter { !$0.isEmpty }
 
         return PairingInfo(version: v, deviceId: id, deviceName: name, psk: psk, endpoints: endpoints)
-    }
-
-    static func packImage(image: ImagePayload, originId: String, clipboard: ClipboardStamp? = nil) -> Data {
-        var meta = ImageMetadata(
-            id: image.id.uuidString,
-            mimeType: image.mimeType,
-            hash: image.sha256,
-            originId: originId,
-            size: image.data.count
-        )
-        meta.clipboard = clipboard
-        guard let metaJson = try? JSONEncoder().encode(meta) else {
-            return Data()
-        }
-        var length = UInt32(metaJson.count).bigEndian
-        var packet = Data()
-        packet.append(Data(bytes: &length, count: 4))
-        packet.append(metaJson)
-        packet.append(image.data)
-        return packet
-    }
-
-    public static func unpackImage(_ packet: Data) -> (metadata: ImageMetadata, imageData: Data)? {
-        guard packet.count >= 4 else { return nil }
-        let headerLen = packet.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-        let metaStart = 4
-        let metaEnd = metaStart + Int(headerLen)
-        guard packet.count >= metaEnd else { return nil }
-
-        let metaData = packet.subdata(in: metaStart..<metaEnd)
-        if let json = try? JSONSerialization.jsonObject(with: metaData) as? [String: Any], let raw = json["clipboard"] {
-            guard let fields = raw as? [String: Any], (try? ClipboardStamp.parse(fields)) != nil else { return nil }
-        }
-        guard let meta = try? JSONDecoder().decode(ImageMetadata.self, from: metaData) else {
-            return nil
-        }
-        let imageData = packet.subdata(in: metaEnd..<packet.count)
-        guard imageData.count == meta.size else { return nil }
-        return (meta, imageData)
     }
 }

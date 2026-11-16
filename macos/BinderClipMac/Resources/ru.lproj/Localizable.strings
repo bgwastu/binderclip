@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "Ожидание";
 "connected_count_one" = "1 подключено";
 "connected_count_many" = "%d подключено";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Устройства ещё не добавлены";
 "add_device" = "Добавить устройство";
 "send_browser_tab" = "Отправить открытую вкладку браузера";
-"more" = "Ещё";
 "quit_binderclip" = "Завершить BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Разрешить локальную сеть";
 "allow_clipboard_access" = "Разрешить доступ к буферу обмена";
 "allow_browser_automation" = "Разрешить автоматизацию браузера";
-"allow_launch_at_login" = "Разрешить запуск при входе";
-"enable_launch_at_login" = "Запуск при входе";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Переименовать этот Mac…";
 "unpair_all_devices" = "Разорвать пару со всеми устройствами…";
 "reset_pairing_key" = "Сбросить ключ сопряжения…";
-"show_logs" = "Показать логи";
 "check_for_updates" = "Проверить обновления…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Подключено по Bluetooth";
 "connected_via_mesh" = "Подключено по Mesh";
 "connected_via_lan" = "Подключено по LAN";
-"transport_bluetooth_ble" = "Протокол: Bluetooth BLE";
-"send_clipboard_to_peer" = "Отправить буфер обмена на %@";
 "rename_device_menu" = "Переименовать устройство…";
 "unpair_device_menu" = "Разорвать пару с устройством…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d событий";
 "toast_click_to_reveal" = "Нажмите, чтобы показать в Finder";
 "send_clipboard" = "Отправить буфер обмена";
+"sent_clipboard_to_phones" = "Отправлено на подключённые телефоны";
+"sent_url_to_phones" = "Ссылка отправлена на подключённые телефоны";
+"sent_image_to_phones" = "Изображение отправлено на подключённые телефоны";
+"text_too_large" = "Текст слишком большой для отправки (макс. 1 МБ)";
+"log_no_matching" = "$ Нет подходящих событий.";
+"debug_clip_menu" = "Частный отладочный буфер обмена…";
+"debug_bt_menu" = "Тестирование Bluetooth (общий радиомодуль)";
+"debug_clip_window" = "BinderClip Debug — частный буфер обмена";
+"debug_clip_desc" = "Тестовые данные остаются в отладочной группе. Системный буфер обмена не затрагивается.";
+"debug_clip_field" = "Текст для отправки на отладочный телефон";
+"debug_clip_send_text" = "Отправить текст";
+"debug_clip_send_image" = "Отправить изображение…";
+"debug_clip_content" = "Частное содержимое: %@";
+"debug_clip_image" = "Частное изображение: %@, %d байт";
+"debug_clip_empty" = "Частный буфер обмена пуст или не поддерживается";

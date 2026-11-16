@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "À l’écoute";
 "connected_count_one" = "1 connecté";
 "connected_count_many" = "%d connectés";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "Aucun téléphone";
 "add_device" = "Ajouter un appareil";
 "send_browser_tab" = "Envoyer l’onglet actif du navigateur";
-"more" = "Plus";
 "quit_binderclip" = "Quitter BinderClip";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "Autoriser le réseau local";
 "allow_clipboard_access" = "Autoriser l’accès au presse-papiers";
 "allow_browser_automation" = "Autoriser l’automatisation du navigateur";
-"allow_launch_at_login" = "Autoriser l’ouverture à la connexion";
-"enable_launch_at_login" = "Ouvrir avec la session";
 
 /* More Menu & Actions */
-"rename_this_mac" = "Renommer ce Mac…";
 "unpair_all_devices" = "Dissocier tous les appareils…";
 "reset_pairing_key" = "Réinitialiser la clé d’association…";
-"show_logs" = "Afficher les historiques";
 "check_for_updates" = "Rechercher des mises à jour…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Connecté via Bluetooth";
 "connected_via_mesh" = "Connecté via Mesh";
 "connected_via_lan" = "Connecté via le réseau local";
-"transport_bluetooth_ble" = "Transport : Bluetooth BLE";
-"send_clipboard_to_peer" = "Envoyer le presse-papiers à %@";
 "rename_device_menu" = "Renommer l’appareil…";
 "unpair_device_menu" = "Dissocier l’appareil…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d événements";
 "toast_click_to_reveal" = "Cliquer pour afficher dans le Finder";
 "send_clipboard" = "Envoyer le presse-papiers";
+"sent_clipboard_to_phones" = "Envoyé aux téléphones connectés";
+"sent_url_to_phones" = "Lien envoyé aux téléphones connectés";
+"sent_image_to_phones" = "Image envoyée aux téléphones connectés";
+"text_too_large" = "Le texte est trop volumineux pour être envoyé (1 Mo max.)";
+"log_no_matching" = "$ Aucun événement correspondant.";
+"debug_clip_menu" = "Presse-papiers de débogage privé…";
+"debug_bt_menu" = "Test Bluetooth (radio partagée)";
+"debug_clip_window" = "BinderClip Debug — Presse-papiers privé";
+"debug_clip_desc" = "Le contenu de test reste dans le groupe de débogage. Le presse-papiers système n’est pas modifié.";
+"debug_clip_field" = "Texte à envoyer au téléphone de débogage";
+"debug_clip_send_text" = "Envoyer le texte";
+"debug_clip_send_image" = "Envoyer une image…";
+"debug_clip_content" = "Contenu privé : %@";
+"debug_clip_image" = "Image privée : %@, %d octets";
+"debug_clip_empty" = "Le presse-papiers privé est vide ou non pris en charge";

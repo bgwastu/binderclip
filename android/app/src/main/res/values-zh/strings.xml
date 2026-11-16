@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">BinderClip</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_not_paired">未配对</string>
@@ -9,21 +8,16 @@
     <string name="channel_clipboard_sync_desc">与已配对的 Mac 保持长连接</string>
     <string name="channel_browser_links">浏览器链接</string>
     <string name="channel_browser_links_desc">接收到网页链接时的通知</string>
-    <string name="notif_copy_to_clipboard">复制到剪贴板</string>
     <string name="notif_open_link">打开链接</string>
     <string name="notif_bluetooth_fallback_title">蓝牙备用同步就绪</string>
     <string name="notif_bluetooth_fallback_desc">开启蓝牙以在无 Wi-Fi 时继续同步</string>
-    <string name="notif_image_waiting_title">图片等待 Wi-Fi 中</string>
-    <string name="notif_image_waiting_desc">图片 (%1$s) 需要 Wi-Fi 或 Mesh 网络；文本仍通过蓝牙同步</string>
     <string name="notif_received_text">已接收文本</string>
     <string name="notif_received_image">已接收图片 (%1$s)</string>
 
     <!-- Main Screen & Sections -->
     <string name="show_logs">查看日志</string>
-    <string name="paired_devices">已配对设备</string>
     <string name="no_devices_paired">暂无配对设备</string>
     <string name="no_devices_paired_desc">扫描 Mac 上的二维码进行配对。</string>
-    <string name="reconnect">重新连接</string>
     <string name="scan_qr_to_pair">扫码配对</string>
     <string name="send_current_clipboard">发送当前剪贴板</string>
     <string name="section_permissions">系统权限</string>
@@ -34,12 +28,9 @@
     <string name="perm_notifications_desc">显示接收到的剪贴板内容</string>
     <string name="perm_bluetooth">蓝牙权限</string>
     <string name="perm_bluetooth_desc">用于离线备用同步通道</string>
-    <string name="perm_battery_opt">电池优化白名单</string>
-    <string name="perm_battery_opt_desc">允许可靠的后台同步</string>
     <string name="perm_autostart">自启动管理</string>
     <string name="perm_autostart_desc">允许后台自启动以确保稳定同步</string>
     <string name="allow">允许</string>
-    <string name="open">打开</string>
 
     <!-- Pending Copy -->
     <string name="copy">复制</string>
@@ -57,26 +48,21 @@
 
     <!-- Statuses & Overlays -->
     <string name="url_sent_success">URL 发送成功</string>
-    <string name="image_sent_success">图片发送成功</string>
     <string name="status_connected_bluetooth">已通过蓝牙连接</string>
     <string name="status_connected_mesh">已通过 Mesh 连接</string>
     <string name="status_connected_lan">已通过局域网连接</string>
     <string name="status_connected">已连接</string>
     <string name="status_connecting">正在连接…</string>
     <string name="status_reconnecting">正在重新连接…</string>
-    <string name="this_device">当前设备</string>
     <string name="transport_bt_label">传输协议: 蓝牙 BLE</string>
     <string name="ip_label">IP: %1$s</string>
     <string name="ip_unavailable">不可用</string>
 
     <!-- Dialogs -->
     <string name="device_rename_title">重命名设备</string>
-    <string name="device_rename_prompt">为此设备输入新名称：</string>
     <string name="save">保存</string>
     <string name="cancel">取消</string>
     <string name="close">关闭</string>
-    <string name="rename">重命名</string>
-    <string name="unpair_this_device">解除此设备配对</string>
     <string name="unpair_device">解除配对</string>
     <string name="logs_title">日志 (%1$d)</string>
     <string name="logs_search_placeholder">搜索日志…</string>
@@ -92,26 +78,13 @@
     <string name="open_settings">打开设置</string>
 
     <!-- Share Sheet -->
-    <string name="share_open_link_title">在设备上打开链接</string>
-    <string name="share_to_device_title">分享至设备</string>
-    <string name="share_all_devices">所有已连接设备</string>
-    <string name="share_all_devices_url_sub">在所有设备浏览器中打开</string>
-    <string name="share_all_devices_sub">发送至所有设备</string>
-    <string name="share_opens_browser_on">在 %1$s 浏览器中打开</string>
-    <string name="share_image_label">图片 (%1$s)</string>
     <string name="share_text_content">文本内容</string>
     <string name="share_error_unsupported">无法发送此内容</string>
-    <string name="share_sending_link">正在发送链接…</string>
-    <string name="share_sending">正在发送…</string>
     <string name="share_queued">已加入发往 Mac 的队列；连接后发送</string>
     <string name="share_error_queue_full">无法将内容加入队列。请打开 BinderClip 后重试。</string>
     <string name="share_error_delivery">无法开始发送。请打开 BinderClip 重试。</string>
-    <string name="share_error_image_connection">图片需要与 Mac 建立有效的 Wi-Fi 或网状网络连接。</string>
 
     <!-- Toasts -->
-    <string name="toast_sent_to_mac">已发送至 Mac</string>
-    <string name="toast_sent_image_to_mac">已将图片发送至 Mac</string>
-    <string name="toast_nothing_to_send">没有可发送的内容</string>
     <string name="bt_fallback_desc_needs_permission">请在上方授予附近设备权限，以启用蓝牙备用连接。</string>
     <string name="clear_logs_confirm_title">清除所有日志？</string>
     <string name="clear_logs_confirm_message">这将删除所有日志记录，且无法撤销。</string>
@@ -128,13 +101,11 @@
     <string name="transfer_failed">传输失败，请检查文件大小和可用空间</string>
     <string name="transfer_invalid">传输完整性或顺序验证失败</string>
     <string name="transfer_paused">传输已暂停，正在重新连接…</string>
-    <string name="transfer_update_required">请更新两端应用以共享文件和大图片</string>
     <string name="share_error_file">无法将文件加入队列。上限为100 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。</string>
     <string name="received_files">已接收的文件</string>
     <string name="send_file">发送文件…</string>
     <string name="file_connection_required">文件传输需要Wi-Fi或mesh连接，且两端应用均已更新。</string>
     <string name="file_picker_help">最多选择八个文件，每个不超过100 MiB。</string>
-    <string name="file_received">已收到文件</string>
     <string name="share_preparing">正在准备发送…</string>
     <string name="transfer_queued">正在等待 Wi-Fi 或 mesh 网络。Mac 重新连接后将发送文件。</string>
     <string name="transfer_kind_text">文本</string>
@@ -164,19 +135,11 @@
     <string name="update_check">检查更新</string>
     <string name="update_up_to_date">BinderClip 已是最新版本 (%1$s)</string>
     <string name="update_error">无法检查更新</string>
-    <string name="listening_for_connections">等待连接</string>
-    <string name="shizuku_active">Shizuku 服务已激活</string>
-    <string name="root_active">Root 服务已激活</string>
-    <string name="automatic_sync_active">自动同步已激活</string>
-    <string name="send_current_clip">发送当前剪贴板</string>
-    <string name="send_file_compact">发送文件</string>
     <string name="back">返回</string>
     <string name="device_details">连接详情</string>
     <string name="offline">离线</string>
     <string name="share_sent_confirmation">已发送至 %1$s</string>
     <string name="share_sending_to">正在发送至 %1$s…</string>
-    <string name="share_queued_for">已加入队列（目标：%1$s）</string>
-    <string name="background_engine">后台服务</string>
     <string name="file_saved_downloads">已保存到“下载”</string>
     <string name="file_save_downloads_failed">无法保存到“下载”</string>
     <string name="capture_row_title">手机到 Mac 复制</string>
@@ -199,4 +162,37 @@
     <string name="activity_title">最近活动</string>
     <string name="activity_empty">尚无发送或接收记录。</string>
     <string name="transfer_kind_link">链接</string>
+    <string name="pair_confirm_title">要与 %1$s 配对吗？</string>
+    <string name="pair_confirm_message">仅当此链接来自你自己的 Mac 时才继续。剪贴板内容将与这台电脑同步。</string>
+    <string name="pair_confirm_replace">这将替换你当前与 %1$s 的配对。</string>
+    <string name="pair_confirm_action">配对</string>
+    <string name="pair_invalid_code">这不是有效的 BinderClip 配对码。</string>
+    <string name="pair_failed">配对失败</string>
+    <string name="pair_connecting">正在连接…</string>
+    <string name="scan_error">无法读取二维码，请重试。</string>
+    <string name="search">搜索</string>
+    <string name="share_error_too_many">一次最多可分享八个文件。</string>
+    <plurals name="share_file_count">
+        <item quantity="other">%d 个文件</item>
+    </plurals>
+    <string name="status_pairing_with">正在与 %1$s 配对…</string>
+    <string name="error_no_address">没有可连接的 Mac 地址。请扫描 Mac 上的新二维码。</string>
+    <string name="error_key_rejected">配对密钥被拒绝。请扫描 Mac 上的新二维码。</string>
+    <string name="error_unreachable">无法连接到位于 %1$s 的 Mac。是否在同一 Wi-Fi？</string>
+    <string name="error_open_link">无法打开链接</string>
+    <string name="error_clear_share">无法清除排队的分享</string>
+    <string name="toast_copied_text">已复制文本</string>
+    <string name="toast_copied_image">已复制图片</string>
+    <string name="toast_received_link">已收到链接</string>
+    <string name="toast_clipboard_unsupported">不支持该剪贴板内容</string>
+    <string name="status_via_bluetooth">%1$s（蓝牙）</string>
+    <string name="status_via_mesh">%1$s（Mesh）</string>
+    <string name="debug_clip_title">私有调试剪贴板</string>
+    <string name="debug_clip_desc">测试内容仅留在调试组中，不会改动系统剪贴板。</string>
+    <string name="debug_clip_field">要发送的文本</string>
+    <string name="debug_clip_send_text">发送文本</string>
+    <string name="debug_clip_send_png">发送测试 PNG</string>
+    <string name="debug_clip_content">私有内容：%1$s</string>
+    <string name="debug_clip_image">私有图片已接收/就绪</string>
+    <string name="debug_clip_empty">私有剪贴板为空</string>
 </resources>

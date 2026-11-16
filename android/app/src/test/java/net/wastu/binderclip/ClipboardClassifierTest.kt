@@ -23,4 +23,19 @@ class ClipboardClassifierTest {
         assertEquals(64, payload.sha256.length)
         assertEquals("image/png", payload.mimeType)
     }
+
+    @Test
+    fun rulesFailClosedOnUris() {
+        assertEquals(ClipboardRules.Plan.DirectText, ClipboardRules.plan("hello", null, false, null))
+        assertEquals(ClipboardRules.Plan.DirectText, ClipboardRules.plan("https://a.b", "content", true, "image/png"))
+        assertEquals(ClipboardRules.Plan.Image, ClipboardRules.plan(null, "content", true, null))
+        assertEquals(ClipboardRules.Plan.Image, ClipboardRules.plan("caption", "content", true, "image/png"))
+        assertEquals(ClipboardRules.Plan.WebUri, ClipboardRules.plan(null, "https", true, null))
+        assertEquals(ClipboardRules.Plan.Coerce, ClipboardRules.plan(null, null, false, null))
+        // A non-web URI with no text is never coerced into its string or file name.
+        assertEquals(ClipboardRules.Plan.Unsupported, ClipboardRules.plan(null, "tel", true, null))
+        assertEquals(ClipboardRules.Plan.Unsupported, ClipboardRules.afterImageFailure(null))
+        assertEquals(ClipboardRules.Plan.DirectText, ClipboardRules.afterImageFailure("caption"))
+    }
 }
+

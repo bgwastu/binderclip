@@ -1,5 +1,4 @@
 /* General & Status */
-"app_name" = "BinderClip";
 "listening" = "待機中";
 "connected_count_one" = "1台接続中";
 "connected_count_many" = "%d台接続中";
@@ -10,7 +9,6 @@
 "no_phones_yet" = "接続された端末はありません";
 "add_device" = "デバイスを追加";
 "send_browser_tab" = "現在のブラウザタブを送信";
-"more" = "その他";
 "quit_binderclip" = "BinderClip を終了";
 
 /* Permissions */
@@ -19,22 +17,16 @@
 "allow_local_network" = "ローカルネットワークを許可";
 "allow_clipboard_access" = "クリップボードへのアクセスを許可";
 "allow_browser_automation" = "ブラウザの自動操作を許可";
-"allow_launch_at_login" = "ログイン時の自動起動を許可";
-"enable_launch_at_login" = "ログイン時に起動";
 
 /* More Menu & Actions */
-"rename_this_mac" = "この Mac の名前を変更…";
 "unpair_all_devices" = "すべてのデバイスのペアリングを解除…";
 "reset_pairing_key" = "ペアリングキーをリセット…";
-"show_logs" = "ログを表示";
 "check_for_updates" = "アップデートを確認…";
 
 /* Device Submenu */
 "connected_via_bluetooth" = "Bluetooth 経由で接続中";
 "connected_via_mesh" = "Mesh 経由で接続中";
 "connected_via_lan" = "LAN 経由で接続中";
-"transport_bluetooth_ble" = "通信規格: Bluetooth BLE";
-"send_clipboard_to_peer" = "クリップボードを %@ に送信";
 "rename_device_menu" = "デバイスの名前を変更…";
 "unpair_device_menu" = "デバイスのペアリングを解除…";
 
@@ -122,3 +114,18 @@
 "log_events_count" = "%d 件のイベント";
 "toast_click_to_reveal" = "クリックして Finder で表示";
 "send_clipboard" = "クリップボードを送信";
+"sent_clipboard_to_phones" = "接続中のスマートフォンに送信しました";
+"sent_url_to_phones" = "接続中のスマートフォンにリンクを送信しました";
+"sent_image_to_phones" = "接続中のスマートフォンに画像を送信しました";
+"text_too_large" = "テキストが大きすぎて送信できません（最大 1 MB）";
+"log_no_matching" = "$ 一致するイベントはありません。";
+"debug_clip_menu" = "デバッグ用プライベートクリップボード…";
+"debug_bt_menu" = "Bluetooth テスト（共有無線）";
+"debug_clip_window" = "BinderClip デバッグ — プライベートクリップボード";
+"debug_clip_desc" = "テスト内容はデバッググループ内に留まり、システムのクリップボードは変更されません。";
+"debug_clip_field" = "デバッグ用スマートフォンに送信するテキスト";
+"debug_clip_send_text" = "テキストを送信";
+"debug_clip_send_image" = "画像を送信…";
+"debug_clip_content" = "プライベート内容: %@";
+"debug_clip_image" = "プライベート画像: %@、%d バイト";
+"debug_clip_empty" = "プライベートクリップボードは空か、未対応の内容です";

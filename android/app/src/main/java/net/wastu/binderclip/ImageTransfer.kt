@@ -19,9 +19,6 @@ data class ImagePayload(val id: String = UUID.randomUUID().toString(), val mimeT
 
     companion object {
         const val MAXIMUM_BYTES = 30 * 1_024 * 1_024
-        // This stays comfortably below the encrypted frame limit once JSON and
-        // base64 overhead are included, while avoiding a round trip per 60 KiB.
-        const val CHUNK_BYTES = 192 * 1_024
         val ALLOWED_MIME_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/heic")
     }
 }
@@ -34,8 +31,9 @@ object ImageClipboard {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBounded(ImagePayload.MAXIMUM_BYTES) } ?: return null
         ImagePayload(mimeType = mime, data = bytes)
     }.onFailure {
-        android.util.Log.w("BinderClip", "Could not read shared image", it)
-        DiagnosticLog.error("Could not read shared image: ${it.message ?: "unsupported content"}")
+        // Resolver exceptions embed the content URI in their message, so log only the type.
+        android.util.Log.w("BinderClip", "Could not read shared image: ${it.javaClass.simpleName}")
+        DiagnosticLog.error("Could not read shared image: ${it.javaClass.simpleName}")
     }.getOrNull()
 
     fun read(context: Context, clipboard: AppClipboard): ImagePayload? = runCatching {
@@ -48,8 +46,8 @@ object ImageClipboard {
         } ?: return null
         ImagePayload(mimeType = mime, data = bytes)
     }.onFailure {
-        android.util.Log.w("BinderClip", "Could not read clipboard image", it)
-        DiagnosticLog.warning("Could not read clipboard image: ${it.message ?: "unsupported content"}")
+        android.util.Log.w("BinderClip", "Could not read clipboard image: ${it.javaClass.simpleName}")
+        DiagnosticLog.warning("Could not read clipboard image: ${it.javaClass.simpleName}")
     }.getOrNull()
 
     fun write(context: Context, clipboard: AppClipboard, image: ImagePayload) {
