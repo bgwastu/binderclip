@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Koppeln</string>
     <string name="pair_invalid_code">Das ist kein gültiger BinderClip-Kopplungscode.</string>
     <string name="pair_failed">Kopplung fehlgeschlagen</string>
+    <string name="pair_failed_kept_previous">Keine Verbindung zu diesem Mac. Deine aktuelle Kopplung bleibt bestehen.</string>
     <string name="pair_connecting">Verbinden…</string>
     <string name="scan_error">QR-Code konnte nicht gelesen werden. Versuche es erneut.</string>
     <string name="search">Suchen</string>

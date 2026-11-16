@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Parear</string>
     <string name="pair_invalid_code">Este não é um código de pareamento do BinderClip válido.</string>
     <string name="pair_failed">Falha no pareamento</string>
+    <string name="pair_failed_kept_previous">Não foi possível conectar a esse Mac. Seu pareamento atual continua ativo.</string>
     <string name="pair_connecting">Conectando…</string>
     <string name="scan_error">Não foi possível ler o código QR. Tente novamente.</string>
     <string name="search">Pesquisar</string>

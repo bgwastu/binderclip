@@ -220,17 +220,22 @@ class DeviceStore(context: Context) {
     fun removeMember(deviceId: String) { members = members.filterNot { it.deviceId == deviceId } }
 
 
-    /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
-    fun unpair() {
+    /** Everything that belongs to a pairing, apart from the key and the peer identity itself. */
+    fun clearPairedData() {
         saveClipboardCheckpoint(null)
         clearQueuedShares()
         fileTransfers.clearPairing()
+        members = emptyList()
+        pendingText = null
+    }
+
+    /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
+    fun unpair() {
+        clearPairedData()
         groupKey = null
         peer = null
         peerCandidates = emptyList()
         lastGoodEndpoint = null
-        members = emptyList()
-        pendingText = null
     }
 
     /** Received text that could not be applied yet. It is clipboard content, so it is encrypted at

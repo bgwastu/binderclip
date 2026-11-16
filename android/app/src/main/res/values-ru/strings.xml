@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Создать пару</string>
     <string name="pair_invalid_code">Это недействительный код сопряжения BinderClip.</string>
     <string name="pair_failed">Не удалось создать пару</string>
+    <string name="pair_failed_kept_previous">Не удалось подключиться к этому Mac. Текущая пара сохранена.</string>
     <string name="pair_connecting">Подключение…</string>
     <string name="scan_error">Не удалось прочитать QR-код. Попробуйте ещё раз.</string>
     <string name="search">Поиск</string>

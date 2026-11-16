@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Pasangkan</string>
     <string name="pair_invalid_code">Ini bukan kode pemasangan BinderClip yang valid.</string>
     <string name="pair_failed">Pemasangan gagal</string>
+    <string name="pair_failed_kept_previous">Tidak bisa terhubung ke Mac itu. Mac Anda saat ini masih terpasang.</string>
     <string name="pair_connecting">Menghubungkan…</string>
     <string name="scan_error">Tidak dapat membaca kode QR. Coba lagi.</string>
     <string name="search">Cari</string>

@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">配对</string>
     <string name="pair_invalid_code">这不是有效的 BinderClip 配对码。</string>
     <string name="pair_failed">配对失败</string>
+    <string name="pair_failed_kept_previous">无法连接到那台 Mac。你当前的 Mac 仍保持配对。</string>
     <string name="pair_connecting">正在连接…</string>
     <string name="scan_error">无法读取二维码，请重试。</string>
     <string name="search">搜索</string>

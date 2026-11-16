@@ -148,6 +148,11 @@ internal class WebSocketClient(
         requestConnect(force = false, resetBackoff = false)
     }
 
+    /** Abandons a pairing attempt: the next connect is an ordinary reconnect, not a pairing scan. */
+    fun clearPairingScan() {
+        pairingScan = false
+    }
+
     fun forceReconnect() {
         remoteSleepUntilMs = 0L
         requestConnect(force = true, resetBackoff = true)

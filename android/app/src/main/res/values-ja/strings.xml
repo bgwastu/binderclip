@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">ペアリング</string>
     <string name="pair_invalid_code">有効な BinderClip のペアリングコードではありません。</string>
     <string name="pair_failed">ペアリングに失敗しました</string>
+    <string name="pair_failed_kept_previous">その Mac に接続できませんでした。現在の Mac とのペアリングはそのままです。</string>
     <string name="pair_connecting">接続中…</string>
     <string name="scan_error">QR コードを読み取れませんでした。もう一度お試しください。</string>
     <string name="search">検索</string>

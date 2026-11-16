@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Vincular</string>
     <string name="pair_invalid_code">Este no es un código de vinculación de BinderClip válido.</string>
     <string name="pair_failed">Error al vincular</string>
+    <string name="pair_failed_kept_previous">No se pudo conectar con ese Mac. Tu Mac actual sigue vinculado.</string>
     <string name="pair_connecting">Conectando…</string>
     <string name="scan_error">No se pudo leer el código QR. Inténtalo de nuevo.</string>
     <string name="search">Buscar</string>

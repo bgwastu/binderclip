@@ -166,6 +166,7 @@
     <string name="pair_confirm_action">Pair</string>
     <string name="pair_invalid_code">This isn\'t a valid BinderClip pairing code.</string>
     <string name="pair_failed">Pairing failed</string>
+    <string name="pair_failed_kept_previous">Couldn\'t connect to that Mac. Your current Mac is still paired.</string>
     <string name="pair_connecting">Connecting…</string>
     <string name="scan_error">Couldn\'t read the QR code. Try again.</string>
     <string name="search">Search</string>

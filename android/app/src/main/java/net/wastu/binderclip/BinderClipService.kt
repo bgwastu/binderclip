@@ -171,6 +171,9 @@ class BinderClipService : Service() {
     private var transferUpdatedAtMs = 0L
     private var lastError: String? = null
     private var pairingHint: String? = null
+    /** Staging for a new pairing, so the Mac we already have survives a failed attempt. */
+    private val pairingSwap = PairingSwap()
+    private var pairingSwapTimeout: ScheduledFuture<*>? = null
 
     @Volatile
     private var rootAvailable = false
@@ -194,7 +197,7 @@ class BinderClipService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (stopping) return
             when (intent?.action) {
-                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> runServiceWork {
                     interactive = true
                     remoteSleepUntilMs = 0L
                     clipboardReadCache.invalidate()
@@ -204,7 +207,7 @@ class BinderClipService : Service() {
                     if (automaticClipboardEnabled) startBackgroundPolling()
                     if (store.groupKey != null && !client.isConnected()) requestConnectResettingBackoff("screen_on")
                 }
-                Intent.ACTION_SCREEN_OFF -> {
+                Intent.ACTION_SCREEN_OFF -> runServiceWork {
                     interactive = false
                     client.setInteractive(false)
                     bluetoothLink?.setInteractive(false)
@@ -214,6 +217,7 @@ class BinderClipService : Service() {
         }
     }
 
+    /** The service's only work thread: every callback that touches service state re-dispatches here. */
     private fun runServiceWork(work: () -> Unit) {
         if (stopping) return
         try {
@@ -237,53 +241,32 @@ class BinderClipService : Service() {
         createChannel()
         enterForeground("Starting BinderClip…")
 
+        // Transport callbacks arrive on socket and Bluetooth threads. Each one hops onto the work
+        // thread before it touches state, so `store`, the transport flags and publishState() are
+        // only ever mutated by that single thread. receiveText/receiveImage already serialize
+        // themselves through receiveOrderedClipboard.
         client = WebSocketClient(
             store = store,
             transferStore = FileTransferStore.forContext(this),
             deviceNameProvider = { DeviceNames.android(this) },
             onText = ::receiveText,
-            onOpenUrl = ::receiveOpenUrl,
+            onOpenUrl = { url -> runServiceWork { receiveOpenUrl(url) } },
             onImage = ::receiveImage,
-            onFile = ::receiveFile,
-            onTransferStatus = ::updateTransferStatus,
-            onStatus = ::updateStatus,
-            onFailure = { reportFailure(failureText(it)) },
-            onPeerIdentity = { id, name ->
-                runServiceWork {
-                    if (automaticClipboardEnabled && interactive) startBackgroundPolling()
-                    updateShizukuCapture()
-                    drainQueuedShares()
-                }
-                store.peer = store.peer?.copy(name = name, deviceId = id)
-                refreshNsdDiscovery()
-                publishState()
-            },
-            onRosterChanged = { publishState() },
-            onDisconnected = {
-                transferProgress?.takeIf { it.isBusy }?.let {
-                    updateTransferStatus(it.copy(state = TransferProgress.State.PAUSED))
-                }
-                runServiceWork { wsClipboardReady = false }
-                // If the WebSocket just dropped and we had handed the session to it after tearing
-                // down Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is
-                // the reliable fallback. Fastest re-arm wins over the 20s stall detector.
-                if (store.groupKey != null && btTornDownForWsAtMs > 0L) {
-                    btTornDownForWsAtMs = 0L
-                    runServiceWork {
-                        // The tunnel we switched to just died; re-arm Bluetooth immediately.
-                        bluetoothLink?.takeIf { store.isBtFallbackEnabled() && !it.isConnected() && !it.isListening() }?.startListening()
-                    }
-                }
-                refreshNsdDiscovery()
-                publishState()
-            },
-            onRemoteSleep = ::peerSleeping,
-            onProtocolFailure = { reportFailure(getString(R.string.secure_connection_failed)) },
+            onFile = { file -> runServiceWork { receiveFile(file) } },
+            onTransferStatus = { progress -> runServiceWork { updateTransferStatus(progress) } },
+            onStatus = { status -> runServiceWork { updateStatus(status) } },
+            onFailure = { failure -> runServiceWork { reportFailure(failureText(failure)) } },
+            onPeerIdentity = { id, name -> runServiceWork { onPeerIdentified(id, name) } },
+            onRosterChanged = { runServiceWork { publishState() } },
+            onDisconnected = { runServiceWork { onWebSocketClosed() } },
+            onRemoteSleep = { runServiceWork { peerSleeping() } },
+            onProtocolFailure = { runServiceWork { reportFailure(getString(R.string.secure_connection_failed)) } },
             onSyncConnected = { supported, sample -> clipboardConnected(supported, sample, websocket = true) },
             onSyncControl = { json -> clipboardControl(json, websocket = true) },
             onSyncText = { text, stamp -> receiveOrderedClipboard(LocalClipboardContent.Text(text), stamp) },
             onSyncImage = { image, stamp -> receiveOrderedClipboard(LocalClipboardContent.Image(image), stamp) },
             onUnpaired = { runServiceWork {
+                discardPendingPairingSwap()
                 lastError = null
                 pairingHint = null
                 store.unpair()
@@ -300,13 +283,12 @@ class BinderClipService : Service() {
         client.setInteractive(interactive)
 
         bluetoothLink = BluetoothLink(this, store, { DeviceNames.android(this) }, object : BluetoothLink.Callbacks {
-            override fun onRemoteSleep() = peerSleeping()
+            override fun onRemoteSleep() = runServiceWork { peerSleeping() }
 
-            override fun onAuthenticated(remoteId: String, remoteName: String) {
-                runServiceWork {
-                    if (automaticClipboardEnabled && interactive) startBackgroundPolling()
-                    drainQueuedShares()
-                }
+            override fun onAuthenticated(remoteId: String, remoteName: String) = runServiceWork {
+                commitPairingSwap(remoteId)
+                if (automaticClipboardEnabled && interactive) startBackgroundPolling()
+                drainQueuedShares()
                 store.peer = (store.peer ?: RememberedPeer("Mac", "bluetooth", 0, remoteId, "macOS", false))
                     .copy(name = remoteName.ifBlank { store.peer?.name ?: "Mac" }, deviceId = remoteId, connected = true)
                 // Bluetooth is live; stop the WebSocket racer from fighting it while we probe for
@@ -335,8 +317,8 @@ class BinderClipService : Service() {
                 }
             }
 
-            override fun onLinkDown(reason: String) {
-                runServiceWork { btClipboardReady = false }
+            override fun onLinkDown(reason: String) = runServiceWork {
+                btClipboardReady = false
                 if (store.groupKey != null) DiagnosticLog.info("Bluetooth link down ($reason)")
                 client.setReconnectSuppressed(false)
                 refreshNsdDiscovery()
@@ -355,6 +337,7 @@ class BinderClipService : Service() {
             }
 
             override fun onUnpair() = runServiceWork {
+                discardPendingPairingSwap()
                 DiagnosticLog.info("Mac unpaired this phone (bluetooth)")
                 stopNsdDiscovery()
                 unpair()
@@ -403,21 +386,7 @@ class BinderClipService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action ?: ACTION_START) {
-            ACTION_PAIR -> intent?.getStringExtra(EXTRA_URI)?.let { uri ->
-                runServiceWork {
-                    runCatching {
-                        val info = SyncProtocol.parsePairingUrl(uri) ?: error(getString(R.string.pair_invalid_code))
-                        val nextKey = SyncProtocol.decodeBase64(info.psk) ?: error(getString(R.string.pair_invalid_code))
-                        if (store.peer?.deviceId != info.deviceId || store.groupKey?.contentEquals(nextKey) != true) {
-                            store.unpair()
-                            resetClipboardOrdering()
-                        }
-                        client.pair(uri)
-                    }
-                        .onSuccess { pairingChanged() }
-                        .onFailure { reportFailure(getString(if (SyncProtocol.parsePairingUrl(uri) == null) R.string.pair_invalid_code else R.string.pair_failed)) }
-                }
-            }
+            ACTION_PAIR -> intent?.getStringExtra(EXTRA_URI)?.let { uri -> runServiceWork { pair(uri) } }
 
             ACTION_UNPAIR -> runServiceWork(::unpair)
 
@@ -444,7 +413,7 @@ class BinderClipService : Service() {
                 runServiceWork { client.cancelTransfer(id) }
             }
 
-            ACTION_COPY_PENDING -> {
+            ACTION_COPY_PENDING -> runServiceWork {
                 store.pendingText?.let { text ->
                     applyText(text)
                     store.pendingText = null
@@ -458,7 +427,7 @@ class BinderClipService : Service() {
                 publishState()
             }
 
-            ACTION_UI_VISIBLE -> {
+            ACTION_UI_VISIBLE -> runServiceWork {
                 uiVisible = intent?.getBooleanExtra("visible", false) ?: false
                 if (uiVisible && !client.isConnected() && store.groupKey != null) {
                     requestConnectResettingBackoff("ui_visible")
@@ -538,6 +507,7 @@ class BinderClipService : Service() {
         bluetoothLink?.shutdown()
         if (::client.isInitialized) publishState(notify = false)
         bluetoothEvaluator?.cancel(false)
+        pairingSwapTimeout?.cancel(false)
         stopNsdDiscovery()
         unregisterNetworkCallback()
         runCatching { unregisterReceiver(screenStateReceiver) }
@@ -549,6 +519,7 @@ class BinderClipService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun unpair() {
+        discardPendingPairingSwap()
         lastError = null
         pairingHint = null
         pendingImage = null
@@ -572,6 +543,121 @@ class BinderClipService : Service() {
             Log.d("BinderClip", "Requesting connect ($reason)")
             client.requestConnectResettingBackoff()
         }
+    }
+
+    /**
+     * A pairing link replaces the key and peer immediately, before the new Mac has answered. Keep the
+     * old pairing restorable until it does (see [PairingSwap]).
+     */
+    private fun pair(uri: String) {
+        val info = SyncProtocol.parsePairingUrl(uri)
+        val nextKey = info?.let { SyncProtocol.decodeBase64(it.psk) }
+        if (info == null || nextKey == null) {
+            reportFailure(getString(R.string.pair_invalid_code))
+            return
+        }
+        if (store.peer?.deviceId != info.deviceId || store.groupKey?.contentEquals(nextKey) != true) {
+            pairingSwap.begin(
+                PairingSnapshot(store.groupKey, store.peer, store.peerCandidates, store.lastGoodEndpoint),
+                info.deviceId,
+                android.os.SystemClock.elapsedRealtime(),
+            )
+            schedulePairingSwapTimeout()
+        }
+        runCatching { client.pair(uri) }
+            .onSuccess { pairingChanged() }
+            .onFailure {
+                reportFailure(getString(R.string.pair_failed))
+                rollbackPairingSwap()
+            }
+    }
+
+    private fun schedulePairingSwapTimeout() {
+        pairingSwapTimeout?.cancel(false)
+        pairingSwapTimeout = reconnectExecutor.schedule({
+            runServiceWork {
+                if (pairingSwap.expired(android.os.SystemClock.elapsedRealtime())) {
+                    DiagnosticLog.info("Pairing to a new Mac timed out")
+                    rollbackPairingSwap()
+                }
+            }
+        }, PairingSwap.DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** The new Mac proved who it is, so the staged pairing becomes the real one. */
+    private fun commitPairingSwap(deviceId: String) {
+        when (pairingSwap.authenticated(deviceId)) {
+            PairingSwap.Result.Ignored -> return
+            PairingSwap.Result.CommittedSameMac -> {
+                DiagnosticLog.info("Re-paired with the same Mac; kept its roster")
+            }
+            PairingSwap.Result.CommittedNewMac -> {
+                DiagnosticLog.info("Paired with a new Mac; cleared the previous group's state")
+                store.clearPairedData()
+            }
+        }
+        pairingSwapTimeout?.cancel(false)
+        pairingSwapTimeout = null
+        resetClipboardOrdering()
+    }
+
+    /** Puts the previous Mac back because the new pairing never authenticated. */
+    private fun rollbackPairingSwap() {
+        val previous = pairingSwap.abandon() ?: return
+        pairingSwapTimeout?.cancel(false)
+        pairingSwapTimeout = null
+        store.groupKey = previous.groupKey
+        store.peer = previous.peer
+        store.peerCandidates = previous.peerCandidates
+        store.lastGoodEndpoint = previous.lastGoodEndpoint
+        resetClipboardOrdering()
+        if (previous.groupKey == null) {
+            // Nothing was paired before this attempt, so leave nothing half-written behind.
+            store.clearPairedData()
+            client.close()
+            bluetoothLink?.stop()
+            pairingChanged()
+            reportFailure(getString(R.string.pair_failed))
+            return
+        }
+        DiagnosticLog.info("Pairing to a new Mac failed; restored the previous pairing")
+        pairingChanged()
+        client.clearPairingScan()
+        client.forceReconnect()
+        reportFailure(getString(R.string.pair_failed_kept_previous))
+    }
+
+    private fun discardPendingPairingSwap() {
+        pairingSwap.abandon()
+        pairingSwapTimeout?.cancel(false)
+        pairingSwapTimeout = null
+    }
+
+    /** The Mac answered with its own identity: the WebSocket link is authenticated end to end. */
+    private fun onPeerIdentified(id: String, name: String) {
+        commitPairingSwap(id)
+        if (automaticClipboardEnabled && interactive) startBackgroundPolling()
+        updateShizukuCapture()
+        drainQueuedShares()
+        store.peer = store.peer?.copy(name = name, deviceId = id)
+        refreshNsdDiscovery()
+        publishState()
+    }
+
+    private fun onWebSocketClosed() {
+        transferProgress?.takeIf { it.isBusy }?.let {
+            updateTransferStatus(it.copy(state = TransferProgress.State.PAUSED))
+        }
+        wsClipboardReady = false
+        // If the WebSocket just dropped and we had handed the session to it after tearing down
+        // Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is the reliable
+        // fallback. Fastest re-arm wins over the 20s stall detector.
+        if (store.groupKey != null && btTornDownForWsAtMs > 0L) {
+            btTornDownForWsAtMs = 0L
+            bluetoothLink?.takeIf { store.isBtFallbackEnabled() && !it.isConnected() && !it.isListening() }?.startListening()
+        }
+        refreshNsdDiscovery()
+        publishState()
     }
 
     private fun receiveText(text: String) = receiveOrderedClipboard(LocalClipboardContent.Text(text), null)
@@ -1295,7 +1381,7 @@ class BinderClipService : Service() {
                         val infoCallback = object : NsdManager.ServiceInfoCallback {
                             override fun onServiceUpdated(info: NsdServiceInfo) {
                                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
-                                handleResolvedMac(info)
+                                runServiceWork { handleResolvedMac(info) }
                             }
                             override fun onServiceLost() {}
                             override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {}
@@ -1306,7 +1392,7 @@ class BinderClipService : Service() {
                         val resolveListener = object : NsdManager.ResolveListener {
                             override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
                             override fun onServiceResolved(info: NsdServiceInfo) {
-                                handleResolvedMac(info)
+                                runServiceWork { handleResolvedMac(info) }
                             }
                         }
                         @Suppress("DEPRECATION")
@@ -1318,10 +1404,10 @@ class BinderClipService : Service() {
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
                 DiagnosticLog.info("NSD discovery failed to start (error $errorCode)")
-                nsdDiscoveryListener = null
+                runServiceWork { nsdDiscoveryListener = null }
             }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                nsdDiscoveryListener = null
+                runServiceWork { nsdDiscoveryListener = null }
             }
         }
         nsdDiscoveryListener = listener

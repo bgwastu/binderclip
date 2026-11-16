@@ -168,6 +168,7 @@
     <string name="pair_confirm_action">Associer</string>
     <string name="pair_invalid_code">Ce n\'est pas un code d\'association BinderClip valide.</string>
     <string name="pair_failed">Échec de l\'association</string>
+    <string name="pair_failed_kept_previous">Impossible de joindre ce Mac. Votre association actuelle reste en place.</string>
     <string name="pair_connecting">Connexion…</string>
     <string name="scan_error">Impossible de lire le code QR. Réessayez.</string>
     <string name="search">Rechercher</string>
