@@ -61,9 +61,9 @@ class ReconnectPolicyTest {
         assertEquals(ConnectionPhase.Connected, ConnectionStatus.phase(true, true, true))
         assertEquals(ConnectionPhase.Connecting, ConnectionStatus.phase(true, false, true))
         assertEquals(ConnectionPhase.Reconnecting, ConnectionStatus.phase(true, false, false))
-        assertEquals("Reconnecting…", ConnectionStatus.label(ConnectionPhase.Reconnecting, "Studio"))
-        assertEquals("Studio", ConnectionStatus.label(ConnectionPhase.Connected, "Studio"))
-        assertEquals("Connecting…", ConnectionStatus.label(ConnectionPhase.Connecting, "Studio"))
+        assertEquals(R.string.status_reconnecting, ConnectionStatus.labelRes(ConnectionPhase.Reconnecting))
+        assertEquals(R.string.status_connected, ConnectionStatus.labelRes(ConnectionPhase.Connected))
+        assertEquals(R.string.status_connecting, ConnectionStatus.labelRes(ConnectionPhase.Connecting))
     }
     @Test
     fun prolongedAbsenceUsesLongerBackgroundCap() {

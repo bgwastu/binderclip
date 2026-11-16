@@ -47,7 +47,7 @@ object BtCbor {
     fun decode(bytes: ByteArray): List<Pair<String, Any>> {
         val parser = Parser(bytes)
         val majorAndArg = parser.readHead()
-        if (majorAndArg.major != MAJOR_MAP) throw CodecException("expected map, got major $majorAndArg.major")
+        if (majorAndArg.major != MAJOR_MAP) throw CodecException("expected map, got major ${majorAndArg.major}")
         if (majorAndArg.arg !in 0L..23L) throw CodecException("map too large")
         val fields = ArrayList<Pair<String, Any>>(majorAndArg.arg.toInt())
         repeat(majorAndArg.arg.toInt()) {
@@ -154,7 +154,7 @@ object BtCbor {
     }
 }
 
-/** Length-prefix stream framing ([u32be length][payload]) shared by both RFCOMM peers. */
+/** Length-prefix stream framing ([u32be length][payload]) shared by both Bluetooth peers (L2CAP and GATT). */
 object BtFrameIo {
     const val MAXIMUM_FRAME_BYTES = 1_500_000
 
@@ -167,7 +167,7 @@ object BtFrameIo {
         return out.toByteArray()
     }
 
-    /** Incremental decoder for chunked RFCOMM reads; emits complete payloads as they arrive. */
+    /** Incremental decoder for chunked Bluetooth reads; emits complete payloads as they arrive. */
     class Reader {
         private var buffer = ByteArray(4096)
         private var start = 0

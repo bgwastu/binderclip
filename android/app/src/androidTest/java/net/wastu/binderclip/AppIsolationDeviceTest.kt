@@ -30,16 +30,6 @@ class AppIsolationDeviceTest {
                 val permission = "android.permission.READ_CLIPBOARD_IN_BACKGROUND"
                 val permissionBefore = activity.checkSelfPermission(permission)
                 assertFalse(RootClipboardBridge.isAvailable())
-                val link = BluetoothLink(activity, DeviceStore(activity), { "Debug test" }, object : BluetoothLink.Callbacks {
-                    override fun onAuthenticated(remoteId: String, remoteName: String) {}
-                    override fun onEndpoints(endpoints: List<String>) {}
-                    override fun onLinkDown(reason: String) {}
-                    override fun onText(text: String) {}
-                    override fun onOpenUrl(url: String) {}
-                    override fun onUnpair() {}
-                })
-                try { assertFalse("Debug must not enable the shared Bluetooth radio", link.requestEnable()) }
-                finally { link.shutdown() }
                 try {
                     private.setPrimaryClip(ClipData.newPlainText("Debug", "private isolated text"))
                     assertEquals("private isolated text", private.primaryClip?.getItemAt(0)?.text?.toString())

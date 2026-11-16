@@ -6,7 +6,7 @@ import org.junit.Test
 class AppIsolationTest {
     @Test fun pairingInvitationsCannotCrossEnvironments() {
         for (profile in listOf(AppProfile.production, AppProfile.debug)) {
-            val url = SyncProtocol.createPairingUrl("mac", "Mac", "test", listOf("10.0.0.1:${profile.port}"), profile)
+            val url = SyncProtocol.createPairingUrl("mac", "Mac", SyncProtocol.urlSafeBase64(ByteArray(32) { 1 }), listOf("10.0.0.1:${profile.port}"), profile)
             assertNotNull(SyncProtocol.parsePairingUrl(url, profile))
             assertNull(SyncProtocol.parsePairingUrl(url, AppProfile(!profile.isDebug)))
             assertNull(SyncProtocol.parsePairingUrl(url.replace("://pair?", "://wrong?"), profile))
@@ -28,9 +28,7 @@ class AppIsolationTest {
     }
     @Test fun debugCannotAutostartAndCannotRemoveProductionBootScript() {
         assertFalse(AppProfile.debug.bluetoothEnabledByDefault)
-        assertFalse(AppProfile.debug.canEnableBluetoothRadio)
         assertTrue(AppProfile.production.bluetoothEnabledByDefault)
-        assertTrue(AppProfile.production.canEnableBluetoothRadio)
         assertFalse(ServiceAutostart.shouldStart("android.intent.action.BOOT_COMPLETED", true, AppProfile.debug))
         assertEquals("binderclip-debug.sh", ServiceAutostart.bootScriptName(AppProfile.debug.applicationId))
         assertEquals("binderclip.sh", ServiceAutostart.bootScriptName(AppProfile.production.applicationId))

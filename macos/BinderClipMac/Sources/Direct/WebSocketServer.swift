@@ -61,7 +61,6 @@ public final class WebSocketServer: @unchecked Sendable {
     private let transferQueue = DispatchQueue(label: "net.wastu.binderclip.file-transfers", qos: .utility)
     private let transferStore: FileTransferStore
     private var transferSessions: [ObjectIdentifier: ChunkedTransferSession] = [:]
-    public var receivedFilesDirectory: URL { transferStore.receivedDirectory }
     private let rosterManager: RosterManager
     private let listenPort: UInt16
     private var bluetoothEnabled: Bool
@@ -100,10 +99,6 @@ public final class WebSocketServer: @unchecked Sendable {
     public var localDeviceName: String {
         stateLock.lock(); defer { stateLock.unlock() }
         return cachedDeviceName
-    }
-
-    public var localEndpoint: DirectEndpoint {
-        DirectEndpoint(host: Self.localAddresses().first ?? "unknown", port: listenPort)
     }
 
     public convenience init() {
@@ -267,15 +262,17 @@ public final class WebSocketServer: @unchecked Sendable {
             if self.rosterManager.peers.isEmpty { self.clearClipboardPairing() }
             self.clearFilePairing(peerID: peerID)
             let sessions = self.activeSessions.values.filter { $0.peerID == peerID }
-            self.notifyUnpairAndDrop(Array(sessions))
+            self.notifyUnpairAndDrop(Array(sessions), bluetoothPeer: peerID)
             self.updateCachedState()
             self.publishPeers()
             self.onLog?("Removed peer")
         }
     }
 
-    private func notifyUnpairAndDrop(_ sessions: [WebSocketSession]) {
-        for session in bluetoothConnector.authenticatedSessions {
+    /// `bluetoothPeer` nil means every Bluetooth session; otherwise only that phone's, so removing one
+    /// device never tells the others they were unpaired.
+    private func notifyUnpairAndDrop(_ sessions: [WebSocketSession], bluetoothPeer: String? = nil) {
+        for session in bluetoothConnector.authenticatedSessions where bluetoothPeer == nil || session.peerID == bluetoothPeer {
             session.sendFrame([("type", .text("unpair"))])
             session.close()
         }
@@ -296,9 +293,9 @@ public final class WebSocketServer: @unchecked Sendable {
 
     public func createInvite() -> URL? {
         queue.sync {
-            pairingAdvertisingUntil = SessionLiveness.now().addingTimeInterval(120)
+            pairingAdvertisingUntil = SessionLiveness.now().addingTimeInterval(SyncProtocol.pairingWindowSeconds)
             updateBluetoothDemand()
-            queue.asyncAfter(deadline: .now() + 120) { [weak self] in self?.updateBluetoothDemand() }
+            queue.asyncAfter(deadline: .now() + SyncProtocol.pairingWindowSeconds) { [weak self] in self?.updateBluetoothDemand() }
             let endpoints = SyncProtocol.advertisedEndpoints(from: Self.localAddresses())
             guard !endpoints.isEmpty else { return nil }
             let psk = SyncProtocol.urlSafeBase64(rosterManager.groupKey)
@@ -372,13 +369,13 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     public func canSendFile(to peerID: String) -> Bool {
-        queue.sync { activeSessions.values.contains { $0.isAuthenticated && $0.peerID == peerID && $0.chunkedTransfers } }
+        queue.sync { activeSessions.values.contains { $0.isAuthenticated && $0.peerID == peerID } }
     }
 
     public func sendFile(_ url: URL, targetDeviceID: String) {
         queue.async { [weak self] in
             guard let self, let session = self.activeSessions.values.first(where: {
-                $0.isAuthenticated && $0.peerID == targetDeviceID && $0.chunkedTransfers
+                $0.isAuthenticated && $0.peerID == targetDeviceID
             }) else { return }
             let id = ObjectIdentifier(session.connection)
             self.transferQueue.async {
@@ -411,7 +408,7 @@ public final class WebSocketServer: @unchecked Sendable {
         for session in activeSessions.values where session.isAuthenticated {
             guard !SessionLiveness.shouldEvict(boundLocal: session.boundLocalAddress, currentLocals: lastLocalAddresses) else { continue }
             guard session.peerID != peerID, targetPeerID == nil || session.peerID == targetPeerID else { continue }
-            if session.chunkedTransfers, let remoteID = session.peerID {
+            if let remoteID = session.peerID {
                 let id = ObjectIdentifier(session.connection)
                 transferQueue.async { [weak self] in
                     guard let self else { return }
@@ -420,7 +417,7 @@ public final class WebSocketServer: @unchecked Sendable {
                         self.transferSessions[id]?.pump()
                     } catch { self.transferStatus(L10n.tr("transfer_failed")) }
                 }
-            } else { session.sendBinary(SyncProtocol.packImage(image: image, originId: localDeviceID, clipboard: clipboard)) }
+            }
         }
     }
 
@@ -509,6 +506,14 @@ public final class WebSocketServer: @unchecked Sendable {
             broadcastText(payload, targetPeerId: targetPeerID, excludePeerID: peerID)
         } else if stamp.kind == "image", let image = clipboardImage, image.sha256 == stamp.hash {
             broadcastImage(image, targetPeerID: targetPeerID, excluding: peerID, clipboard: stamp)
+            // Bluetooth can't carry the image, but its phones still need the new clipboard version
+            // so their ordering stays current and they don't later re-send older content.
+            if let fields = Self.btFields(from: clipboardState()) {
+                for session in bluetoothConnector.authenticatedSessions {
+                    guard session.peerID != peerID, targetPeerID == nil || session.peerID == targetPeerID else { continue }
+                    session.sendFrame(fields)
+                }
+            }
         } else {
             broadcastText(clipboardState(), targetPeerId: targetPeerID, excludePeerID: peerID)
         }
@@ -666,8 +671,17 @@ public final class WebSocketServer: @unchecked Sendable {
         onLog?("Retrying listener in \(Int(delay))s")
     }
 
+    /// Bound unauthenticated sockets: each may buffer up to one maximum-size WebSocket message
+    /// before the pre-auth size check runs, so an unlimited count would be unbounded memory.
+    static let maxPendingSessions = 8
+
     private func acceptIncoming(_ nwConnection: NWConnection) {
         guard lifecycle.active, wantsListener else { nwConnection.forceCancel(); return }
+        guard activeSessions.values.filter({ !$0.isAuthenticated }).count < Self.maxPendingSessions else {
+            onLog?("Connection refused; too many pending handshakes")
+            nwConnection.forceCancel()
+            return
+        }
         let session = WebSocketSession(connection: nwConnection)
         let id = ObjectIdentifier(nwConnection)
         activeSessions[id] = session
@@ -747,9 +761,9 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func publishPresence() {
+        let authenticated = usableAuthenticatedPeerIDs()
         for peerID in rosterManager.peers.keys {
-            let connected = PeerPresence.isConnected(peerID: peerID, authenticatedPeerIDs: usableAuthenticatedPeerIDs())
-            rosterManager.setPeerConnected(peerID, connected: connected)
+            rosterManager.setPeerConnected(peerID, connected: PeerPresence.isConnected(peerID: peerID, authenticatedPeerIDs: authenticated))
         }
         updateCachedState()
         publishPeers()
@@ -846,10 +860,14 @@ public final class WebSocketServer: @unchecked Sendable {
         case "rename":
             guard session.isAuthenticated else { return }
             if let peerID = json["id"] as? String, let name = json["name"] as? String {
-                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let visible = String(String.UnicodeScalarView(name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+                let trimmed = String(visible.trimmingCharacters(in: .whitespaces).prefix(64))
                 guard !trimmed.isEmpty else { return }
+                // A phone may name itself or this Mac, never another phone in the roster.
+                guard peerID == localDeviceID || peerID == session.peerID else { return }
                 if peerID == localDeviceID {
                     _ = rosterManager.setLocalName(trimmed)
+                    refreshBonjour()
                 } else {
                     _ = rosterManager.renamePeer(id: peerID, newName: trimmed)
                 }
@@ -873,7 +891,7 @@ public final class WebSocketServer: @unchecked Sendable {
             applyPowerState(json["state"] as? String, session: session)
 
         case "transfer_offer", "transfer_ack", "transfer_done", "transfer_cancel":
-            guard session.isAuthenticated, session.chunkedTransfers else { handleConnectionClosed(session: session); return }
+            guard session.isAuthenticated else { handleConnectionClosed(session: session); return }
             let id = ObjectIdentifier(session.connection)
             transferQueue.async { [weak self] in self?.transferSessions[id]?.handle(json) }
 
@@ -887,7 +905,8 @@ public final class WebSocketServer: @unchecked Sendable {
         guard session.secure != nil,
               let clientID = json["deviceId"] as? String,
               let clientName = json["deviceName"] as? String,
-              json["version"] as? Int == SyncProtocol.version else {
+              json["version"] as? Int == SyncProtocol.version,
+              json[FileTransferProtocol.capability] as? Int == FileTransferProtocol.version else {
             handleConnectionClosed(session: session)
             return
         }
@@ -912,7 +931,6 @@ public final class WebSocketServer: @unchecked Sendable {
         session.isAuthenticated = true
         session.peerID = clientID
         session.peerName = clientName
-        session.chunkedTransfers = json[FileTransferProtocol.capability] as? Int == FileTransferProtocol.version
         session.clipboardSync = json[ClipboardStamp.capability] as? Int == 1
         session.livenessBudget = SyncProtocol.heartbeatBudget
 
@@ -945,7 +963,7 @@ public final class WebSocketServer: @unchecked Sendable {
             "clockNow": Int64(Date().timeIntervalSince1970 * 1000),
             "endpoints": advertisedEndpointList()
         ])
-        if session.chunkedTransfers { attachTransfers(session, peerID: clientID) }
+        attachTransfers(session, peerID: clientID)
         if session.clipboardSync {
             withCurrentClipboard { [weak self, weak session] in
                 guard let self, let session, self.activeSessions[incomingID] === session else { return }
@@ -958,22 +976,12 @@ public final class WebSocketServer: @unchecked Sendable {
     private func handleBinaryMessage(_ data: Data, from session: WebSocketSession) {
         guard session.isAuthenticated else { return }
         session.lastHeard = SessionLiveness.now()
-        if FileTransferProtocol.isChunk(data) {
-            guard session.chunkedTransfers, data.count <= FileTransferProtocol.headerBytes + FileTransferProtocol.chunkBytes else {
-                handleConnectionClosed(session: session); return
-            }
-            let id = ObjectIdentifier(session.connection)
-            transferQueue.async { [weak self] in self?.transferSessions[id]?.handleChunk(data) }
-            return
+        guard FileTransferProtocol.isChunk(data),
+              data.count <= FileTransferProtocol.headerBytes + FileTransferProtocol.chunkBytes else {
+            handleConnectionClosed(session: session); return
         }
-        guard let (meta, imgData) = SyncProtocol.unpackImage(data),
-              let image = try? ImagePayload(id: UUID(uuidString: meta.id) ?? UUID(), mimeType: meta.mimeType, data: imgData) else {
-            return
-        }
-
-        if let peerID = session.peerID {
-            receivedClipboard(text: nil, image: image, stamp: meta.clipboard, peerID: peerID, reply: { session.sendText($0) })
-        }
+        let id = ObjectIdentifier(session.connection)
+        transferQueue.async { [weak self] in self?.transferSessions[id]?.handleChunk(data) }
     }
 
     private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil, excludePeerID: String? = nil) {
@@ -1247,12 +1255,6 @@ public final class WebSocketServer: @unchecked Sendable {
 
     // MARK: - Bluetooth frames
 
-    var hasNoLiveSessions: Bool {
-        queue.sync {
-            activeSessions.values.allSatisfy { !$0.isAuthenticated }
-        } && bluetoothConnector.authenticatedSessions.isEmpty
-    }
-
     var hasPairedPeers: Bool { !rosterManager.peers.isEmpty }
 
     /// Peer ids currently holding an authenticated session (WebSocket or Bluetooth).
@@ -1335,14 +1337,15 @@ public final class WebSocketServer: @unchecked Sendable {
             session.lastHeard = SessionLiveness.now()
             startHeartbeat()
             session.cancelAuthDeadline()
-            self.bluetoothConnector.registerBluetoothMapping(btName: session.deviceName, peerID: clientID)
             // Promote pending → active so the session is visible to broadcasts and heartbeats
             // immediately instead of only after the phone's next frame.
             self.bluetoothConnector.promoteSession(session)
 
             // A late fallback handshake must retain a working preferred WebSocket.
             // Android releases Bluetooth after WebSocket's stability grace period.
-            let peer = Peer(id: clientID, name: clientName, endpoint: DirectEndpoint(host: "bluetooth", port: 0), connected: true, platform: "Android")
+            // Keep the phone's last real network endpoint; Bluetooth has no address worth storing.
+            let endpoint = rosterManager.peers[clientID]?.endpoint ?? DirectEndpoint(host: "bluetooth", port: 0)
+            let peer = Peer(id: clientID, name: clientName, endpoint: endpoint, connected: true, platform: "Android")
             _ = rosterManager.addOrUpdatePeer(peer)
             publishPresence()
 
@@ -1507,7 +1510,6 @@ private final class WebSocketSession: @unchecked Sendable {
     let handshake = SecureHandshake()
     var secure: SecureChannel?
     var isAuthenticated: Bool = false
-    var chunkedTransfers: Bool = false
     var clipboardSync: Bool = false
     var peerID: String?
     var peerName: String?

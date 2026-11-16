@@ -15,12 +15,29 @@ object ConnectionStatus {
         else -> ConnectionPhase.Reconnecting
     }
 
-    fun label(phase: ConnectionPhase, peerName: String?): String = when (phase) {
-        ConnectionPhase.NotPaired -> "Not paired"
-        ConnectionPhase.Connecting -> "Connecting…"
-        ConnectionPhase.Connected -> peerName?.takeIf { it.isNotBlank() } ?: "Connected"
-        ConnectionPhase.Reconnecting -> "Reconnecting…"
+    /** String resource for a phase; a connected peer shows its own name instead. */
+    fun labelRes(phase: ConnectionPhase): Int = when (phase) {
+        ConnectionPhase.NotPaired -> R.string.tile_not_paired
+        ConnectionPhase.Connecting -> R.string.status_connecting
+        ConnectionPhase.Connected -> R.string.status_connected
+        ConnectionPhase.Reconnecting -> R.string.status_reconnecting
     }
+}
+
+/** What the WebSocket client reports; the service turns these into localized text. */
+sealed interface ClientStatus {
+    data class Pairing(val macName: String) : ClientStatus
+    data object Connecting : ClientStatus
+    data object Connected : ClientStatus
+    data object Reconnecting : ClientStatus
+    data object NotPaired : ClientStatus
+}
+
+sealed interface ClientFailure {
+    data object NoAddress : ClientFailure
+    data object SecureFailed : ClientFailure
+    data object KeyRejected : ClientFailure
+    data class Unreachable(val hosts: List<String>) : ClientFailure
 }
 
 /** Single owner for whether a connect race may start and how long to wait after failure. */

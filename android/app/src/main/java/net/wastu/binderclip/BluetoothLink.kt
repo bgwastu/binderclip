@@ -94,6 +94,7 @@ class BluetoothLink(
         fun onSyncText(text: String, stamp: ClipboardStamp?) = onText(text)
         fun onOpenUrl(url: String)
         fun onRemoteSleep() {}
+        fun onRename(deviceId: String, name: String) {}
         fun onUnpair()
     }
 
@@ -121,6 +122,10 @@ class BluetoothLink(
     private var heartbeat: ScheduledFuture<*>? = null
     private val frameReader = BtFrameIo.Reader()
     private val writeLock = Any()
+    /** Serializes seal + write so frame counters reach the Mac in order. Kept apart from writeLock
+     *  because an L2CAP write can block on a congested radio, and stop() needs writeLock to close
+     *  the socket that unblocks it. Lock order: frameLock, then writeLock. */
+    private val frameLock = Any()
     private val retry = ScanRetryPolicy()
     @Volatile private var attemptGeneration = 0L
     @Volatile private var deferredUntilMs = 0L
@@ -128,6 +133,11 @@ class BluetoothLink(
     private var scanTimeout: ScheduledFuture<*>? = null
     @Volatile private var pendingSocket: BluetoothSocket? = null
     @Volatile private var secure: SecureChannel? = null
+    /** Address of the peripheral being dialed, so a failed handshake can be pinned on it. */
+    @Volatile private var currentAddress: String? = null
+    /** Peripherals that answered but are not our Mac (other BinderClip Macs nearby share the
+     *  service UUID). Skipping them keeps one wrong Mac from starving the real fallback. */
+    private val rejectedPeripherals = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private var activeScanCallback: ScanCallback? = null
     private val gattWrites = java.util.ArrayDeque<ByteArray>()
     private var gattWriteInFlight = false
@@ -157,23 +167,6 @@ class BluetoothLink(
     }
 
     fun adapterEnabled(): Boolean = try { adapter()?.isEnabled == true } catch (_: SecurityException) { false }
-
-    /** Try to switch the radio on when the fallback is active. Best effort; returns
-     *  false when permission is missing or the OEM blocks silent enable, so the
-     *  caller can fall back to guiding the user. */
-    @Suppress("DEPRECATION")
-    fun requestEnable(): Boolean {
-        if (!AppProfile.current.canEnableBluetoothRadio) return false
-        val adapter = adapter() ?: return false
-        retry.failed(android.os.SystemClock.elapsedRealtime())
-        return try {
-            adapter.enable()
-        } catch (_: SecurityException) {
-            false
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     fun isConnected(): Boolean = connected.get()
 
@@ -247,6 +240,12 @@ class BluetoothLink(
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             if (generation != attemptGeneration || !scanning.get()) return
             val device = result?.device ?: return
+            val now = android.os.SystemClock.elapsedRealtime()
+            val until = rejectedPeripherals[device.address]
+            if (until != null) {
+                if (until > now) return
+                rejectedPeripherals.remove(device.address)
+            }
             DiagnosticLog.info("Found BinderClip BLE peripheral: ${device.address}")
             android.util.Log.i("BinderClipBLE", "Found BinderClip BLE peripheral: ${device.address} (${result.scanRecord?.deviceName})")
             stopScan()
@@ -278,6 +277,7 @@ class BluetoothLink(
         if (connected.get() || connecting.get()) return
         if (!connecting.compareAndSet(false, true)) return
         val myAttempt = attemptGeneration
+        currentAddress = device.address
         EnergyCounters.add("ble.gatt.attempt")
         DiagnosticLog.info("Connecting to BLE GATT ${device.address}...")
         android.util.Log.i("BinderClipBLE", "Connecting to BLE GATT ${device.address}")
@@ -704,17 +704,17 @@ class BluetoothLink(
         "state" to state,
     ))
 
-    private fun sendFrame(fields: List<Pair<String, Any>>): Boolean = synchronized(writeLock) {
+    private fun sendFrame(fields: List<Pair<String, Any>>): Boolean = synchronized(frameLock) {
         val channel = secure ?: return false
         val packet = channel.seal(BtCbor.encode(fields), 3)
         sendWireFrame(listOf("type" to "secure", "data" to java.util.Base64.getEncoder().encodeToString(packet)))
     }
 
-    private fun sendWireFrame(fields: List<Pair<String, Any>>): Boolean {
+    private fun sendWireFrame(fields: List<Pair<String, Any>>): Boolean = synchronized(frameLock) {
         val framed = BtFrameIo.frame(BtCbor.encode(fields))
-        return if (isL2capActive) {
+        if (isL2capActive) {
             val out = output ?: return false
-            try { synchronized(writeLock) { out.write(framed); out.flush() }; true }
+            try { out.write(framed); out.flush(); true }
             catch (_: IOException) { drop("write failed"); false }
         } else sendGattChunked(framed)
     }
@@ -753,6 +753,9 @@ class BluetoothLink(
     }
 
     companion object {
+        private const val HANDSHAKE_PENALTY_MS = 2 * 60_000L
+        private const val WRONG_MAC_PENALTY_MS = 10 * 60_000L
+
         /** Extract the Mac's advertised endpoints from a decoded BT frame (list of "host:port" strings). */
         fun endpointsFromFields(fields: List<Pair<String, Any>>): List<String>? {
             val raw = fields.firstOrNull { it.first == "endpoints" }?.second
@@ -783,6 +786,7 @@ class BluetoothLink(
             val packet = java.util.Base64.getDecoder().decode(wire.first { it.first == "data" }.second as String)
             BtCbor.decode(channel.open(packet, 3))
         } catch (_: Exception) {
+            if (!connected.get()) rejectPeripheral(HANDSHAKE_PENALTY_MS)
             drop("encrypted handshake/frame rejected")
             return
         }
@@ -795,6 +799,12 @@ class BluetoothLink(
             "auth_ok" -> {
                 val id = text("deviceId") ?: ""
                 val name = text("deviceName") ?: "Mac"
+                val expected = store.peer?.deviceId
+                if (!expected.isNullOrBlank() && id != expected) {
+                    rejectPeripheral(WRONG_MAC_PENALTY_MS)
+                    drop("different Mac answered")
+                    return
+                }
                 connecting.set(false)
                 connected.set(true)
                 attemptTimeout?.cancel(false)
@@ -822,6 +832,11 @@ class BluetoothLink(
             }
             "openUrl" -> text("url")?.let(callbacks::onOpenUrl)
             "unpair" -> callbacks.onUnpair()
+            "rename" -> {
+                val id = text("id").orEmpty()
+                val name = text("name").orEmpty()
+                if (id.isNotEmpty() && name.isNotBlank()) callbacks.onRename(id, name)
+            }
             "ping" -> sendFrame(listOf("type" to "pong", "t" to (uint("t") ?: 0L)))
             "pong" -> Unit
             "power" -> if (text("state") == "sleep") callbacks.onRemoteSleep()
@@ -856,7 +871,17 @@ class BluetoothLink(
         heartbeat = null
     }
 
+    private fun rejectPeripheral(forMs: Long) {
+        val address = currentAddress ?: return
+        if (rejectedPeripherals.size > 32) rejectedPeripherals.clear()
+        rejectedPeripherals[address] = android.os.SystemClock.elapsedRealtime() + forMs
+    }
+
     private fun drop(reason: String) {
+        // The handshake began (secure exists) but never authenticated: with the PSK correct on our
+        // side, the peer rejected our proof, so it is most likely another Mac. Penalize briefly so a
+        // transient radio failure on our own Mac only costs one short window.
+        if (secure != null && connecting.get() && !connected.get()) rejectPeripheral(HANDSHAKE_PENALTY_MS)
         val wasActive = connected.get() || connecting.get() || scanning.get()
         stop()
         retry.failed(android.os.SystemClock.elapsedRealtime(), java.util.concurrent.ThreadLocalRandom.current().nextLong(3_001))

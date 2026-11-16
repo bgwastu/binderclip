@@ -181,7 +181,7 @@ public enum BtCbor {
     }
 }
 
-/// Length-prefix stream framing ([u32be length][payload]) shared by both RFCOMM peers.
+/// Length-prefix stream framing ([u32be length][payload]) shared by both Bluetooth peers (L2CAP and GATT).
 public enum BtFrameIo {
     public static let maximumFrameBytes = 1_500_000
 
@@ -197,7 +197,7 @@ public enum BtFrameIo {
         return out
     }
 
-    /// Incremental decoder for chunked RFCOMM reads; emits complete payloads as they arrive.
+    /// Incremental decoder for chunked Bluetooth reads; emits complete payloads as they arrive.
     public struct Reader {
         private var buffer: [UInt8] = []
 

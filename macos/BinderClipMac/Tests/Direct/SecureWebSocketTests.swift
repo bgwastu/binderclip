@@ -47,7 +47,7 @@ final class SecureWebSocketTests: XCTestCase {
             let packet = try channel.seal(JSONSerialization.data(withJSONObject: object), kind: 1)
             return try text(["type": "secure", "data": packet.base64EncodedString()])
         }
-        try await socket.send(.string(encrypted(["type": "auth", "deviceId": "test-phone", "deviceName": "Test", "version": 3, "pairing": true])))
+        try await socket.send(.string(encrypted(["type": "auth", "deviceId": "test-phone", "deviceName": "Test", "version": 3, "pairing": true, "chunkedTransfers": 1])))
         let reply = try json(await socket.receive())
         let authPacket = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(reply["data"] as? String)))
         let auth = try JSONSerialization.jsonObject(with: channel.open(authPacket, kind: 1)) as? [String: Any]

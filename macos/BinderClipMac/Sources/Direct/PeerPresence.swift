@@ -10,11 +10,11 @@ enum PeerPresence {
         existingPeerID == incomingPeerID
     }
 
-    /// Drop handshake leftovers and the previous session for this phone.
-    /// Unauthenticated sockets have no peerID, so same-peer replace alone leaves LAN+mesh twins.
+    /// Drop the previous session for this phone. Unauthenticated sockets are left alone: they have
+    /// no peerID, so they may be another phone mid-handshake. The phone cancels its own LAN+mesh
+    /// twins once one of them receives `secure_hello`, and the auth deadline reaps any stragglers.
     static func shouldCancelExtra(isAuthenticated: Bool, existingPeerID: String?, incomingPeerID: String) -> Bool {
-        if !isAuthenticated { return true }
-        return shouldReplace(existingPeerID: existingPeerID, incomingPeerID: incomingPeerID)
+        isAuthenticated && shouldReplace(existingPeerID: existingPeerID, incomingPeerID: incomingPeerID)
     }
 
     /// Ignore auth that arrives after this socket was already cancelled or accepted.

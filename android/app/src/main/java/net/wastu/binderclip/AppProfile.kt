@@ -10,7 +10,6 @@ data class AppProfile(val isDebug: Boolean) {
     val cryptoDomain get() = if (isDebug) "BinderClip/debug/v3" else "BinderClip/v3"
     val bootScriptName get() = if (isDebug) "binderclip-debug.sh" else "binderclip.sh"
     val bluetoothEnabledByDefault get() = !isDebug
-    val canEnableBluetoothRadio get() = !isDebug
     fun bluetoothUuid(index: Int): String {
         require(index in 1..4)
         return if (isDebug) "a2b76ec4-81f0-4dbe-b5d1-770b3e28ad0$index"

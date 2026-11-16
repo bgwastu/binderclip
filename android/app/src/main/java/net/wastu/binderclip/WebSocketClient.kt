@@ -26,8 +26,8 @@ internal class WebSocketClient(
     private val onImage: (ImagePayload) -> Unit,
     private val onFile: (ReceivedFile) -> Unit,
     private val onTransferStatus: (TransferProgress) -> Unit,
-    private val onStatus: (String) -> Unit,
-    private val onFailure: (String) -> Unit,
+    private val onStatus: (ClientStatus) -> Unit,
+    private val onFailure: (ClientFailure) -> Unit,
     private val onPeerIdentity: (String, String) -> Unit,
     private val onRosterChanged: (List<RememberedPeer>) -> Unit,
     private val onDisconnected: () -> Unit,
@@ -49,10 +49,13 @@ internal class WebSocketClient(
         .retryOnConnectionFailure(false)
         .build()
 
-    private val executor = Executors.newSingleThreadScheduledExecutor()
+    @Volatile private var executorThread: Thread? = null
+    /** Owns connection state; OkHttp callbacks only bail out early via [generation]. */
+    private val executor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "BinderClipWS").also { executorThread = it }
+    }
     private val transferExecutor = Executors.newSingleThreadScheduledExecutor()
     private val transferSessions = HashMap<WebSocket, ChunkedTransferSession>()
-    @Volatile private var supportsChunkedTransfers = false
     @Volatile private var clipboardSync = false
     private val candidateSockets = ConcurrentHashMap<String, WebSocket>()
     @Volatile
@@ -62,8 +65,8 @@ internal class WebSocketClient(
     private val isConnected = AtomicBoolean(false)
     private var reconnectTask: ScheduledFuture<*>? = null
     private val isConnecting = AtomicBoolean(false)
-    @Volatile private var generation = 0
-    private val openedWithoutAuth = AtomicInteger(0)
+    private val generation = AtomicInteger(0)
+    private val handshakeRejected = AtomicInteger(0)
     private val reportedFailure = AtomicBoolean(false)
     private val secureChannels = ConcurrentHashMap<WebSocket, SecureChannel>()
     private val sendLock = Any()
@@ -113,7 +116,7 @@ internal class WebSocketClient(
             ?: error("Invalid BinderClip pairing code")
 
         close()
-        onStatus("Pairing with ${info.deviceName}…")
+        onStatus(ClientStatus.Pairing(info.deviceName))
 
         val pskBytes = SyncProtocol.decodeBase64(info.psk)
             ?: error("Invalid pairing key")
@@ -160,7 +163,7 @@ internal class WebSocketClient(
             val psk = store.groupKey ?: return@execute
             val endpoints = getEndpoints()
             if (endpoints.isEmpty()) {
-                onFailure("No Mac address to connect to. Scan a fresh QR from the Mac.")
+                onFailure(ClientFailure.NoAddress)
                 return@execute
             }
             if (!policy.shouldStartConnect(force, isConnected.get(), isConnecting.get())) return@execute
@@ -170,24 +173,23 @@ internal class WebSocketClient(
     }
 
     private fun startRaceLocked(psk: ByteArray, endpoints: List<String>) {
-        generation += 1
-        val myGeneration = generation
+        val myGeneration = generation.incrementAndGet()
 
         cancelPendingReconnect()
         stopHeartbeatWatch()
         closeCandidateSockets()
         closeTransferSessions()
-        supportsChunkedTransfers = false; clipboardSync = false
+        clipboardSync = false
         activeSocket?.cancel()
         activeSocket = null
         activeEndpoint = null
         isConnected.set(false)
         isConnecting.set(true)
-        openedWithoutAuth.set(0)
+        handshakeRejected.set(0)
         reportedFailure.set(false)
         raceAuthClaimed.set(false)
         onDisconnected()
-        onStatus("Connecting…")
+        onStatus(ClientStatus.Connecting)
 
         val localId = store.deviceId
         val localName = deviceNameProvider()
@@ -202,32 +204,31 @@ internal class WebSocketClient(
 
             val listener = object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    if (myGeneration != generation) {
+                    if (myGeneration != generation.get()) {
                         webSocket.cancel()
                         return
                     }
-                    if (!raceAuthClaimed.compareAndSet(false, true)) {
-                        Log.d(TAG, "Losing connect race at $endpoint")
-                        candidateSockets.remove(endpoint)
-                        webSocket.cancel()
-                        return
-                    }
-                    for (ep in candidateSockets.keys.toList()) {
-                        if (ep != endpoint) {
-                            candidateSockets.remove(ep)?.cancel()
-                        }
-                    }
-                    openedWithoutAuth.incrementAndGet()
+                    // A bare TCP accept proves nothing (VPNs and stale LAN hosts accept too), so every
+                    // candidate stays alive until one of them receives a real Mac's secure_hello.
                     Log.d(TAG, "Socket opened; waiting for encrypted handshake")
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    if (myGeneration != generation) return
+                    if (myGeneration != generation.get()) return
                     try {
                         require(text.length <= if (isConnected.get() && activeSocket === webSocket) 8 * SyncProtocol.MAXIMUM_TEXT_BYTES + 16_384 else 16_384)
                         val objectJson = JSONObject(text)
                         if (objectJson.optString("type") == "secure_hello" && !secureChannels.containsKey(webSocket)) {
                             require(objectJson.optInt("version") == SyncProtocol.VERSION)
+                            if (!raceAuthClaimed.compareAndSet(false, true)) {
+                                Log.d(TAG, "Losing connect race at $endpoint")
+                                candidateSockets.remove(endpoint)
+                                webSocket.cancel()
+                                return
+                            }
+                            for (ep in candidateSockets.keys.toList()) {
+                                if (ep != endpoint) candidateSockets.remove(ep)?.cancel()
+                            }
                             val serverNonce = java.util.Base64.getDecoder().decode(objectJson.getString("nonce"))
                             val clientNonce = SecureChannel.randomNonce()
                             val channel = SecureChannel(psk, serverNonce, clientNonce, "ws")
@@ -248,13 +249,13 @@ internal class WebSocketClient(
                             handleTextMessage(webSocket, endpoint, plaintext, myGeneration)
                         }
                     } catch (_: Exception) {
-                        onProtocolFailure?.invoke() ?: onFailure("Secure connection failed. Update both apps or pair again.")
+                        onProtocolFailure?.invoke() ?: onFailure(ClientFailure.SecureFailed)
                         webSocket.cancel()
                     }
                 }
 
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                    if (myGeneration != generation) return
+                    if (myGeneration != generation.get()) return
                     try {
                         val channel = secureChannels[webSocket] ?: error("Missing encrypted session")
                         require(isConnected.get() && activeSocket === webSocket)
@@ -267,12 +268,12 @@ internal class WebSocketClient(
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    if (myGeneration != generation) return
+                    if (myGeneration != generation.get()) return
                     handleSocketClosed(webSocket, endpoint, reason)
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    if (myGeneration != generation) return
+                    if (myGeneration != generation.get()) return
                     Log.w(TAG, "Connection to $endpoint failed: ${t.javaClass.name}: ${t.message}", t)
                     handleSocketClosed(webSocket, endpoint, t.message ?: "Connection failed")
                 }
@@ -283,7 +284,7 @@ internal class WebSocketClient(
         }
 
         executor.schedule({
-            if (myGeneration != generation) return@schedule
+            if (myGeneration != generation.get()) return@schedule
             if (isConnected.get()) {
                 isConnecting.set(false)
                 return@schedule
@@ -299,14 +300,14 @@ internal class WebSocketClient(
     private fun reportConnectFailure(endpoints: List<String>) {
         if (!reportedFailure.compareAndSet(false, true)) return
         if (reconnectSuppressed) return
-        onStatus("Reconnecting…")
-        if (openedWithoutAuth.get() > 0) {
-            onFailure("Pairing key rejected. Scan a fresh QR from the Mac.")
+        onStatus(ClientStatus.Reconnecting)
+        if (handshakeRejected.get() > 0) {
+            onFailure(ClientFailure.KeyRejected)
             return
         }
         if (!policy.shouldAnnounceUnreachable()) return
         val hosts = endpoints.mapNotNull { SyncProtocol.parseEndpoint(it)?.first }.distinct()
-        onFailure("Could not reach Mac at ${hosts.joinToString(", ")}. Same Wi-Fi?")
+        onFailure(ClientFailure.Unreachable(hosts))
     }
 
     private fun handleTextMessage(webSocket: WebSocket, endpoint: String, text: String, myGeneration: Int) {
@@ -314,19 +315,20 @@ internal class WebSocketClient(
         noteActivity()
         when (json.optString("type")) {
             "auth_ok" -> {
-                if (myGeneration != generation) {
+                if (myGeneration != generation.get()) {
                     webSocket.cancel()
                     return
                 }
+                // Every protocol-3 Mac speaks chunked transfers; anything else is not a compatible peer.
+                require(json.optInt(FileTransferProtocol.CAPABILITY) == FileTransferProtocol.VERSION)
                 Log.i(TAG, "Authenticated successfully with $endpoint")
                 if (!isConnected.compareAndSet(false, true)) {
                     webSocket.cancel()
                     return
                 }
                 activeSocket = webSocket
-                supportsChunkedTransfers = json.optInt(FileTransferProtocol.CAPABILITY) == FileTransferProtocol.VERSION
                 clipboardSync = json.optInt(ClipboardStamp.CAPABILITY) == 1
-                if (supportsChunkedTransfers) transferExecutor.execute {
+                transferExecutor.execute {
                     if (activeSocket !== webSocket) return@execute
                     transferSessions[webSocket] = ChunkedTransferSession(
                         remoteId(json), transferStore, transferExecutor,
@@ -376,7 +378,7 @@ internal class WebSocketClient(
                 onSyncConnected?.invoke(clipboardSync, clipboardClockSample(json, android.os.SystemClock.elapsedRealtime()))
                 onPeerIdentity(remoteId, remoteName)
                 onRosterChanged(store.members)
-                onStatus(remoteName.ifBlank { "Connected" })
+                onStatus(ClientStatus.Connected)
                 DiagnosticLog.info("Connected to $remoteName via $endpoint")
                 sendPowerLocked()
                 startHeartbeatWatch()
@@ -412,8 +414,8 @@ internal class WebSocketClient(
             "rename" -> {
                 val id = json.optString("id")
                 val name = json.optString("name")
-                if (id.isNotEmpty() && name.isNotEmpty()) {
-                    store.applyRename(id, name)
+                if (id.isNotEmpty() && name.isNotBlank()) {
+                    store.applyRename(id, SyncProtocol.sanitizeDeviceName(name))
                     onRosterChanged(store.members)
                 }
             }
@@ -432,7 +434,7 @@ internal class WebSocketClient(
             }
 
             "transfer_offer", "transfer_ack", "transfer_done", "transfer_cancel" -> {
-                require(isConnected.get() && activeSocket === webSocket && supportsChunkedTransfers)
+                require(isConnected.get() && activeSocket === webSocket)
                 transferExecutor.execute { if (activeSocket === webSocket) transferSessions[webSocket]?.handle(json) }
             }
         }
@@ -441,23 +443,8 @@ internal class WebSocketClient(
     private fun handleBinaryMessage(webSocket: WebSocket, bytes: ByteString) {
         noteActivity()
         val plaintext = bytes.toByteArray()
-        if (FileTransferProtocol.isChunk(plaintext)) {
-            require(supportsChunkedTransfers && plaintext.size <= FileTransferProtocol.HEADER_BYTES + FileTransferProtocol.CHUNK_BYTES)
-            transferExecutor.execute { if (activeSocket === webSocket) transferSessions[webSocket]?.handleChunk(plaintext) }
-            return
-        }
-        Log.i(TAG, "handleBinaryMessage: received ${bytes.size} bytes")
-        val unpacked = SyncProtocol.unpackImage(plaintext)
-        if (unpacked == null) {
-            Log.w(TAG, "handleBinaryMessage: unpackImage failed for ${bytes.size} bytes")
-            return
-        }
-        val meta = unpacked.first
-        val imageData = unpacked.second
-        val imagePayload = ImagePayload(id = meta.id, mimeType = meta.mimeType, data = imageData)
-        Log.i(TAG, "handleBinaryMessage: unpacked ${imagePayload.mimeType} (${imageData.size} bytes)")
-        if (onSyncImage != null) onSyncImage.invoke(imagePayload, meta.clipboard) else onImage(imagePayload)
-        onTransferStatus(TransferProgress(TransferProgress.State.RECEIVED, "image"))
+        require(FileTransferProtocol.isChunk(plaintext) && plaintext.size <= FileTransferProtocol.HEADER_BYTES + FileTransferProtocol.CHUNK_BYTES)
+        transferExecutor.execute { if (activeSocket === webSocket) transferSessions[webSocket]?.handleChunk(plaintext) }
     }
 
     private fun handleSocketClosed(webSocket: WebSocket, endpoint: String, reason: String) {
@@ -468,7 +455,10 @@ internal class WebSocketClient(
 
     private fun markActiveDeadIfNeeded(webSocket: WebSocket, endpoint: String, reason: String, resetBackoff: Boolean) {
         candidateSockets.remove(endpoint)
-        secureChannels.remove(webSocket)
+        // The Mac sent secure_hello, saw our proof, and hung up before auth_ok: the key is wrong.
+        if (secureChannels.remove(webSocket) != null && webSocket != activeSocket && !isConnected.get()) {
+            handshakeRejected.incrementAndGet()
+        }
         transferExecutor.execute { transferSessions.remove(webSocket)?.close() }
         if (webSocket == activeSocket) {
             Log.w(TAG, "Active connection closed: $reason")
@@ -476,14 +466,14 @@ internal class WebSocketClient(
             activeSocket = null
             activeEndpoint = null
             isConnected.set(false)
-            supportsChunkedTransfers = false; clipboardSync = false
+            clipboardSync = false
             isConnecting.set(false)
 
             store.peer = store.peer?.copy(connected = false)
             store.updateMemberConnectionState(store.peer?.deviceId.orEmpty(), false)
             onRosterChanged(store.members)
             onDisconnected()
-            onStatus("Reconnecting…")
+            onStatus(ClientStatus.Reconnecting)
             scheduleReconnectBackoff(reset = resetBackoff, immediate = resetBackoff)
         } else if (!isConnected.get() && candidateSockets.isEmpty() && isConnecting.get()) {
             isConnecting.set(false)
@@ -510,12 +500,6 @@ internal class WebSocketClient(
 
     fun resumeQueuedTransfers() {
         val socket = activeSocket ?: return
-        if (!supportsChunkedTransfers) {
-            transferStore.next(store.peer?.deviceId.orEmpty())?.let {
-                onTransferStatus(it.metadata.progress(TransferProgress.State.UPDATE_REQUIRED))
-            }
-            return
-        }
         transferExecutor.execute { transferSessions[socket]?.pump() }
     }
 
@@ -583,24 +567,13 @@ internal class WebSocketClient(
     }
 
     fun sendImage(image: ImagePayload, stamp: ClipboardStamp? = null): Boolean {
-        val socket = activeSocket ?: return false
-        if (supportsChunkedTransfers) {
-            val peerId = store.peer?.deviceId?.takeIf { it.isNotBlank() } ?: return false
-            return runCatching {
-                image.data.inputStream().use { transferStore.stage(peerId, "image", image.mimeType, "image", it, stamp) }
-                resumeQueuedTransfers()
-                true
-            }.getOrElse { onTransferStatus(TransferProgress(TransferProgress.State.FAILED)); false }
-        }
-        // Older Macs cannot acknowledge chunks. Do not overflow OkHttp's 16 MiB send queue.
-        if (image.data.size > 8 * 1024 * 1024) {
-            onTransferStatus(TransferProgress(TransferProgress.State.UPDATE_REQUIRED))
-            return false
-        }
-        val packet = SyncProtocol.packImage(image, store.deviceId, stamp)
-        val queued = sendSecureBinary(socket, packet)
-        if (queued) onTransferStatus(TransferProgress(TransferProgress.State.SENT, "image"))
-        return queued
+        if (activeSocket == null) return false
+        val peerId = store.peer?.deviceId?.takeIf { it.isNotBlank() } ?: return false
+        return runCatching {
+            image.data.inputStream().use { transferStore.stage(peerId, "image", image.mimeType, "image", it, stamp) }
+            resumeQueuedTransfers()
+            true
+        }.getOrElse { onTransferStatus(TransferProgress(TransferProgress.State.FAILED)); false }
     }
 
     fun shutdown() {
@@ -611,14 +584,34 @@ internal class WebSocketClient(
         httpClient.connectionPool.evictAll()
     }
 
+    /** Runs [block] on the connection executor and waits, or inline when already on it. */
+    private fun runOnExecutor(block: () -> Unit) {
+        if (Thread.currentThread() === executorThread) { block(); return }
+        try {
+            executor.submit(Runnable { block() }).get(5, TimeUnit.SECONDS)
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            block()
+        } catch (e: Exception) {
+            Log.w(TAG, "Connection executor did not finish: ${e.javaClass.simpleName}")
+        }
+    }
+
     fun close() {
-        generation++
+        // Stale callbacks bail out immediately; the teardown itself runs on the executor so it
+        // cannot interleave with a connect race that is starting.
+        generation.incrementAndGet()
+        isConnected.set(false)
+        runOnExecutor(::closeLocked)
+    }
+
+    private fun closeLocked() {
+        generation.incrementAndGet()
         pairingScan = false
         cancelPendingReconnect()
         stopHeartbeatWatch()
         closeCandidateSockets()
         closeTransferSessions()
-        supportsChunkedTransfers = false; clipboardSync = false
+        clipboardSync = false
         activeSocket?.close(1000, "Closed by user")
         activeSocket = null
         activeEndpoint = null
@@ -628,15 +621,16 @@ internal class WebSocketClient(
     }
 
     private fun applyRemoteUnpair() {
-        generation++
-        pairingScan = false
-        val socket = activeSocket
-        activeSocket = null
-        supportsChunkedTransfers = false; clipboardSync = false
-        closeTransferSessions()
-        store.unpair()
-        cancelPendingReconnect()
+        generation.incrementAndGet()
         executor.execute {
+            generation.incrementAndGet()
+            pairingScan = false
+            val socket = activeSocket
+            activeSocket = null
+            clipboardSync = false
+            closeTransferSessions()
+            store.unpair()
+            cancelPendingReconnect()
             stopHeartbeatWatch()
             closeCandidateSockets()
             socket?.close(1000, "Unpaired")
@@ -646,7 +640,7 @@ internal class WebSocketClient(
             isConnecting.set(false)
             policy.resetBackoff()
             onDisconnected()
-            onStatus("Not paired")
+            onStatus(ClientStatus.NotPaired)
             onUnpaired()
         }
     }

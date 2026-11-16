@@ -16,8 +16,9 @@ final class PeerPresenceTests: XCTestCase {
         XCTAssertFalse(PeerPresence.shouldReplace(existingPeerID: nil, incomingPeerID: "phone-1"))
     }
 
-    func testShouldCancelHandshakeLeftoversAndSamePeer() {
-        XCTAssertTrue(PeerPresence.shouldCancelExtra(isAuthenticated: false, existingPeerID: nil, incomingPeerID: "phone-1"))
+    func testShouldCancelOnlyThePreviousSessionOfTheSamePeer() {
+        // Another phone's in-flight handshake must survive this phone authenticating.
+        XCTAssertFalse(PeerPresence.shouldCancelExtra(isAuthenticated: false, existingPeerID: nil, incomingPeerID: "phone-1"))
         XCTAssertTrue(PeerPresence.shouldCancelExtra(isAuthenticated: true, existingPeerID: "phone-1", incomingPeerID: "phone-1"))
         XCTAssertFalse(PeerPresence.shouldCancelExtra(isAuthenticated: true, existingPeerID: "phone-2", incomingPeerID: "phone-1"))
     }
