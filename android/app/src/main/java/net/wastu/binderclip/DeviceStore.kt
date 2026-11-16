@@ -122,7 +122,13 @@ class DeviceStore(context: Context) {
     val deviceId: String
         get() = prefs.getString("device_id", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("device_id", it).apply() }
     var groupKey: ByteArray?
-        get() = prefs.getString("group_key", null)?.let(::decrypt)
+        get() {
+            val sealed = prefs.getString("group_key", null) ?: return null
+            // Keystore decryption is slow and this is read on every service tick; reuse the
+            // last result while the stored ciphertext is unchanged (shared across instances).
+            GroupKeyCache.get(sealed)?.let { return it }
+            return decrypt(sealed)?.also { GroupKeyCache.put(sealed, it) }
+        }
         set(value) = prefs.edit().apply {
             if (value == null) remove("group_key")
             else putString("group_key", encrypt(value))
@@ -213,18 +219,6 @@ class DeviceStore(context: Context) {
     }
     fun removeMember(deviceId: String) { members = members.filterNot { it.deviceId == deviceId } }
 
-    /** Reset pairing key: fresh PSK key, empty roster. */
-    fun resetPairingKey() {
-        saveClipboardCheckpoint(null)
-        clearQueuedShares()
-        fileTransfers.clearPairing()
-        val key = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        groupKey = key
-        peer = null
-        peerCandidates = emptyList()
-        lastGoodEndpoint = null
-        members = emptyList()
-    }
 
     /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
     fun unpair() {
@@ -236,19 +230,31 @@ class DeviceStore(context: Context) {
         peerCandidates = emptyList()
         lastGoodEndpoint = null
         members = emptyList()
+        pendingText = null
     }
+
+    /** Received text that could not be applied yet. It is clipboard content, so it is encrypted at
+     *  rest like the pairing key; a legacy plaintext value is migrated on first read. */
     var pendingText: String?
-        get() = prefs.getString("pending_text", null)
-        set(value) = prefs.edit().apply { if (value == null) remove("pending_text") else putString("pending_text", value) }.apply()
-    fun isRootClipboardAutomationEnabled(): Boolean = prefs.getBoolean("root_clipboard_automation", false)
+        get() {
+            prefs.getString("pending_text", null)?.let { legacy ->
+                pendingText = legacy
+                return legacy
+            }
+            return prefs.getString("pending_text_enc", null)?.let(::decrypt)?.toString(Charsets.UTF_8)
+        }
+        set(value) = prefs.edit().apply {
+            remove("pending_text")
+            if (value == null) remove("pending_text_enc")
+            else putString("pending_text_enc", encrypt(value.toByteArray(Charsets.UTF_8)))
+        }.apply()
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
     /** Set after Shizuku capture first works, so a later missing Shizuku is reported as paused rather than unset. */
     fun isShizukuCaptureConfigured(): Boolean = prefs.getBoolean("shizuku_capture_configured", false)
     fun setShizukuCaptureConfigured(configured: Boolean) { prefs.edit().putBoolean("shizuku_capture_configured", configured).apply() }
 
 
-    /** When true, automatically copy text and images received from Mac to this device's clipboard. */
-    /** Bluetooth Classic fallback for text/links; on by default, engages only off-Wi-Fi. */
+    /** Bluetooth LE fallback for text/links; on by default, engages only off-Wi-Fi. */
     fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", AppProfile.current.bluetoothEnabledByDefault)
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
 
@@ -259,7 +265,6 @@ class DeviceStore(context: Context) {
     fun isAutostartEnabled(): Boolean = prefs.getBoolean("autostart_enabled", true)
     fun setAutostartEnabled(enabled: Boolean) { prefs.edit().putBoolean("autostart_enabled", enabled).apply() }
 
-    fun reset() { prefs.edit().clear().apply() }
 
     private fun keyAlias(): String {
         val userId = android.os.Process.myUid() / 100000
@@ -289,4 +294,16 @@ class DeviceStore(context: Context) {
             init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, GCM_NONCE_BYTES)))
         }.doFinal(bytes.copyOfRange(GCM_NONCE_BYTES, bytes.size))
     }.getOrNull()
+}
+
+private object GroupKeyCache {
+    private var sealed: String? = null
+    private var plain: ByteArray? = null
+
+    @Synchronized fun get(key: String): ByteArray? = if (key == sealed) plain?.copyOf() else null
+
+    @Synchronized fun put(key: String, value: ByteArray) {
+        sealed = key
+        plain = value.copyOf()
+    }
 }

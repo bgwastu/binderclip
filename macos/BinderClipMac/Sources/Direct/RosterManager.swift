@@ -58,12 +58,21 @@ final class PrivateStateStore: @unchecked Sendable {
         return Data(base64Encoded: stored)
     }
 
-    func set(_ data: Data, account: String) {
+    /// Returns false when the secret could not be persisted; the caller must not pretend it was.
+    @discardableResult
+    func set(_ data: Data, account: String) -> Bool {
         var values = contents()
         values[account] = data.base64EncodedString()
-        guard let encoded = try? JSONEncoder().encode(values) else { return }
-        try? encoded.write(to: file, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        do {
+            let encoded = try JSONEncoder().encode(values)
+            try encoded.write(to: file, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            return true
+        } catch {
+            // A lost key silently unpairs every phone at next launch, so make it visible.
+            print("[PrivateStateStore] Could not persist \(account): \(type(of: error))")
+            return false
+        }
     }
 
     private func contents() -> [String: String] {
@@ -184,18 +193,17 @@ final class RosterManager: @unchecked Sendable {
     func setPeerConnected(_ peerID: String, connected: Bool, endpoint: DirectEndpoint? = nil) {
         guard var peer = peers[peerID] else { return }
         peer.connected = connected
-        if let endpoint {
-            peer.endpoint = endpoint
-        }
+        // `connected` is never persisted, so only an endpoint change needs a disk write.
+        let endpointChanged = endpoint.map { $0 != peer.endpoint } ?? false
+        if let endpoint { peer.endpoint = endpoint }
         peers[peerID] = peer
-        persistPeers()
+        if endpointChanged { persistPeers() }
     }
 
     func markAllDisconnected() {
         for key in peers.keys {
             peers[key]?.connected = false
         }
-        persistPeers()
     }
 
     func renamePeer(id: String, newName: String) -> Bool {
@@ -217,7 +225,8 @@ final class RosterManager: @unchecked Sendable {
 
     private static func generateRandomBytes(count: Int) -> Data {
         var bytes = [UInt8](repeating: 0, count: count)
-        _ = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
+        // A failed RNG would leave an all-zero pairing key; refuse to continue instead.
+        precondition(SecRandomCopyBytes(kSecRandomDefault, count, &bytes) == errSecSuccess)
         return Data(bytes)
     }
 
