@@ -29,7 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private var lastTransferStatus: String?
     private var localNetworkPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private var automationPermissionRequired = false { didSet { scheduleStateRefresh() } }
-    private var cachedActiveTab: (browser: String, url: URL)?
+    private let browserTabs = BrowserTabReader()
+    private var cachedActiveTab: BrowserTabReader.Tab?
     private let statusMenu = NSMenu()
     private var isStatusMenuOpen = false
     private var menuNeedsRebuild = false
@@ -58,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if Thread.isMainThread { schedule() } else { DispatchQueue.main.async(execute: schedule) }
     }
 
-    private var sleepObservers: [NSObjectProtocol] = []
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var waitingForUserWake = false
     private lazy var debugClipboardWindow = DebugClipboardWindow(board: clipboard.pasteboard) { [weak self] in self?.clipboard.sendCurrentClipboard() }
 
@@ -160,6 +161,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         transport.onLocalNetworkPermissionRequired = { [weak self] required in
             DispatchQueue.main.async { self?.localNetworkPermissionRequired = required }
         }
+        browserTabs.onAutomationPermission = { [weak self] required in
+            self?.automationPermissionRequired = required
+        }
+        browserTabs.onRead = { [weak self] tab in self?.applyBrowserTab(tab) }
+        if !AppProfile.current.isDebug { browserTabs.refresh() }
 
         transport.onPrepareClipboardSync = { [weak self] in self?.clipboard.captureChanges() }
         clipboard.onLocalText = { [weak transport] text, bootstrap in
@@ -173,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         transport.start()
         clipboard.start()
         let workspaceNotifications = NSWorkspace.shared.notificationCenter
-        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+        workspaceObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
             self.waitingForUserWake = true
             self.clipboard.stop()
@@ -181,11 +187,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             self.statusIconView.resetToIdle(disabled: true)
             DiagnosticLog.shared.flush()
         })
-        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+        workspaceObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.resumeAfterUserWake()
         })
-        sleepObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+        workspaceObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.resumeAfterUserWake()
+        })
+        // Keep the cached tab warm so opening the menu rarely shows a page the user already left.
+        workspaceObservers.append(workspaceNotifications.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, !AppProfile.current.isDebug else { return }
+            let bundleId = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            guard let bundleId, BrowserTabReader.isSupported(bundleId: bundleId) else { return }
+            self.browserTabs.refresh(minimumInterval: 1)
         })
         peers = transport.peersSnapshot()
         NSApp.servicesProvider = self
@@ -215,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        for observer in sleepObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+        for observer in workspaceObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         DiagnosticLog.shared.flush()
         clipboard.stop()
         transport.stop()
@@ -223,9 +236,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     func menuWillOpen(_ menu: NSMenu) {
         isStatusMenuOpen = true
-        cachedActiveTab = AppProfile.current.isDebug ? nil : activeBrowserTab()
+        // Render from the last read so the menu opens instantly, then refresh for the next open.
+        cachedActiveTab = AppProfile.current.isDebug ? nil : browserTabs.cached
         renderMenu()
         menuNeedsRebuild = false
+        if !AppProfile.current.isDebug { browserTabs.refresh() }
+    }
+
+    /// A browser read finished on the background queue: keep the cache current, and patch the items
+    /// of an already open menu in place rather than rebuilding it under the pointer.
+    private func applyBrowserTab(_ tab: BrowserTabReader.Tab?) {
+        cachedActiveTab = tab
+        guard isStatusMenuOpen, let tab else { return }
+        for menuItem in statusMenu.items {
+            guard let submenu = menuItem.submenu else { continue }
+            for item in submenu.items where item.action == #selector(sendBrowserTabToTarget(_:)) {
+                guard let target = item.representedObject as? BrowserTabTarget else { continue }
+                item.representedObject = BrowserTabTarget(url: tab.url, peerId: target.peerId)
+                item.toolTip = tab.url.absoluteString
+            }
+        }
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -350,7 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         if let tab = cachedActiveTab {
             let entry = NSMenuItem(title: L10n.tr("send_browser_tab"), action: #selector(sendBrowserTabToTarget(_:)), keyEquivalent: "")
             entry.target = self
-            entry.representedObject = ["url": tab.url, "peerId": peer.id as String? as Any]
+            entry.representedObject = BrowserTabTarget(url: tab.url, peerId: peer.id)
             entry.isEnabled = peer.connected
             entry.toolTip = tab.url.absoluteString
             submenu.addItem(entry)
@@ -510,78 +540,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         }
     }
 
-    /// Fast, safe active browser tab discovery without continuous background polling.
-    private func activeBrowserTab() -> (browser: String, url: URL)? {
-        let supportedBrowsers: [(bundleId: String, name: String, isChromium: Bool)] = [
-            ("com.brave.Browser", "Brave", true),
-            ("com.google.Chrome", "Google Chrome", true),
-            ("com.google.Chrome.canary", "Google Chrome Canary", true),
-            ("company.thebrowser.Browser", "Arc", true),
-            ("com.microsoft.edgemac", "Microsoft Edge", true),
-            ("com.vivaldi.Vivaldi", "Vivaldi", true),
-            ("com.operasoftware.Opera", "Opera", true),
-            ("com.kagi.kagisafari", "Orion", true),
-            ("com.apple.Safari", "Safari", false),
-            ("com.apple.SafariTechnologyPreview", "Safari Technology Preview", false),
-        ]
-
-        let runningApps = NSWorkspace.shared.runningApplications
-        let runningBundleIDs = Set(runningApps.compactMap(\.bundleIdentifier))
-        let runningBrowsers = supportedBrowsers.filter { runningBundleIDs.contains($0.bundleId) }
-        guard !runningBrowsers.isEmpty else { return nil }
-
-        let frontmostBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let sortedBrowsers = runningBrowsers.sorted { a, b in
-            if a.bundleId == frontmostBundleID { return true }
-            if b.bundleId == frontmostBundleID { return false }
-            return false
-        }
-
-        // Only query the top 2 candidate browsers (frontmost first) to guarantee sub-millisecond execution
-        for browser in sortedBrowsers.prefix(2) {
-            let script: String
-            if browser.isChromium {
-                script = """
-                tell application id "\(browser.bundleId)"
-                    try
-                        set u to URL of active tab of front window
-                        if u is not "" then return u
-                    end try
-                end tell
-                """
-            } else {
-                script = """
-                tell application id "\(browser.bundleId)"
-                    try
-                        set u to URL of front document
-                        if u is not "" then return u
-                    end try
-                end tell
-                """
-            }
-
-            var error: NSDictionary?
-            if let appleScript = NSAppleScript(source: script) {
-                let result = appleScript.executeAndReturnError(&error)
-                if let errNumber = error?[NSAppleScript.errorNumber] as? Int, errNumber == -1743 {
-                    if !automationPermissionRequired { automationPermissionRequired = true }
-                } else if error == nil {
-                    if automationPermissionRequired { automationPermissionRequired = false }
-                }
-                if let str = result.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   let url = URL(string: str),
-                   let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
-                    return (browser.name, url)
-                }
-            }
-        }
-        return nil
-    }
-
     @objc private func sendBrowserTabToTarget(_ sender: NSMenuItem) {
-        guard let dict = sender.representedObject as? [String: Any?],
-              let url = dict["url"] as? URL else { return }
-        let peerID = dict["peerId"] as? String
+        guard let target = sender.representedObject as? BrowserTabTarget else { return }
+        let url = target.url
+        let peerID = target.peerId
         transport.sendOpenURL(url, targetDeviceId: peerID)
         let peerName = peers.first(where: { $0.id == peerID })?.name ?? "device"
         ToastHUD.shared.show(message: L10n.tr("sent_url_to_peer", peerName), icon: "safari.fill")
