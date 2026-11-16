@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     )
     private var peerIdsBeforePairing: Set<String>?
     private var peers: [Peer] = [] { didSet { scheduleStateRefresh() } }
-    private var status = "Listening" { didSet { scheduleStateRefresh() } }
+    private var status = "" { didSet { scheduleStateRefresh() } }
     private var lastTransferStatus: String?
     private var localNetworkPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private var automationPermissionRequired = false { didSet { scheduleStateRefresh() } }
@@ -35,9 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private var menuNeedsRebuild = false
     private var pendingMenuAction: (() -> Void)?
 
+    private var stateRefreshScheduled = false
+
+    /// Coalesces bursts (e.g. one status per transfer chunk) into at most ~10 menu rebuilds a second.
     private func scheduleStateRefresh() {
         let apply = { [weak self] in
             guard let self else { return }
+            self.stateRefreshScheduled = false
             self.updateStatusIcon()
             self.checkPairingCompletion()
             if self.isStatusMenuOpen {
@@ -46,11 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             }
             self.renderMenu()
         }
-        if Thread.isMainThread {
-            apply()
-        } else {
-            DispatchQueue.main.async(execute: apply)
+        let schedule = { [weak self] in
+            guard let self, !self.stateRefreshScheduled else { return }
+            self.stateRefreshScheduled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: apply)
         }
+        if Thread.isMainThread { schedule() } else { DispatchQueue.main.async(execute: schedule) }
     }
 
     private var sleepObservers: [NSObjectProtocol] = []
@@ -85,22 +90,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         transport.onClipboard = { [weak self] text in
             guard self?.clipboard.applyRemote(text) == true else { return }
             let msg = L10n.tr("received_text")
-            self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
             self?.statusIconView.pulseSync()
         }
         transport.onOpenURL = { [weak self] url in
             if AppProfile.current.isDebug { self?.clipboard.applyRemote(url.absoluteString); return }
+            // A paired phone may only open web pages; file:, custom app schemes, and the like could
+            // launch local apps or reveal files, so they land on the clipboard instead.
+            guard SyncProtocol.isBrowsableURL(url) else {
+                guard self?.clipboard.applyRemote(url.absoluteString) == true else { return }
+                ToastHUD.shared.show(message: L10n.tr("received_text"), icon: "doc.on.clipboard.fill")
+                return
+            }
             NSWorkspace.shared.open(url)
             let msg = L10n.tr("opened_link_in_browser")
-            self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "safari.fill")
             self?.statusIconView.pulseSync()
         }
         transport.onImage = { [weak self] image in
             guard self?.clipboard.applyRemote(image) == true else { return }
             let msg = L10n.tr("received_image_format", image.mimeType)
-            self?.notifyIncoming(title: "BinderClip", body: msg)
             ToastHUD.shared.show(message: msg, icon: "photo.fill")
             self?.statusIconView.pulseSync()
         }
@@ -131,12 +140,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                     let wasActive = self.activeTransferProgress != nil
                     self.activeTransferProgress = nil
                     if wasActive && progress.phase == .sent {
-                        let kind = L10n.tr(progress.metadata.kind == "image" ? "transfer_kind_image" : "transfer_kind_file")
+                        let isFile = progress.metadata.kind == "file"
+                        let kind = L10n.tr(isFile ? "transfer_kind_file" : "transfer_kind_image")
                         let name = progress.metadata.name.isEmpty ? kind : progress.metadata.name
                         let msg = L10n.tr("transfer_sent", name)
-                        self.notifyIncoming(title: AppProfile.current.displayName, body: msg, sound: .default)
-                        NSSound(named: "Glass")?.play()
-                        if progress.metadata.kind != "file" { ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill") }
+                        // Clipboard images sync silently; only files the user chose to share notify.
+                        if isFile {
+                            self.notifyIncoming(title: AppProfile.current.displayName, body: msg, sound: .default)
+                            NSSound(named: "Glass")?.play()
+                        } else {
+                            ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill")
+                        }
                     }
                     self.updateStatusIcon()
                 }
@@ -246,9 +260,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         UNUserNotificationCenter.current().add(request)
     }
 
-    private var isTransferring: Bool {
-        status.contains("%") || status.hasPrefix("Sending image") || status.hasPrefix("Receiving image")
-    }
+    /// Driven by typed progress, never by parsing the (localized) status text.
+    private var isTransferring: Bool { activeTransferProgress != nil }
 
     private func updateStatusIcon() {
         guard let button = statusItem.button else { return }
@@ -386,11 +399,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         logs.target = self
         menu.addItem(logs)
 
+        // Revocation: a leaked QR stays valid until the key rotates, so keep both reachable.
+        if !peers.isEmpty {
+            let unpairAll = NSMenuItem(title: L10n.tr("unpair_all_devices"), action: #selector(unpairAllDevices), keyEquivalent: "")
+            unpairAll.target = self
+            menu.addItem(unpairAll)
+        }
+        let resetKey = NSMenuItem(title: L10n.tr("reset_pairing_key"), action: #selector(resetPairingKey), keyEquivalent: "")
+        resetKey.target = self
+        menu.addItem(resetKey)
+
         if AppProfile.current.isDebug {
             menu.addItem(.separator())
-            let item = NSMenuItem(title: "Private Debug Clipboard…", action: #selector(showDebugClipboard), keyEquivalent: "d")
+            let item = NSMenuItem(title: L10n.tr("debug_clip_menu"), action: #selector(showDebugClipboard), keyEquivalent: "d")
             item.target = self; menu.addItem(item)
-            let bluetooth = NSMenuItem(title: "Bluetooth Testing (Shared Radio)", action: #selector(toggleDebugBluetooth), keyEquivalent: "")
+            let bluetooth = NSMenuItem(title: L10n.tr("debug_bt_menu"), action: #selector(toggleDebugBluetooth), keyEquivalent: "")
             bluetooth.target = self
             bluetooth.state = transport.isBluetoothEnabled ? .on : .off
             menu.addItem(bluetooth)
@@ -568,6 +591,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         guard let peerID = sender.representedObject as? String else { return }
         let peerName = peers.first(where: { $0.id == peerID })?.name ?? "device"
         switch ClipboardClassifier.read(from: clipboard.pasteboard) {
+        case .text(let text) where text.utf8.count > SyncProtocol.maximumTextBytes:
+            ToastHUD.shared.show(message: L10n.tr("text_too_large"), icon: "exclamationmark.circle")
         case .text(let text):
             transport.sendClipboard(text, targetDeviceId: peerID)
             ToastHUD.shared.show(message: L10n.tr("sent_clipboard_to_peer", peerName), icon: "doc.on.clipboard.fill")
@@ -747,6 +772,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
     @objc func sendToPhones(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>?) {
         switch ClipboardClassifier.read(from: pboard) {
+        case .text(let text) where text.utf8.count > SyncProtocol.maximumTextBytes:
+            ToastHUD.shared.show(message: L10n.tr("text_too_large"), icon: "exclamationmark.circle")
         case .text(let text):
             if let url = ServicesShare.webURL(from: text) {
                 transport.sendOpenURL(url)
@@ -766,11 +793,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        if #available(macOS 11.0, *) {
-            completionHandler([.banner, .sound])
-        } else {
-            completionHandler([.alert, .sound])
-        }
+        completionHandler([.banner, .sound])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {

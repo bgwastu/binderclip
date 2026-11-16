@@ -53,8 +53,13 @@ final class DiagnosticLog {
             lock.unlock()
             return
         }
-        events.append(DiagnosticEvent(date: Date(), level: level, message: message))
-        events = events.filter { $0.date >= Date().addingTimeInterval(-retention) }
+        let now = Date()
+        events.append(DiagnosticEvent(date: now, level: level, message: message))
+        // Events are appended in time order, so expired ones are always at the front.
+        let cutoff = now.addingTimeInterval(-retention)
+        if let first = events.first, first.date < cutoff {
+            events.removeFirst(events.firstIndex { $0.date >= cutoff } ?? events.count)
+        }
         if events.count > maximumEvents { events.removeFirst(events.count - maximumEvents) }
         if pendingPersist == nil {
             let work = DispatchWorkItem { [weak self] in self?.flush() }

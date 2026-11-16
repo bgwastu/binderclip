@@ -12,14 +12,14 @@ final class DebugClipboardWindow: NSWindowController, NSWindowDelegate {
         self.send = send
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 270),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "BinderClip Debug — Private Clipboard"
+        window.title = L10n.tr("debug_clip_window")
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
-        let label = NSTextField(wrappingLabelWithString: "Test content stays in the debug group. The system clipboard is untouched.")
-        input.placeholderString = "Text to send to the debug phone"
-        let textButton = NSButton(title: "Send Text", target: self, action: #selector(sendText))
-        let imageButton = NSButton(title: "Send Image…", target: self, action: #selector(sendImage))
+        let label = NSTextField(wrappingLabelWithString: L10n.tr("debug_clip_desc"))
+        input.placeholderString = L10n.tr("debug_clip_field")
+        let textButton = NSButton(title: L10n.tr("debug_clip_send_text"), target: self, action: #selector(sendText))
+        let imageButton = NSButton(title: L10n.tr("debug_clip_send_image"), target: self, action: #selector(sendImage))
         let controls = NSStackView(views: [textButton, imageButton])
         controls.orientation = .horizontal
         let stack = NSStackView(views: [label, input, controls, preview])
@@ -59,9 +59,9 @@ final class DebugClipboardWindow: NSWindowController, NSWindowDelegate {
     }
     private func refresh() {
         switch ClipboardClassifier.read(from: board) {
-        case .text(let text): preview.stringValue = "Private content: " + String(text.prefix(200))
-        case .image(let image): preview.stringValue = "Private image: \(image.mimeType), \(image.data.count) bytes"
-        case .unsupported: preview.stringValue = "Private clipboard is empty or unsupported"
+        case .text(let text): preview.stringValue = L10n.tr("debug_clip_content", String(text.prefix(200)))
+        case .image(let image): preview.stringValue = L10n.tr("debug_clip_image", image.mimeType, image.data.count)
+        case .unsupported: preview.stringValue = L10n.tr("debug_clip_empty")
         }
     }
 }

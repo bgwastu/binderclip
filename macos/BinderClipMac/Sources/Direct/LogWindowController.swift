@@ -1,8 +1,7 @@
 import AppKit
 
-final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearchFieldDelegate {
+final class LogWindowController: NSWindowController {
     private let textView = NSTextView()
-    private var searchField: NSSearchField?
     private var filterSegments: NSSegmentedControl?
     private var autoScrollButton: NSButton?
     private var countLabel: NSTextField?
@@ -12,10 +11,6 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
     private var filterSegmentIndex = 0
     private var autoScrollEnabled = true
 
-    private let toolbarID = NSToolbar.Identifier("LogWindowToolbar")
-    private let clearID = NSToolbarItem.Identifier("logClear")
-    private let copyID = NSToolbarItem.Identifier("logCopy")
-    private let autoScrollID = NSToolbarItem.Identifier("logAutoScroll")
 
     init() {
         // Native scroll view with text view following system Light/Dark appearance
@@ -41,7 +36,6 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
         search.target = nil
         search.translatesAutoresizingMaskIntoConstraints = false
         search.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
-        searchField = search
 
         // Segmented control filter: All | Errors | Warnings | Info
         let segments = NSSegmentedControl(labels: [
@@ -111,20 +105,8 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
 
         super.init(window: window)
 
-        // Set up toolbar buttons: Clear, Copy, Auto-scroll toggle
-        let toolbar = NSToolbar(identifier: toolbarID)
-        toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
-        toolbar.displayMode = .iconAndLabel
-        toolbar.delegate = self
-        window.toolbar = toolbar
-        if #available(macOS 11.0, *) {
-            window.toolbarStyle = .unified
-        }
-
         search.target = self
         search.action = #selector(searchFieldChanged(_:))
-        search.delegate = self
 
         segments.target = self
         segments.action = #selector(filterSegmentChanged(_:))
@@ -146,9 +128,9 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
             object: DiagnosticLog.shared,
             queue: nil
         ) { [weak self] _ in
-            DispatchQueue.main.async { self?.refresh() }
+            // Hidden windows refresh on open instead of on every log line.
+            DispatchQueue.main.async { if self?.window?.isVisible == true { self?.refresh() } }
         }
-        refresh()
     }
 
     required init?(coder: NSCoder) { nil }
@@ -165,12 +147,6 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
 
     @objc private func searchFieldChanged(_ sender: NSSearchField) {
         searchQuery = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        refresh()
-    }
-
-    func controlTextDidChange(_ obj: Notification) {
-        guard let field = obj.object as? NSSearchField, field == searchField else { return }
-        searchQuery = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         refresh()
     }
 
@@ -198,42 +174,6 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
 
     @objc private func closeWindow() {
         window?.performClose(nil)
-    }
-
-    // MARK: - NSToolbarDelegate
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, autoScrollID, copyID, clearID]
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, autoScrollID, copyID, clearID]
-    }
-
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        if itemIdentifier == clearID {
-            let item = NSToolbarItem(itemIdentifier: clearID)
-            item.label = L10n.tr("log_clear")
-            item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: item.label)
-            item.target = self
-            item.action = #selector(clearLogs)
-            return item
-        } else if itemIdentifier == copyID {
-            let item = NSToolbarItem(itemIdentifier: copyID)
-            item.label = L10n.tr("log_copy")
-            item.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: item.label)
-            item.target = self
-            item.action = #selector(copyLogs)
-            return item
-        } else if itemIdentifier == autoScrollID {
-            let item = NSToolbarItem(itemIdentifier: autoScrollID)
-            item.label = L10n.tr("log_auto_scroll")
-            item.image = NSImage(systemSymbolName: "arrow.down.to.line", accessibilityDescription: item.label)
-            item.target = self
-            item.action = #selector(toggleAutoScroll)
-            return item
-        }
-        return nil
     }
 
     // MARK: - Filtering & Refresh
@@ -277,7 +217,7 @@ final class LogWindowController: NSWindowController, NSToolbarDelegate, NSSearch
             ]
             let emptyText = searchQuery.isEmpty && filterSegmentIndex == 0
                 ? L10n.tr("log_no_events")
-                : "$ No matching events."
+                : L10n.tr("log_no_matching")
             textView.textStorage?.setAttributedString(NSAttributedString(string: emptyText, attributes: emptyAttrs))
             return
         }

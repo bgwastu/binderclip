@@ -43,8 +43,6 @@ final class PairingWindow: NSObject, NSWindowDelegate {
         }
     }
 
-    var isVisible: Bool { window?.isVisible ?? false }
-
     func windowWillClose(_ notification: Notification) { stopTimer() }
 
     private func makeStepRow(number: String, text: String) -> NSStackView {
@@ -224,7 +222,7 @@ final class PairingWindow: NSObject, NSWindowDelegate {
             let hosts = info.endpoints.compactMap { SyncProtocol.parseEndpoint($0)?.host }
             endpointsLabel?.stringValue = hosts.joined(separator: ", ")
         }
-        expiresAt = Date().addingTimeInterval(300)
+        expiresAt = Date().addingTimeInterval(SyncProtocol.pairingWindowSeconds)
         #if DEBUG
         DiagnosticLog.shared.info("Pairing invitation generated")
         print("[BinderClip Debug] Pairing invitation saved privately")

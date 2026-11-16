@@ -66,23 +66,6 @@ final class ClipboardBridge {
         return true
     }
 
-    func currentPreviewDescription() -> String? {
-        switch ClipboardClassifier.read(from: pasteboard) {
-        case .text(let text):
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { return nil }
-            let singleLine = trimmed.components(separatedBy: .newlines).first ?? trimmed
-            let preview = singleLine.count > 30 ? String(singleLine.prefix(27)) + "…" : singleLine
-            return "“\(preview)”"
-        case .image(let image):
-            let kb = image.data.count / 1024
-            let sizeStr = kb >= 1024 ? String(format: "%.1f MB", Double(kb) / 1024.0) : "\(kb) KB"
-            return "Image (\(image.mimeType.replacingOccurrences(of: "image/", with: "").uppercased()), \(sizeStr))"
-        case .unsupported:
-            return nil
-        }
-    }
-
     func sendCurrentClipboard() {
         changeCount = pasteboard.changeCount
         hasCaptured = true
