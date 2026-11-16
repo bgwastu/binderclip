@@ -9,12 +9,14 @@ if [[ -z "${MACOS_SIGNING_IDENTITY:-}" ]]; then
   exec python3 "$SCRIPT_DIR/mac-signing.py" run -- "$SCRIPT_DIR/package-release.sh" "$@"
 fi
 PACKAGE_DIR="$SCRIPT_DIR/BinderClipMac"
+source "$SCRIPT_DIR/info-plist.sh"
 RELEASE_REF="${GITHUB_REF_NAME:-}"
-GIT_TAG_VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "1.0.0")"
+GIT_TAG_VERSION="$(git describe --tags --abbrev=0 --match "v[0-9]*" --match "macos-v[0-9]*" 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "1.0.0")"
 GIT_COMMIT_COUNT="$(git rev-list --count HEAD 2>/dev/null || echo "1")"
 VERSION="${VERSION:-$(echo "${RELEASE_REF}" | sed -E 's/^(macos-|android-)?v?//')}"
 VERSION="${VERSION:-$GIT_TAG_VERSION}"
-BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-$GIT_COMMIT_COUNT}}"
+# Commit count on main is monotonic and matches local builds, so Sparkle and Android upgrades never go backwards.
+BUILD_NUMBER="${BUILD_NUMBER:-$GIT_COMMIT_COUNT}"
 APP_PATH="$PWD/BinderClip.app"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/dist}"
 DMG_PATH="$OUTPUT_DIR/BinderClip-$VERSION.dmg"
@@ -57,70 +59,10 @@ cp "$PACKAGE_DIR/Resources/BinderClipMenuIcon.svg" "$APP_PATH/Contents/Resources
 cp -R "$PACKAGE_DIR"/Resources/*.lproj "$APP_PATH/Contents/Resources/"
 chmod 755 "$APP_PATH/Contents/MacOS/BinderClip"
 
-cat > "$APP_PATH/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleLocalizations</key>
-  <array>
-    <string>en</string>
-    <string>id</string>
-    <string>es</string>
-    <string>zh-Hans</string>
-    <string>ja</string>
-    <string>de</string>
-    <string>fr</string>
-    <string>pt-BR</string>
-    <string>ru</string>
-  </array>
-  <key>CFBundleDisplayName</key><string>BinderClip</string>
-  <key>CFBundleExecutable</key><string>BinderClip</string>
-  <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleIconName</key><string>AppIcon</string>
-  <key>CFBundleIdentifier</key><string>net.wastu.binderclip</string>
-  <key>BinderClipEnvironment</key><string>production</string>
-  <key>CFBundleName</key><string>BinderClip</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>LSUIElement</key><true/>
-  <key>NSLocalNetworkUsageDescription</key><string>BinderClip uses direct local-network or mesh-VPN connections to transfer clipboard text and images.</string>
-  <key>NSAppleEventsUsageDescription</key><string>BinderClip reads the active tab URL from your web browser when sharing browser tabs.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>BinderClip syncs clipboard text over Bluetooth when Wi-Fi and mesh are unavailable.</string>
-  <key>NSBonjourServices</key>
-  <array>
-    <string>_binderclip._tcp</string>
-  </array>
-  <key>NSServices</key>
-  <array>
-    <dict>
-      <key>NSMenuItem</key>
-      <dict>
-        <key>default</key>
-        <string>Send to Phones via BinderClip</string>
-      </dict>
-      <key>NSMessage</key>
-      <string>sendToPhones</string>
-      <key>NSPortName</key>
-      <string>BinderClip</string>
-      <key>NSSendTypes</key>
-      <array>
-        <string>NSStringPboardType</string>
-        <string>NSFilenamesPboardType</string>
-        <string>public.url</string>
-        <string>public.plain-text</string>
-        <string>public.image</string>
-      </array>
-    </dict>
-  </array>
-  <key>SUFeedURL</key><string>$FEED_URL</string>
+write_info_plist "$APP_PATH/Contents/Info.plist" BinderClip net.wastu.binderclip production _binderclip._tcp \
+  "$VERSION" "$BUILD_NUMBER" "  <key>SUFeedURL</key><string>$FEED_URL</string>
   <key>SUPublicEDKey</key><string>$SPARKLE_PUBLIC_ED_KEY</string>
-  <key>SUEnableAutomaticChecks</key><true/>
-</dict></plist>
-PLIST
+  <key>SUEnableAutomaticChecks</key><true/>"
 
 install_name_tool -add_rpath '@loader_path/../Frameworks' "$APP_PATH/Contents/MacOS/BinderClip"
 identity="${MACOS_SIGNING_IDENTITY:--}"

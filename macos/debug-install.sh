@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 PACKAGE_DIR="$SCRIPT_DIR/BinderClipMac"
+source "$SCRIPT_DIR/info-plist.sh"
 APP_NAME="BinderClip Debug.app"
 BUNDLE_ID="net.wastu.binderclip.debug.mb"
 OLD_DEBUG_BUNDLE_IDS=(
@@ -18,7 +19,7 @@ INSTALL_DIR="$HOME/Applications"
 INSTALL_PATH="$INSTALL_DIR/$APP_NAME"
 STAGING_PATH="$INSTALL_DIR/.BinderClip Debug.app.new"
 BACKUP_PATH="$INSTALL_DIR/.BinderClip Debug.app.previous"
-VERSION="$(git describe --tags --always 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "0.0.0-debug")"
+VERSION="$(git describe --tags --always --match "v[0-9]*" --match "macos-v[0-9]*" 2>/dev/null | sed -E 's/^(macos-|android-)?v?//' || echo "0.0.0-debug")"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || date +%s)"
 
 usage() {
@@ -70,68 +71,8 @@ cp -R "$PACKAGE_DIR"/Resources/*.lproj "$STAGING_PATH/Contents/Resources/"
 print -n 'APPL????' > "$STAGING_PATH/Contents/PkgInfo"
 install_name_tool -add_rpath '@loader_path/../Frameworks' "$STAGING_PATH/Contents/MacOS/BinderClip" 2>/dev/null || true
 
-cat > "$STAGING_PATH/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleLocalizations</key>
-  <array>
-    <string>en</string>
-    <string>id</string>
-    <string>es</string>
-    <string>zh-Hans</string>
-    <string>ja</string>
-    <string>de</string>
-    <string>fr</string>
-    <string>pt-BR</string>
-    <string>ru</string>
-  </array>
-  <key>CFBundleDisplayName</key><string>BinderClip Debug</string>
-  <key>CFBundleExecutable</key><string>BinderClip</string>
-  <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleIconName</key><string>AppIcon</string>
-  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-  <key>BinderClipEnvironment</key><string>debug</string>
-  <key>CFBundleName</key><string>BinderClip Debug</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>LSUIElement</key><true/>
-  <key>NSLocalNetworkUsageDescription</key><string>BinderClip uses direct local-network or mesh-VPN connections to transfer clipboard text and images.</string>
-  <key>NSAppleEventsUsageDescription</key><string>BinderClip reads the active tab URL from your web browser when sharing browser tabs.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>BinderClip syncs clipboard text over Bluetooth when Wi-Fi and mesh are unavailable.</string>
-  <key>NSBonjourServices</key>
-  <array>
-    <string>_binderclip-dbg._tcp</string>
-  </array>
-  <key>NSServices</key>
-  <array>
-    <dict>
-      <key>NSMenuItem</key>
-      <dict>
-        <key>default</key>
-        <string>Send to Phones via BinderClip Debug</string>
-      </dict>
-      <key>NSMessage</key>
-      <string>sendToPhones</string>
-      <key>NSPortName</key>
-      <string>BinderClip Debug</string>
-      <key>NSSendTypes</key>
-      <array>
-        <string>NSStringPboardType</string>
-        <string>NSFilenamesPboardType</string>
-        <string>public.url</string>
-        <string>public.plain-text</string>
-        <string>public.image</string>
-      </array>
-    </dict>
-  </array>
-  <key>SUEnableAutomaticChecks</key><false/>
-</dict></plist>
-PLIST
+write_info_plist "$STAGING_PATH/Contents/Info.plist" "BinderClip Debug" "$BUNDLE_ID" debug _binderclip-dbg._tcp \
+  "$VERSION" "$BUILD_NUMBER" "  <key>SUEnableAutomaticChecks</key><false/>"
 
 codesign --force --deep --sign - "$STAGING_PATH" >/dev/null
 

@@ -3,7 +3,7 @@ adb=os.environ.get('ADB', 'adb')
 phone=os.environ['ANDROID_SERIAL']
 helper=os.environ.get('BINDERCLIP_TEST_CLIPBOARD_HELPER', '/tmp/binderclip-device-clipboard')
 backup=pathlib.Path.home()/'Library/Application Support/net.wastu.binderclip.debug.mb/device-test-backup/clipboard.plist'
-report=pathlib.Path('/tmp/binderclip-device-'+('manual' if '--manual-share' in sys.argv else 'cache' if '--image-cache' in sys.argv else 'promotion' if '--promotion' in sys.argv else 'bluetooth' if '--bluetooth' in sys.argv else 'network')+'.json')
+report=pathlib.Path('/tmp/binderclip-device-'+('manual' if '--manual-share' in sys.argv else 'cache' if '--image-cache' in sys.argv else 'bluetooth' if '--bluetooth' in sys.argv else 'network')+'.json')
 def a(*args): return subprocess.run([adb,'-s',phone,*args],capture_output=True,timeout=20)
 def clip(*args): return subprocess.run([helper,*map(str,args)],capture_output=True,timeout=10).returncode
 def readstage(): return a('shell','run-as','net.wastu.binderclip.debug','cat','files/device-test-stage.txt').stdout.decode().strip()
@@ -17,8 +17,7 @@ if '--promotion' in sys.argv or '--doze' in sys.argv:
     raise RuntimeError('Radio/Doze mutations affect production; use dedicated acceptance devices')
 manual='--manual-share' in sys.argv
 cache='--image-cache' in sys.argv
-promotion='--promotion' in sys.argv
-bluetooth='--bluetooth' in sys.argv or promotion
+bluetooth='--bluetooth' in sys.argv
 large='--large-text' in sys.argv
 cacheSeconds=next((int(arg.split('=',1)[1]) for arg in sys.argv if arg.startswith('--cache-seconds=')),70)
 if not 70 <= cacheSeconds <= 600: raise ValueError('Cache observation must be 70–600 seconds')
@@ -29,7 +28,7 @@ if clip('save',backup): raise RuntimeError('Could not back up the Mac clipboard'
 try:
     a('shell','run-as','net.wastu.binderclip.debug','rm','-f','files/device-test-stage.txt','files/device-test-ack.txt','files/device-test-selected-transport.txt')
     with open('/tmp/binderclip-device-instrumentation.log','w') as log:
-        process=subprocess.Popen([adb,'-s',phone,'shell','am','instrument','-w','-e','cacheObserveSeconds',str(cacheSeconds),'-e','hardwareRoundTrip','true','-e','hardwareManualShare','true' if manual else 'false','-e','hardwareImageCache','true' if cache else 'false','-e','largeText','true' if large else 'false','-e','promotion','true' if promotion else 'false','-e','expectedTransport','BLUETOOTH' if bluetooth else 'MESH' if '--mesh' in sys.argv else 'LAN' if '--lan' in sys.argv else 'NETWORK','-e','class','net.wastu.binderclip.ManualShareDeviceTest' if manual else 'net.wastu.binderclip.ImageCacheDeviceTest' if cache else 'net.wastu.binderclip.TransportDeviceTest','net.wastu.binderclip.debug.test/androidx.test.runner.AndroidJUnitRunner'],stdout=log,stderr=subprocess.STDOUT)
+        process=subprocess.Popen([adb,'-s',phone,'shell','am','instrument','-w','-e','cacheObserveSeconds',str(cacheSeconds),'-e','hardwareRoundTrip','true','-e','hardwareManualShare','true' if manual else 'false','-e','hardwareImageCache','true' if cache else 'false','-e','largeText','true' if large else 'false','-e','expectedTransport','BLUETOOTH' if bluetooth else 'MESH' if '--mesh' in sys.argv else 'LAN' if '--lan' in sys.argv else 'NETWORK','-e','class','net.wastu.binderclip.ManualShareDeviceTest' if manual else 'net.wastu.binderclip.ImageCacheDeviceTest' if cache else 'net.wastu.binderclip.TransportDeviceTest','net.wastu.binderclip.debug.test/androidx.test.runner.AndroidJUnitRunner'],stdout=log,stderr=subprocess.STDOUT)
         handled=set()
         deadline=time.monotonic()+330+(cacheSeconds if cache else 0)
         while time.monotonic()<deadline:
@@ -83,7 +82,7 @@ try:
                 metrics=a('shell','run-as','net.wastu.binderclip.debug','cat','files/device-test-cache.json').stdout.decode()
                 checks.append('Unchanged image cache: '+metrics);print(checks[-1],flush=True);break
             elif stage=='passed':
-                checks.append('Mac→Android previous text delivered after image' if 'echo-prior-text' in handled else 'Mac→Android encrypted PNG delivered byte-for-byte' if (promotion or not bluetooth) else 'Mac→Android encrypted text delivered');print(checks[-1],flush=True);break
+                checks.append('Mac→Android previous text delivered after image' if 'echo-prior-text' in handled else 'Mac→Android encrypted PNG delivered byte-for-byte' if not bluetooth else 'Mac→Android encrypted text delivered');print(checks[-1],flush=True);break
             elif stage=='failed':
                 process.wait(timeout=20)
                 raise RuntimeError('Android instrumentation failed; see /tmp/binderclip-device-instrumentation.log')
@@ -95,8 +94,7 @@ try:
         process.wait(timeout=20)
         if 'OK (1 test)' not in pathlib.Path('/tmp/binderclip-device-instrumentation.log').read_text():
             raise RuntimeError('Instrumentation did not report a passing test')
-        if promotion: checks.append('Automatic Wi-Fi/mesh promotion and Bluetooth release after grace period')
-        report.write_text(json.dumps({'largeText':large,'promotion':promotion,'transport':'BLUETOOTH' if bluetooth else 'NETWORK','selectedTransport':a('shell','run-as','net.wastu.binderclip.debug','cat','files/device-test-selected-transport.txt').stdout.decode().strip(),'checks':checks,'instrumentationExit':process.returncode},indent=2))
+        report.write_text(json.dumps({'largeText':large,'transport':'BLUETOOTH' if bluetooth else 'NETWORK','selectedTransport':a('shell','run-as','net.wastu.binderclip.debug','cat','files/device-test-selected-transport.txt').stdout.decode().strip(),'checks':checks,'instrumentationExit':process.returncode},indent=2))
 finally:
     if 'process' in locals() and process.poll() is None:
         process.terminate()

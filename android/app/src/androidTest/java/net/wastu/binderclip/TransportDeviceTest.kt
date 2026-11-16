@@ -64,7 +64,7 @@ class TransportDeviceTest {
                     (if (bluetooth) AppRuntime.state.value.transportType == TransportType.BLUETOOTH
                     else AppRuntime.state.value.transportType in setOf(TransportType.LAN, TransportType.MESH))
             }
-            assertTrue(AppRuntime.state.value.rootAvailable)
+            // Isolated debug builds never probe root, so root availability is not asserted here.
             assertTrue(AppRuntime.state.value.automaticClipboardEnabled)
             if (bluetooth) assertEquals(TransportType.BLUETOOTH, AppRuntime.state.value.transportType)
             else if (expected == "MESH" || expected == "LAN") assertEquals(TransportType.valueOf(expected), AppRuntime.state.value.transportType)
