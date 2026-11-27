@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private var activeTransfers = [String: TransferProgress]()
     private var activeTransferProgress: TransferProgress? { activeTransfers.values.first }
     private var autoApplyClipboard: Bool {
-        AppProfile.current.defaults.object(forKey: "auto-apply-clipboard") as? Bool ?? AppProfile.current.isDebug
+        AppProfile.current.defaults.object(forKey: "auto-apply-clipboard") as? Bool ?? true
     }
     private var transferNotifications: Bool {
         AppProfile.current.defaults.object(forKey: "transfer-notifications") as? Bool ?? true

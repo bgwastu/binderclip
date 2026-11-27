@@ -51,7 +51,7 @@ data class AppState(
     val pendingText: Boolean = false,
     val pendingImage: Boolean = false,
     val pendingSharedText: Boolean = false,
-    val autoApplyClipboard: Boolean = false,
+    val autoApplyClipboard: Boolean = DeviceStore.DEFAULT_AUTO_APPLY_CLIPBOARD,
     val transferStatus: String? = null,
     val transferProgress: TransferProgress? = null,
     val transferRevision: Long = 0,

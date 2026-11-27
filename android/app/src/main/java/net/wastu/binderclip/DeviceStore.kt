@@ -52,6 +52,7 @@ object DeviceNames {
 /** Durable state; the group key is encrypted by a non-exportable Android Keystore key. */
 class DeviceStore(context: Context) {
     companion object {
+        internal const val DEFAULT_AUTO_APPLY_CLIPBOARD = true
         private val shareLock = Any()
         private const val SHARE_OUTBOX = "share_outbox"
         private const val SHARE_INBOX = "share_inbox"
@@ -318,7 +319,7 @@ class DeviceStore(context: Context) {
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
 
     var autoApplyClipboard: Boolean
-        get() = prefs.getBoolean("auto_apply_clipboard", AppProfile.current.isDebug)
+        get() = prefs.getBoolean("auto_apply_clipboard", DEFAULT_AUTO_APPLY_CLIPBOARD)
         set(value) { prefs.edit().putBoolean("auto_apply_clipboard", value).apply() }
 
     /** Suppress transient toasts shown for clipboard copy/receive/send by default. */
