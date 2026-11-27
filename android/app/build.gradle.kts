@@ -43,7 +43,7 @@ if (releaseSigningPartiallyConfigured && gradle.startParameter.taskNames.any { i
 
 android {
     namespace = "net.wastu.binderclip"
-    compileSdk = 36
+    compileSdk = 37
 
     fun gitProvider(vararg args: String, fallback: String): String = runCatching {
         providers.exec {
@@ -139,12 +139,11 @@ gradle.taskGraph.whenReady {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.08.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.11.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.3")

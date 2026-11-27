@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Kirim papan klip saat ini</string>
     <string name="section_permissions">Izin</string>
     <string name="section_settings">Pengaturan</string>
+    <string name="nav_clipboard">Papan klip</string>
+    <string name="connections_title">Koneksi</string>
+    <string name="reconnect">Sambungkan kembali</string>
+    <string name="transfers_outgoing">File keluar</string>
+    <string name="transfers_incoming">File masuk</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Pemberitahuan</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Transfer dijeda; menghubungkan kembali…</string>
     <string name="share_error_file">File gagal masuk antrean. Batas: 512 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.</string>
     <string name="received_files">File Diterima</string>
-    <string name="send_file">Kirim File…</string>
+    <string name="send_file">Kirim file…</string>
     <string name="file_connection_required">File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.</string>
     <string name="file_picker_help">Pilih hingga 128 file, masing-masing paling besar 512 MiB.</string>
     <string name="share_preparing">Menyiapkan kiriman…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">Izinkan BinderClip</string>
     <string name="activity_title">Aktivitas terbaru</string>
     <string name="activity_empty">Belum ada yang dikirim atau diterima.</string>
+    <string name="activity_just_now">Baru saja</string>
     <string name="transfer_kind_link">tautan</string>
     <string name="pair_confirm_title">Pasangkan dengan %1$s?</string>
     <string name="pair_confirm_message">Lanjutkan hanya jika Anda membuka tautan ini dari Mac Anda sendiri. Isi papan klip akan disinkronkan dengan komputer ini.</string>

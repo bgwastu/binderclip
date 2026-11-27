@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">現在のクリップボードを送信</string>
     <string name="section_permissions">権限設定</string>
     <string name="section_settings">設定</string>
+    <string name="nav_clipboard">クリップボード</string>
+    <string name="connections_title">接続</string>
+    <string name="reconnect">再接続</string>
+    <string name="transfers_outgoing">送信ファイル</string>
+    <string name="transfers_incoming">受信ファイル</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">通知</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">BinderClip を許可</string>
     <string name="activity_title">最近のアクティビティ</string>
     <string name="activity_empty">送受信の履歴はまだありません。</string>
+    <string name="activity_just_now">たった今</string>
     <string name="transfer_kind_link">リンク</string>
     <string name="pair_confirm_title">%1$s とペアリングしますか？</string>
     <string name="pair_confirm_message">このリンクを自分の Mac から開いた場合のみ続行してください。クリップボードの内容がこのコンピュータと同期されます。</string>

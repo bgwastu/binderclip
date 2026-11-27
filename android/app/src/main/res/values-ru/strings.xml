@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Отправить текущий буфер обмена</string>
     <string name="section_permissions">Разрешения</string>
     <string name="section_settings">Настройки</string>
+    <string name="nav_clipboard">Буфер обмена</string>
+    <string name="connections_title">Подключения</string>
+    <string name="reconnect">Подключиться снова</string>
+    <string name="transfers_outgoing">Исходящие файлы</string>
+    <string name="transfers_incoming">Входящие файлы</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Уведомления</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Передача приостановлена; повторное подключение…</string>
     <string name="share_error_file">Не удалось добавить файл в очередь. Лимит: 512 MiB (изображения буфера: 30 MiB). Проверьте доступ и свободное место.</string>
     <string name="received_files">Полученные файлы</string>
-    <string name="send_file">Отправить файл…</string>
+    <string name="send_file">Отправить файлы…</string>
     <string name="file_connection_required">Для файлов нужны Wi-Fi или mesh и обновлённые приложения на обоих устройствах.</string>
     <string name="file_picker_help">Выберите до 128 файлов размером до 512 МиБ каждый.</string>
     <string name="share_preparing">Подготовка к отправке…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">Разрешить BinderClip</string>
     <string name="activity_title">Недавняя активность</string>
     <string name="activity_empty">Пока ничего не отправлено и не получено.</string>
+    <string name="activity_just_now">Только что</string>
     <string name="transfer_kind_link">ссылка</string>
     <string name="pair_confirm_title">Создать пару с %1$s?</string>
     <string name="pair_confirm_message">Продолжайте, только если вы открыли эту ссылку со своего Mac. Содержимое буфера обмена будет синхронизироваться с этим компьютером.</string>

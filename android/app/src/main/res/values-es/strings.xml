@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Enviar portapapeles actual</string>
     <string name="section_permissions">Permisos</string>
     <string name="section_settings">Ajustes</string>
+    <string name="nav_clipboard">Portapapeles</string>
+    <string name="connections_title">Conexiones</string>
+    <string name="reconnect">Reconectar</string>
+    <string name="transfers_outgoing">Archivos salientes</string>
+    <string name="transfers_incoming">Archivos entrantes</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notificaciones</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Transferencia pausada; reconectando…</string>
     <string name="share_error_file">No se pudo poner el archivo en cola. Límite: 512 MiB (imágenes del portapapeles: 30 MiB). Revisa el acceso y el espacio.</string>
     <string name="received_files">Archivos recibidos</string>
-    <string name="send_file">Enviar archivo…</string>
+    <string name="send_file">Enviar archivos…</string>
     <string name="file_connection_required">Los archivos requieren Wi-Fi o mesh y ambas aplicaciones actualizadas.</string>
     <string name="file_picker_help">Selecciona hasta 128 archivos, con un máximo de 512 MiB por archivo.</string>
     <string name="share_preparing">Preparando el envío…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">Permitir BinderClip</string>
     <string name="activity_title">Actividad reciente</string>
     <string name="activity_empty">Aún no se ha enviado ni recibido nada.</string>
+    <string name="activity_just_now">Ahora mismo</string>
     <string name="transfer_kind_link">enlace</string>
     <string name="pair_confirm_title">¿Vincular con %1$s?</string>
     <string name="pair_confirm_message">Continúa solo si abriste este enlace desde tu propio Mac. El contenido del portapapeles se sincronizará con este ordenador.</string>

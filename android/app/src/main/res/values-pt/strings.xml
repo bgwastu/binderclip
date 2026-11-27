@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Enviar área de transferência atual</string>
     <string name="section_permissions">Permissões</string>
     <string name="section_settings">Configurações</string>
+    <string name="nav_clipboard">Área de transferência</string>
+    <string name="connections_title">Conexões</string>
+    <string name="reconnect">Reconectar</string>
+    <string name="transfers_outgoing">Arquivos enviados</string>
+    <string name="transfers_incoming">Arquivos recebidos</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notificações</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Transferência pausada; reconectando…</string>
     <string name="share_error_file">Não foi possível colocar o arquivo na fila. Limite: 512 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.</string>
     <string name="received_files">Arquivos recebidos</string>
-    <string name="send_file">Enviar arquivo…</string>
+    <string name="send_file">Enviar arquivos…</string>
     <string name="file_connection_required">Arquivos exigem Wi-Fi ou mesh e aplicativos atualizados nos dois dispositivos.</string>
     <string name="file_picker_help">Selecione até 128 arquivos de até 512 MiB cada.</string>
     <string name="share_preparing">Preparando o envio…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">Permitir o BinderClip</string>
     <string name="activity_title">Atividade recente</string>
     <string name="activity_empty">Nada enviado ou recebido ainda.</string>
+    <string name="activity_just_now">Agora mesmo</string>
     <string name="transfer_kind_link">link</string>
     <string name="pair_confirm_title">Parear com %1$s?</string>
     <string name="pair_confirm_message">Continue apenas se você abriu este link no seu próprio Mac. O conteúdo da área de transferência será sincronizado com este computador.</string>

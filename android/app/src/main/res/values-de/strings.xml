@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Aktuelle Zwischenablage senden</string>
     <string name="section_permissions">Berechtigungen</string>
     <string name="section_settings">Einstellungen</string>
+    <string name="nav_clipboard">Zwischenablage</string>
+    <string name="connections_title">Verbindungen</string>
+    <string name="reconnect">Erneut verbinden</string>
+    <string name="transfers_outgoing">Ausgehende Dateien</string>
+    <string name="transfers_incoming">Eingehende Dateien</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Benachrichtigungen</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Übertragung pausiert; Verbindung wird wiederhergestellt…</string>
     <string name="share_error_file">Datei konnte nicht vorgemerkt werden. Limit: 512 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.</string>
     <string name="received_files">Empfangene Dateien</string>
-    <string name="send_file">Datei senden…</string>
+    <string name="send_file">Dateien senden…</string>
     <string name="file_connection_required">Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.</string>
     <string name="file_picker_help">Wähle bis zu 128 Dateien mit jeweils höchstens 512 MiB aus.</string>
     <string name="share_preparing">Senden wird vorbereitet…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">BinderClip erlauben</string>
     <string name="activity_title">Letzte Aktivität</string>
     <string name="activity_empty">Noch nichts gesendet oder empfangen.</string>
+    <string name="activity_just_now">Gerade eben</string>
     <string name="transfer_kind_link">Link</string>
     <string name="pair_confirm_title">Mit %1$s koppeln?</string>
     <string name="pair_confirm_message">Fahre nur fort, wenn du diesen Link von deinem eigenen Mac geöffnet hast. Zwischenablage-Inhalte werden mit diesem Computer synchronisiert.</string>

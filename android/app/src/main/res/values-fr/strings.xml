@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">Envoyer le presse-papiers actuel</string>
     <string name="section_permissions">Autorisations</string>
     <string name="section_settings">Paramètres</string>
+    <string name="nav_clipboard">Presse-papiers</string>
+    <string name="connections_title">Connexions</string>
+    <string name="reconnect">Reconnecter</string>
+    <string name="transfers_outgoing">Fichiers sortants</string>
+    <string name="transfers_incoming">Fichiers entrants</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notifications</string>
@@ -106,7 +111,7 @@
     <string name="transfer_paused">Transfert en pause ; reconnexion…</string>
     <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 512 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
     <string name="received_files">Fichiers reçus</string>
-    <string name="send_file">Envoyer un fichier…</string>
+    <string name="send_file">Envoyer des fichiers…</string>
     <string name="file_connection_required">Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.</string>
     <string name="file_picker_help">Sélectionnez jusqu’à 128 fichiers de 512 Mio maximum chacun.</string>
     <string name="share_preparing">Préparation de l’envoi…</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">Autoriser BinderClip</string>
     <string name="activity_title">Activité récente</string>
     <string name="activity_empty">Rien n\'a encore été envoyé ou reçu.</string>
+    <string name="activity_just_now">À l’instant</string>
     <string name="transfer_kind_link">lien</string>
     <string name="pair_confirm_title">Associer à %1$s ?</string>
     <string name="pair_confirm_message">Continuez uniquement si vous avez ouvert ce lien depuis votre propre Mac. Le contenu du presse-papiers sera synchronisé avec cet ordinateur.</string>

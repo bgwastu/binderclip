@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -111,7 +110,7 @@ internal fun SetupScreen(state: AppState, onBack: () -> Unit, onCheckAgain: () -
                 StatusCard(done)
                 Card(
                     Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 ) {
                     Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
@@ -142,11 +141,11 @@ internal fun SetupScreen(state: AppState, onBack: () -> Unit, onCheckAgain: () -
 
 @Composable
 private fun StatusCard(done: Boolean) {
-    val container = if (done) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-    val content = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    val container = if (done) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer
+    val content = if (done) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
     ) {
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {

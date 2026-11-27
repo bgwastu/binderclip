@@ -12,13 +12,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -28,60 +26,43 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Android
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -92,14 +73,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -359,7 +337,7 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BinderClipScreen(
     state: AppState,
@@ -385,27 +363,27 @@ internal fun BinderClipScreen(
     onCheckCapture: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
     var selectedDevice by remember { mutableStateOf<RememberedPeer?>(null) }
     var screen by rememberSaveable { mutableStateOf(Screen.Home) }
+    var showSetup by rememberSaveable { mutableStateOf(false) }
+    val screenState = rememberSaveableStateHolder()
     var showLogs by remember { mutableStateOf(false) }
     val diagnosticEvents by DiagnosticLog.events.collectAsState()
-    val devices = listOfNotNull(state.peer)
     permissionRevision.hashCode()
 
     val missingPermissions = buildList {
         if (!notificationsGranted) add(
             PermissionNeed(
-                context.getString(R.string.perm_notifications),
-                context.getString(R.string.perm_notifications_desc),
+                R.string.perm_notifications,
+                R.string.perm_notifications_desc,
                 Icons.Outlined.Notifications,
                 onRequestNotifications
             )
         )
         if (!bluetoothGranted) add(
             PermissionNeed(
-                context.getString(R.string.perm_bluetooth),
-                context.getString(R.string.perm_bluetooth_desc),
+                R.string.perm_bluetooth,
+                R.string.perm_bluetooth_desc,
                 Icons.Outlined.Settings,
                 onRequestBluetooth
             )
@@ -434,6 +412,8 @@ internal fun BinderClipScreen(
     var isDownloadingUpdate by remember { mutableStateOf(false) }
     var downloadPercent by remember { mutableIntStateOf(0) }
     val updateScope = rememberCoroutineScope()
+    val upToDateMessage = stringResource(R.string.update_up_to_date, BuildConfig.VERSION_NAME)
+    val updateErrorMessage = stringResource(R.string.update_error)
 
     fun checkUpdates(manual: Boolean = false) {
         updateScope.launch {
@@ -441,7 +421,7 @@ internal fun BinderClipScreen(
             if (release != null) {
                 availableUpdate = release
             } else if (manual) {
-                Toast.makeText(context, context.getString(R.string.update_up_to_date, BuildConfig.VERSION_NAME), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, upToDateMessage, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -450,67 +430,100 @@ internal fun BinderClipScreen(
         checkUpdates(manual = false)
     }
 
-    BackHandler(enabled = screen != Screen.Home) { screen = Screen.Home }
-    when (screen) {
-        Screen.Setup -> SetupScreen(state, onBack = { screen = Screen.Home }, onCheckAgain = onCheckCapture)
-        Screen.Settings -> SettingsScreen(
-            state = state,
-            bluetoothGranted = bluetoothGranted,
-            missingPermissions = missingPermissions,
-            onBack = { screen = Screen.Home },
-            onToggleBtFallback = onToggleBtFallback,
-            onToggleAutostart = onToggleAutostart,
-            onAutoApplyClipboard = onAutoApplyClipboard,
-            onRequestBluetooth = onRequestBluetooth,
-            onScan = onScan,
-            onShowLogs = { showLogs = true },
-            onCheckUpdates = { checkUpdates(manual = true) },
-        )
-        Screen.Transfers -> Scaffold(topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.transfers_title)) },
-                navigationIcon = {
-                    IconButton(onClick = { screen = Screen.Home }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
+    BackHandler(enabled = showSetup || screen != Screen.Home) {
+        if (showSetup) showSetup = false else screen = Screen.Home
+    }
+    if (showSetup) {
+        SetupScreen(state, onBack = { showSetup = false }, onCheckAgain = onCheckCapture)
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(title = {
+                    if (screen == Screen.Home) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Surface(
+                                color = Ink,
+                                contentColor = OnInk,
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.size(34.dp),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(painterResource(R.drawable.ic_binder_clip), null, Modifier.size(17.dp))
+                                }
+                            }
+                            Text(AppProfile.current.displayName, style = MaterialTheme.typography.titleLarge)
+                        }
+                    } else {
+                        Text(stringResource(screen.label), style = MaterialTheme.typography.titleLarge)
                     }
-                },
-            )
-        }) { insets ->
-            Box(Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp)) {
-                val peer = state.peer
-                if (peer == null) Text(stringResource(R.string.transfers_empty))
-                else ShareTransferList(peer.deviceId, null, state.transferProgress, onRetryTransfer, onCancelTransfer)
+                })
+            },
+            bottomBar = {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                    Screen.entries.forEach { destination ->
+                        val icon = when (destination) {
+                            Screen.Home -> Icons.Outlined.ContentPaste
+                            Screen.Transfers -> Icons.Outlined.FolderOpen
+                            Screen.Settings -> Icons.Outlined.Settings
+                        }
+                        NavigationBarItem(
+                            selected = screen == destination,
+                            onClick = { screen = destination },
+                            icon = { Icon(icon, contentDescription = null) },
+                            label = { Text(stringResource(destination.label)) },
+                        )
+                    }
+                }
+            },
+        ) { insets ->
+            Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
+                screenState.SaveableStateProvider(screen.name) {
+                    when (screen) {
+                        Screen.Home -> HomeScreen(
+                            state = state,
+                            visibleTransfer = visibleTransfer,
+                            onDismissTransfer = { progress ->
+                                if (progress.isBusy || progress.canCancel) hiddenTransferId = progress.transferId
+                                visibleTransfer = null
+                            },
+                            onCancelTransfer = onCancelTransfer,
+                            onScan = onScan,
+                            onSend = onSend,
+                            onSendFile = onSendFile,
+                            onCopy = onCopy,
+                            onCopyShared = onCopyShared,
+                            onRefresh = onRefresh,
+                            onReconnect = onReconnect,
+                            onManage = { selectedDevice = it },
+                            onOpenSetup = { showSetup = true },
+                        )
+                        Screen.Transfers -> TransfersScreen(state, onSendFile, onRetryTransfer, onCancelTransfer)
+                        Screen.Settings -> SettingsScreen(
+                            state = state,
+                            bluetoothGranted = bluetoothGranted,
+                            missingPermissions = missingPermissions,
+                            onToggleBtFallback = onToggleBtFallback,
+                            onToggleAutostart = onToggleAutostart,
+                            onAutoApplyClipboard = onAutoApplyClipboard,
+                            onRequestBluetooth = onRequestBluetooth,
+                            onOpenSetup = { showSetup = true },
+                            onScan = onScan,
+                            onShowLogs = { showLogs = true },
+                            onCheckUpdates = { checkUpdates(manual = true) },
+                        )
+                    }
+                }
             }
         }
-        Screen.Home -> HomeScreen(
-            state = state,
-            devices = devices,
-            missingPermissions = missingPermissions,
-            visibleTransfer = visibleTransfer?.takeUnless { it.transferId != null && it.transferId == hiddenTransferId },
-            onDismissTransfer = { progress ->
-                if (progress.isBusy || progress.canCancel) hiddenTransferId = progress.transferId
-                visibleTransfer = null
-            },
-            onCancelTransfer = onCancelTransfer,
-            onScan = onScan,
-            onSend = onSend,
-            onSendFile = onSendFile,
-            onCopy = onCopy,
-            onCopyShared = onCopyShared,
-            onRefresh = onRefresh,
-            onManage = { selectedDevice = it },
-            onOpenTransfers = { screen = Screen.Transfers },
-            onOpenSetup = { screen = Screen.Setup },
-            onOpenSettings = { screen = Screen.Settings },
-        )
     }
 
     // ModalBottomSheet for paired device options (eliminates nested alert dialogs)
     selectedDevice?.let { target ->
-        val sheetState = rememberModalBottomSheetState()
+        val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
         ModalBottomSheet(
             onDismissRequest = { selectedDevice = null },
             sheetState = sheetState,
+            shape = MaterialTheme.shapes.extraLarge,
             dragHandle = { BottomSheetDefaults.DragHandle() },
         ) {
             DeviceDetailsBottomSheet(
@@ -711,7 +724,7 @@ internal fun BinderClipScreen(
                                 availableUpdate = null
                                 updater.installApk(file)
                             } else {
-                                Toast.makeText(context, context.getString(R.string.update_error), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, updateErrorMessage, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }) {
@@ -850,59 +863,10 @@ private fun DeviceDetailsBottomSheet(
 }
 
 internal data class PermissionNeed(
-    val title: String,
-    val summary: String,
+    @StringRes val title: Int,
+    @StringRes val summary: Int,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val onClick: () -> Unit,
-    val actionLabel: String? = null,
-)
-
-@Composable
-internal fun PermissionRow(need: PermissionNeed) = ListItem(
-    headlineContent = { Text(need.title) },
-    supportingContent = { Text(need.summary) },
-    leadingContent = { Icon(need.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    trailingContent = { TextButton(onClick = need.onClick) { Text(need.actionLabel ?: stringResource(R.string.allow)) } },
-)
-
-@Composable
-internal fun EmptyPairedDevices(onScan: () -> Unit) = Column(
-    modifier = Modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
-) {
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.no_devices_paired)) },
-        supportingContent = { Text(stringResource(R.string.no_devices_paired_desc)) },
-    )
-    OutlinedButton(
-        onClick = onScan,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.scan_qr_to_pair))
-    }
-}
-
-@Composable
-internal fun SectionTitle(text: String, topPadding: androidx.compose.ui.unit.Dp = 14.dp) = Text(
-    text,
-    style = MaterialTheme.typography.titleSmall,
-    color = MaterialTheme.colorScheme.primary,
-    modifier = Modifier.padding(top = topPadding, bottom = 2.dp),
-)
-
-@Composable
-internal fun PreferenceToggle(
-    title: String,
-    summary: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onChanged: (Boolean) -> Unit,
-) = ListItem(
-    headlineContent = { Text(title) },
-    supportingContent = { Text(summary) },
-    trailingContent = { Switch(checked = checked, onCheckedChange = onChanged, enabled = enabled) },
 )
 
 @Composable

@@ -12,13 +12,21 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.AndroidViewModel
@@ -57,17 +65,24 @@ class ShareReceiverActivity : ComponentActivity() {
                 val delivered = remember(state.textId, runtime.transferRevision) {
                     state.textId?.let { it in DeviceStore(applicationContext).deliveredShares() } == true
                 }
+                val preparing = state.message == R.string.share_preparing
                 AlertDialog(
-                    onDismissRequest = { if (state.message != R.string.share_preparing) finish() },
-                    title = { Text(stringResource(if (state.message == R.string.share_preparing) R.string.share_preparing else R.string.transfers_title)) },
+                    onDismissRequest = { if (!preparing) finish() },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    icon = { Icon(Icons.Rounded.FolderOpen, contentDescription = null) },
+                    title = { Text(stringResource(if (preparing) R.string.share_preparing else R.string.transfers_title)) },
                     text = {
                         val peerId = state.peerId
-                        if (peerId != null && state.files) {
-                            if (state.message == R.string.share_error_delivery) Text(stringResource(state.message))
-                            ShareTransferList(peerId, batchId, runtime.transferProgress,
-                                retry = { fileAction(BinderClipService.ACTION_RETRY_TRANSFER, it) },
-                                cancel = { fileAction(BinderClipService.ACTION_CANCEL_TRANSFER, it) },
-                            )
+                        if (preparing) {
+                            LinearWavyProgressIndicator()
+                        } else if (peerId != null && state.files) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (state.message == R.string.share_error_delivery) Text(stringResource(state.message))
+                                ShareTransferList(peerId, batchId, runtime.transferProgress,
+                                    retry = { fileAction(BinderClipService.ACTION_RETRY_TRANSFER, it) },
+                                    cancel = { fileAction(BinderClipService.ACTION_CANCEL_TRANSFER, it) },
+                                )
+                            }
                         } else {
                             val receipt = runtime.transferProgress?.takeIf { state.textId != null && it.transferId == state.textId }
                             Text(receipt?.message(this) ?: if (delivered) {
@@ -76,7 +91,7 @@ class ShareReceiverActivity : ComponentActivity() {
                         }
                     },
                     confirmButton = {
-                        if (state.message != R.string.share_preparing) {
+                        if (!preparing) {
                             TextButton(onClick = { finish() }) { Text(stringResource(R.string.close)) }
                         }
                     },

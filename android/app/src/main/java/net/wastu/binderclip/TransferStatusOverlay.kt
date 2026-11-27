@@ -14,7 +14,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,8 +54,7 @@ internal fun TransferStatusOverlay(
         shape = MaterialTheme.shapes.large,
         color = colors.surfaceContainerHigh,
         contentColor = colors.onSurface,
-        shadowElevation = 3.dp,
-    ) {
+        ) {
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 when {
@@ -85,10 +84,10 @@ internal fun TransferStatusOverlay(
             }
             Column(Modifier.padding(end = 12.dp, bottom = 4.dp)) {
                 if (progress.state == TransferProgress.State.SENDING || progress.state == TransferProgress.State.RECEIVING) {
-                    LinearProgressIndicator(progress = { progress.percent.coerceIn(0, 100) / 100f },
+                    LinearWavyProgressIndicator(progress = { progress.percent.coerceIn(0, 100) / 100f },
                         modifier = Modifier.fillMaxWidth())
                 } else if (progress.state == TransferProgress.State.OFFERING && progress.fileName != null) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
                 if (progress.canCancel || progress.isBusy && progress.isOutgoing && progress.transferId != null) {
                     TextButton(onClick = { cancelling = true; onCancel() },

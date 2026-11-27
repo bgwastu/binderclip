@@ -22,6 +22,11 @@
     <string name="send_current_clipboard">发送当前剪贴板</string>
     <string name="section_permissions">系统权限</string>
     <string name="section_settings">设置</string>
+    <string name="nav_clipboard">剪贴板</string>
+    <string name="connections_title">连接</string>
+    <string name="reconnect">重新连接</string>
+    <string name="transfers_outgoing">发出的文件</string>
+    <string name="transfers_incoming">收到的文件</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">通知权限</string>
@@ -164,6 +169,7 @@
     <string name="setup_step_allow">允许 BinderClip</string>
     <string name="activity_title">最近活动</string>
     <string name="activity_empty">尚无发送或接收记录。</string>
+    <string name="activity_just_now">刚刚</string>
     <string name="transfer_kind_link">链接</string>
     <string name="pair_confirm_title">要与 %1$s 配对吗？</string>
     <string name="pair_confirm_message">仅当此链接来自你自己的 Mac 时才继续。剪贴板内容将与这台电脑同步。</string>

@@ -20,6 +20,11 @@
     <string name="send_current_clipboard">Send current clipboard</string>
     <string name="section_permissions">Permissions</string>
     <string name="section_settings">Settings</string>
+    <string name="nav_clipboard">Clipboard</string>
+    <string name="connections_title">Connections</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="transfers_outgoing">Outgoing files</string>
+    <string name="transfers_incoming">Incoming files</string>
 
     <!-- Permissions -->
     <string name="perm_notifications">Notifications</string>
@@ -107,7 +112,7 @@
     <string name="share_preparing">Preparing to send…</string>
     <string name="transfer_queued">Waiting for Wi-Fi or mesh. Files will send when your Mac reconnects.</string>
     <string name="received_files">Received Files</string>
-    <string name="send_file">Send File…</string>
+    <string name="send_file">Send files…</string>
     <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
     <string name="file_picker_help">Choose up to 128 files, at most 512 MiB each.</string>
     <string name="hide_transfer">Hide</string>
@@ -162,6 +167,7 @@
     <string name="setup_step_allow">Allow BinderClip</string>
     <string name="activity_title">Recent activity</string>
     <string name="activity_empty">Nothing sent or received yet.</string>
+    <string name="activity_just_now">Just now</string>
     <string name="transfer_kind_link">link</string>
     <string name="pair_confirm_title">Pair with %1$s?</string>
     <string name="pair_confirm_message">Only continue if you opened this link from your own Mac. Clipboard content will sync with this computer.</string>
