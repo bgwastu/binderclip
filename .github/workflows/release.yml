@@ -29,15 +29,20 @@ jobs:
         with:
           fetch-depth: 0
       - id: detect
+        env:
+          REF: ${{ github.ref_name }}
         run: |
-          REF="${{ github.ref_name }}"
           echo "Triggered ref: $REF"
           if [ "${{ github.ref_type }}" != "tag" ]; then
             echo "::error::Run this workflow from a release tag (v*, macos-v*, android-v*), not a branch."
             exit 1
           fi
 
-          VERSION_NAME=$(echo "$REF" | sed -E 's/^(macos-|android-)?v?//')
+          if [[ ! "$REF" =~ ^(macos-|android-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Expected a release tag such as v1.2.3, macos-v1.2.3, or android-v1.2.3."
+            exit 1
+          fi
+          VERSION_NAME="${BASH_REMATCH[2]}"
           echo "version-name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
 
           # Manual dispatch override
@@ -217,10 +222,19 @@ jobs:
         run: |
           ./android/gradlew -p android testDebugUnitTest :app:assembleRelease
 
-      - name: Rename APK
+      - name: Verify and name release APK
         env:
           VERSION_NAME: ${{ needs.detect-targets.outputs.version-name }}
-        run: mv android/app/build/outputs/apk/release/app-release.apk "BinderClip-${VERSION_NAME}.apk"
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          version_code=$(git rev-list --count HEAD)
+          metadata=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n '/^package: /p')
+          expected="package: name='net.wastu.binderclip' versionCode='$version_code' versionName='$VERSION_NAME'"
+          if [[ "$metadata" != "$expected "* ]]; then
+            echo "::error::BinderClip APK package or version does not match the release tag and commit."
+            exit 1
+          fi
+          mv "$apk" "BinderClip-$VERSION_NAME.apk"
 
       - name: Upload Android release artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -255,7 +269,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TITLE: ${{ needs.detect-targets.outputs.release-title }}
+          TAG: ${{ github.ref_name }}
         run: |
-          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
-            gh release create "${{ github.ref_name }}" --title "${RELEASE_TITLE:-BinderClip ${{ github.ref_name }}}" --generate-notes
-          gh release upload "${{ github.ref_name }}" release-assets/* --clobber
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* --verify-tag --title "$RELEASE_TITLE" --generate-notes
+          fi

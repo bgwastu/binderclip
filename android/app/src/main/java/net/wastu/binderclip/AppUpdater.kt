@@ -22,6 +22,31 @@ data class AppRelease(
     val fileName: String,
 )
 
+private val androidReleaseTag = Regex("(?:android-)?v([0-9]+\\.[0-9]+\\.[0-9]+)")
+
+internal fun findAndroidRelease(releases: JSONArray): AppRelease? {
+    for (i in 0 until releases.length()) {
+        val release = releases.getJSONObject(i)
+        if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
+        val version = androidReleaseTag.matchEntire(release.optString("tag_name"))
+            ?.groupValues?.get(1) ?: continue
+        val assets = release.optJSONArray("assets") ?: continue
+        val fileName = "BinderClip-$version.apk"
+        for (j in 0 until assets.length()) {
+            val asset = assets.getJSONObject(j)
+            if (asset.optString("name") != fileName || asset.optString("state") != "uploaded") continue
+            val downloadUrl = asset.optString("browser_download_url").takeIf { it.isNotBlank() } ?: continue
+            return AppRelease(
+                versionName = version,
+                downloadUrl = downloadUrl,
+                releaseNotes = release.optString("body").trim().takeIf { it.isNotEmpty() },
+                fileName = fileName,
+            )
+        }
+    }
+    return null
+}
+
 interface UpdateSource {
     suspend fun checkLatestRelease(): AppRelease?
 }
@@ -39,32 +64,13 @@ class GitHubReleaseSource(
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
                 setRequestProperty("User-Agent", "BinderClip-Android/${BuildConfig.VERSION_NAME}")
             }
-            if (conn.responseCode != 200) return@runCatching null
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val releases = JSONArray(body)
-            for (i in 0 until releases.length()) {
-                val rel = releases.getJSONObject(i)
-                if (rel.optBoolean("draft", false) || rel.optBoolean("prerelease", false)) continue
-                val tag = rel.optString("tag_name", "").removePrefix("v").removePrefix("android-v")
-                val notes = rel.optString("body", "").trim().takeIf { it.isNotEmpty() }
-                val assets = rel.optJSONArray("assets") ?: continue
-                for (j in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(j)
-                    val name = asset.optString("name", "")
-                    if (name.endsWith(".apk", ignoreCase = true)) {
-                        val downloadUrl = asset.optString("browser_download_url", "")
-                        if (downloadUrl.isNotBlank() && tag.isNotBlank()) {
-                            return@runCatching AppRelease(
-                                versionName = tag,
-                                downloadUrl = downloadUrl,
-                                releaseNotes = notes,
-                                fileName = name,
-                            )
-                        }
-                    }
-                }
+            try {
+                if (conn.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                findAndroidRelease(JSONArray(body))
+            } finally {
+                conn.disconnect()
             }
-            null
         }.getOrNull()
     }
 }

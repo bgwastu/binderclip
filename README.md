@@ -18,12 +18,12 @@
 
 ## Features
 
-- Clipboard sync for text and images up to 30 MiB. Use **Copy** to apply incoming items, or turn on **Automatically replace clipboard** on each device.
+- Clipboard sync for text and images up to 30 MiB. Incoming clipboard changes apply automatically by default. Turn off **Automatically replace clipboard** on a device to use **Copy** instead.
 - Share up to 128 files from Android or Mac, up to 512 MiB each, over LAN or mesh VPN. The **Transfers** view shows each file’s outcome. Files received on Mac are saved in `~/Downloads/BinderClip`.
 - Share text and browser links between devices. Shared text is available to copy, and attachments leave the clipboard alone.
 - Encrypted, replay-resistant connections over LAN, mesh VPN, and Bluetooth (protocol 3)
 - Sleep-aware background sync and automatic reconnection
-- macOS updates in the app; Android updates through [Obtainium](https://obtainium.imranr.dev/)
+- macOS updates in the app. Android updates in the app or through [Obtainium](https://obtainium.imranr.dev/).
 - Available in **9 languages**: English, Indonesian, Spanish, Simplified Chinese, Japanese, German, French, Portuguese, and Russian
 
 ## Install
@@ -62,6 +62,8 @@ curl -fL -o BinderClip.zip \
 1. Download the newest `BinderClip-*.apk` from [Releases](https://github.com/bgwastu/BinderClip/releases) and install it on the phone.
 2. Open BinderClip, grant root access if the phone is rooted, and allow notifications when prompted. Without root, the setup card walks you through installing, starting, and allowing Shizuku. Bluetooth permission is only needed if you enable Bluetooth fallback.
 3. On the Mac, choose **Add Device** from the BinderClip menu bar icon. On Android, tap **Scan QR to Pair** and scan the code.
+
+For Obtainium, add `https://github.com/bgwastu/binderclip` and enable **Fallback to older releases** so Mac-only releases don't block Android updates. Set **Version string extraction regular expression** to `[0-9]+\.[0-9]+\.[0-9]+$` so both `v` and `android-v` tags match the installed version. Use the default tag-based version with OS version detection set to the version name.
 
 
 ## Acknowledgments
