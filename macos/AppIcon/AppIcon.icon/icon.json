@@ -6,19 +6,21 @@
     {
       "layers": [
         {
+          "glass": false,
           "image-name": "frame.svg",
           "name": "frame"
-        }
-      ]
-    },
-    {
-      "layers": [
+        },
         {
+          "glass": false,
           "image-name": "fill.svg",
-          "name": "fill",
-          "opacity": 0.92
+          "name": "fill"
         }
-      ]
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "specular": false
     }
   ],
   "supported-platforms": {
