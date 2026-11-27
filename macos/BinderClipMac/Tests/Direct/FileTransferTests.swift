@@ -159,6 +159,41 @@ final class FileTransferTests: XCTestCase {
         return (server, roster, try XCTUnwrap(port))
     }
 
+    func testSharedTextOutboxPersistsInOrderAndRequiresTheCorrectPeerAndReceipt() throws {
+        let (root, _) = try isolated()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let key = Data(repeating: 7, count: 32)
+        let peers: Set<String> = ["phone", "tablet"]
+        let outbox = SharedTextOutbox(directory: root, key: key, peers: peers)
+        try outbox.enqueue("first", for: ["phone", "tablet"], key: key)
+        try outbox.enqueue("second", for: ["phone"], key: key)
+        let first = try XCTUnwrap(outbox.next(for: "phone"))
+        let restored = SharedTextOutbox(directory: root, key: key, peers: peers)
+        XCTAssertTrue(restored.next(for: "phone")?.id == first.id)
+        XCTAssertFalse(try restored.acknowledge(first.id, from: "unknown", key: key))
+        XCTAssertTrue(try restored.acknowledge(first.id, from: "phone", key: key))
+        XCTAssertTrue(restored.next(for: "phone")?.text == "second")
+        XCTAssertTrue(restored.next(for: "tablet")?.id == first.id)
+        try restored.clear(peerID: "tablet", key: key)
+        XCTAssertNil(SharedTextOutbox(directory: root, key: key, peers: peers).next(for: "tablet"))
+    }
+
+    func testMacReportsAnIntegrityFailureInTheEncryptedTransferResponse() async throws {
+        let (root, _) = try isolated()
+        let suite = "binderclip-transfer-reason-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let (server, roster, port) = try await startServer(root: root, defaults: defaults)
+        defer { server.stop() }
+        let client = try await FileWireClient.connect(port: port, key: roster.groupKey)
+        defer { client.close() }
+        try await client.send(meta(Data([1, 2, 3])).json)
+        _ = try await client.control("transfer_ack")
+        try await client.sendChunk(id: id, offset: 0, data: Data([1, 2, 4]))
+        let rejection = try await client.control("transfer_cancel")
+        XCTAssertEqual(rejection["reason"] as? String, TransferFailure.integrity.rawValue)
+    }
+
     func testFileResumesAcrossServerRestartOverEncryptedWebSocket() async throws {
         let (root, _) = try isolated()
         let suite = "binderclip-file-wire-\(UUID().uuidString)"

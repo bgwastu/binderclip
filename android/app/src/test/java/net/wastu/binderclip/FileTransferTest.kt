@@ -280,6 +280,8 @@ class FileTransferTest {
             assertEquals(0, wire.deliveredFiles)
             assertFalse(wire.senderProgress.any { it.isSuccess })
             assertEquals(ShareFileState.REJECTED, sender.shareFiles("mac").single().state)
+            assertEquals(TransferFailure.STORAGE, sender.shareFiles("mac").single().failure)
+            assertEquals(TransferFailure.STORAGE, FileTransferStore(receiverRoot).downloadHistory("phone").single().failure)
         }
         assertTrue(sender.retryShare("mac", batch.transferId()))
         Wire(sender, FileTransferStore(receiverRoot), { file ->

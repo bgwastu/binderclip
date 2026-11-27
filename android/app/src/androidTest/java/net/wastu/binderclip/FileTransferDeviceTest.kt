@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.MediaStore
@@ -12,8 +13,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
-import java.security.MessageDigest
-import java.util.UUID
+import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,121 +25,138 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class FileTransferDeviceTest {
-    @Test fun explicitFilesRoundTripWithPairedMac() {
+    @Test fun mixedShareResumesWithPairedMac() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("hardwareFileTransfer") == "true")
-        assumeTrue(AppProfile.current.isDebug)
+        check(AppProfile.current.isDebug)
         val context = ApplicationProvider.getApplicationContext<Context>()
+        val devices = DeviceStore(context)
+        check(devices.groupKey == null && devices.peer == null) { "Hardware tests require an unpaired debug app" }
+        val pairingFile = File(context.filesDir, "device-test-pair.json")
+        val pairing = JSONObject(pairingFile.readText())
+        pairingFile.delete()
+        val peerId = pairing.getString("id")
+        val host = pairing.getString("host")
+        val port = pairing.getInt("port")
+        check(port == AppProfile.current.port)
+        val run = peerId.take(8)
+        val zipName = "binderclip-$run-batch.zip"
+        val photoName = "binderclip-$run-photo.png"
         val clipboard = AppClipboard(context)
-        val stage = File(context.filesDir, "device-test-file-stage.txt")
-        val ack = File(context.filesDir, "device-test-file-ack.txt")
-        val run = UUID.randomUUID().toString().take(8)
-        val phoneName = "binderclip-device-$run-phone.bin"
-        val emptyName = "binderclip-device-$run-empty.txt"
-        val macName = "binderclip-device-$run-mac.bin"
-        val size = 50L * 1024 * 1024 + 137
-        val fixtures = ArrayList<Uri>()
-        fun waitFor(label: String, timeout: Long = 180_000, predicate: () -> Boolean) {
-            val deadline = SystemClock.elapsedRealtime() + timeout
-            while (SystemClock.elapsedRealtime() < deadline) {
-                if (predicate()) return
-                Thread.sleep(100)
-            }
-            assertTrue("Timed out: $label", predicate())
-        }
-        fun fixture(name: String, bytes: Long, seed: Int, mime: String): Pair<Uri, String> {
-            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
+        val store = FileTransferStore.forContext(context)
+        val fixtures = mutableListOf<Uri>()
+        val autoApply = devices.autoApplyClipboard
+        val previous = clipboard.primaryClip
+        val previousImage = ImageClipboard.read(context, clipboard)
+
+        fun document(name: String, mime: String, write: (OutputStream) -> Unit): Uri {
+            val resolver = context.contentResolver
+            val uri = checkNotNull(resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mime)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }) ?: error("Could not create test document")
+            }))
             fixtures += uri
-            val hash = MessageDigest.getInstance("SHA-256")
-            context.contentResolver.openOutputStream(uri, "w")!!.use { output ->
-                val buffer = ByteArray(64 * 1024) { ((it * 31 + seed) and 255).toByte() }
-                var remaining = bytes
-                while (remaining > 0) {
-                    val count = minOf(remaining, buffer.size.toLong()).toInt()
-                    output.write(buffer, 0, count)
-                    hash.update(buffer, 0, count)
-                    remaining -= count
+            checkNotNull(resolver.openOutputStream(uri, "w")).use(write)
+            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+            return uri
+        }
+
+        fun hash(uri: Uri) = checkNotNull(context.contentResolver.openInputStream(uri)).use(FileTransferProtocol::hash)
+        fun startAction(action: String, id: String? = null) {
+            context.startForegroundService(Intent(context, BinderClipService::class.java).setAction(action)
+                .putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
+        }
+        fun currentText() = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+
+        val result = File(context.filesDir, "device-test-files.json")
+        try {
+            devices.groupKey = java.util.Base64.getDecoder().decode(pairing.getString("key"))
+            devices.peer = RememberedPeer("BinderClip Transfer Test", host, port, peerId)
+            devices.peerCandidates = listOf("$host:$port")
+            devices.autoApplyClipboard = true
+            val zip = document(zipName, "application/zip") { output ->
+                ZipOutputStream(output).use { archive ->
+                    archive.setLevel(0)
+                    archive.putNextEntry(ZipEntry("payload.bin"))
+                    val block = ByteArray(64 * 1024) { (it % 251).toByte() }
+                    repeat(160) { archive.write(block) }
+                    archive.closeEntry()
                 }
             }
-            context.contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
-            return uri to hash.digest().joinToString("") { "%02x".format(it) }
-        }
-        fun share(uri: Uri, mime: String) {
-            val intent = Intent(context, ShareReceiverActivity::class.java).apply {
-                action = Intent.ACTION_SEND
-                type = mime
-                putExtra(Intent.EXTRA_STREAM, uri)
-                clipData = ClipData.newUri(context.contentResolver, "BinderClip synthetic test file", uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val photo = document(photoName, "image/png") { output ->
+                val image = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888)
+                try {
+                    image.eraseColor(android.graphics.Color.BLUE)
+                    check(image.compress(Bitmap.CompressFormat.PNG, 100, output))
+                } finally { image.recycle() }
             }
-            val name = context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)!!
-                .use { check(it.moveToFirst()); it.getString(0) }
-            val peerId = checkNotNull(DeviceStore(context).peer?.deviceId)
-            ActivityScenario.launch<ShareReceiverActivity>(intent).use {
-                waitFor("share activity import") {
-                    FileTransferStore.forContext(context).shareFiles(peerId).any { row ->
-                        row.name == name && row.state in setOf(ShareFileState.QUEUED, ShareFileState.SENT)
-                    }
+            val photoHash = hash(photo)
+            result.writeText(JSONObject().put(zipName, hash(zip)).put(photoName, photoHash).toString())
+
+            ActivityScenario.launch(MainActivity::class.java).use { main ->
+                main.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+                waitFor("authenticated WebSocket") {
+                    AppRuntime.state.value.peer?.connected == true &&
+                        AppRuntime.state.value.transportType in setOf(TransportType.LAN, TransportType.MESH)
                 }
-            }
-        }
-        ActivityScenario.launch(MainActivity::class.java).use { main ->
-            main.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-            waitFor("authenticated WebSocket") { AppRuntime.state.value.peer?.connected == true &&
-                AppRuntime.state.value.transportType in setOf(TransportType.LAN, TransportType.MESH) }
-            Thread.sleep(2_000)
-            val previous = clipboard.primaryClip
-            val previousImage = ImageClipboard.read(context, clipboard)
-            val marker = "BinderClip private file test $run"
-            try {
+                val marker = "BinderClip private file test $run"
                 clipboard.setPrimaryClip(ClipData.newPlainText("BinderClip synthetic test", marker))
-                val (phoneUri, phoneHash) = fixture(phoneName, size, 7, "application/octet-stream")
-                val (emptyUri, emptyHash) = fixture(emptyName, 0, 0, "text/plain")
-                val macHash = MessageDigest.getInstance("SHA-256").run {
-                    val buffer = ByteArray(64 * 1024) { ((it * 31 + 19) and 255).toByte() }
-                    var remaining = size
-                    while (remaining > 0) {
-                        val count = minOf(remaining, buffer.size.toLong()).toInt()
-                        update(buffer, 0, count)
-                        remaining -= count
+                val share = Intent(context, ShareReceiverActivity::class.java).apply {
+                    action = Intent.ACTION_SEND_MULTIPLE
+                    type = "*/*"
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(zip, photo))
+                    clipData = ClipData.newUri(context.contentResolver, "BinderClip test batch", zip).apply {
+                        addItem(ClipData.Item(photo))
                     }
-                    digest().joinToString("") { "%02x".format(it) }
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                File(context.filesDir, "device-test-files.json").writeText(JSONObject()
-                    .put("run", run).put("deviceId", DeviceStore(context).deviceId)
-                    .put("phoneName", phoneName).put("phoneHash", phoneHash)
-                    .put("emptyName", emptyName).put("emptyHash", emptyHash)
-                    .put("macName", macName).put("macHash", macHash).put("size", size)
-                    .put("transport", AppRuntime.state.value.transportType.name).toString())
-                stage.writeText("phone-file")
-                share(phoneUri, "application/octet-stream")
-                waitFor("Mac file verification") { ack.exists() && ack.readText() == "phone-file" }
-                assertEquals(marker, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-                stage.writeText("empty-file")
-                share(emptyUri, "text/plain")
-                waitFor("empty file verification") { ack.exists() && ack.readText() == "empty-file" }
-                assertEquals(marker, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-                stage.writeText("mac-file")
-                fun downloaded(): Uri? = context.contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.MediaColumns._ID), "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(macName), null)
-                    ?.use { c -> if (c.moveToFirst()) android.content.ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0)) else null }
-                waitFor("Mac file delivery") { downloaded() != null }
-                val saved = downloaded()!!
-                fixtures += saved
-                assertEquals(macHash, context.contentResolver.openInputStream(saved)!!.use(FileTransferProtocol::hash))
-                assertEquals(marker, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-                stage.writeText("passed")
-            } catch (error: Throwable) {
-                stage.writeText("failed")
-                throw error
-            } finally {
-                fixtures.forEach { runCatching { context.contentResolver.delete(it, null, null) } }
-                if (previousImage != null) ImageClipboard.write(context, clipboard, previousImage)
-                else if (previous != null) clipboard.setPrimaryClip(previous) else clipboard.clearPrimaryClip()
+                ActivityScenario.launch<ShareReceiverActivity>(share).use {
+                    waitFor("both batch receipts") {
+                        store.shareFiles(peerId).count { row ->
+                            row.name in setOf(zipName, photoName) && row.state == ShareFileState.SENT
+                        } == 2
+                    }
+                }
+                assertEquals(1, store.shareFiles(peerId).filter { it.name in setOf(zipName, photoName) }
+                    .map { it.batch.id }.distinct().size)
+                waitFor("explicit Mac image download") {
+                    store.downloadHistory(peerId).any { it.state == ShareFileState.RECEIVED && it.downloadUri != null }
+                }
+                val image = store.downloadHistory(peerId).first { it.downloadUri != null }
+                val uri = Uri.parse(image.downloadUri)
+                fixtures += uri
+                assertEquals(photoHash, hash(uri))
+                assertTrue("Shared files or text changed the clipboard", currentText() == marker)
+
+                startAction(BinderClipService.ACTION_COPY_SHARED_IMAGE, image.id)
+                waitFor("manually copied image") { ImageClipboard.read(context, clipboard)?.sha256 == photoHash }
+
+                waitFor("first text share") { devices.nextReceivedShare()?.text == "first test share" }
+                val first = checkNotNull(devices.nextReceivedShare())
+                startAction(BinderClipService.ACTION_COPY_SHARED_TEXT)
+                waitFor("ordered second text share") { devices.nextReceivedShare()?.text == "second test share" }
+                assertTrue("First text share could not be copied", currentText() == "first test share")
+                assertTrue(devices.receiveShare(first)) // An ACK lost on reconnect must not put the item back.
+                startAction(BinderClipService.ACTION_COPY_SHARED_TEXT)
+                waitFor("empty inbox after copying both shares") { !devices.hasPendingSharedText() }
+                assertTrue("Second text share could not be copied", currentText() == "second test share")
             }
+        } finally {
+            context.stopService(Intent(context, BinderClipService::class.java))
+            devices.unpair()
+            devices.autoApplyClipboard = autoApply
+            fixtures.forEach { runCatching { context.contentResolver.delete(it, null, null) } }
+            if (previousImage != null) ImageClipboard.write(context, clipboard, previousImage)
+            else if (previous != null) clipboard.setPrimaryClip(previous) else clipboard.clearPrimaryClip()
         }
+    }
+
+    private fun waitFor(label: String, predicate: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 45_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (predicate()) return
+            Thread.sleep(100)
+        }
+        assertTrue("Timed out: $label", predicate())
     }
 }

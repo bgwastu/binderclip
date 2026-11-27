@@ -44,4 +44,13 @@ Android isolation/provider checks:
 
 `LifecycleDeviceTest` is opt-in with `hardwareLifecycle=true` and verifies three stop/start cycles and reauthentication. `PowerDeviceTest` is opt-in with `hardwareScreenOff=true`, checks 65 seconds of connection survival without clipboard polling, and accepts `expectedTransport=BLUETOOTH`. Turning off the physical screen affects both apps' normal power behavior; use a dedicated acceptance session for that test.
 
+The paired transfer test requires an unpaired Android debug app with the debug instrumentation APK installed. Leave Mac debug port 39422 free for its temporary server and use a Mac address reachable from the phone.
+
+```sh
+BINDERCLIP_TEST_MAC_HOST=192.168.1.20 ANDROID_SERIAL="$ANDROID_SERIAL" \
+  swift test --package-path macos/BinderClipMac --filter PairedFileTransferTests
+```
+
+It imports a ZIP and a PNG in one share, stops the debug server mid-ZIP, and checks for resume from a saved offset. It verifies the saved bytes in both directions, queued text in delivery order, and the private Android clipboard before and after explicit Copy actions. The temporary pairing and downloads are removed after the test.
+
 `run.py` and the routine coordinator reject `--promotion`/`--doze`, because radio cycling and forced Doze affect production. Real system-clipboard, root access, bond repair, radio/Doze, and battery tests belong on dedicated acceptance devices/sessions. The root access fixture is for a root-required production acceptance build; isolated debug intentionally blocks root probing. Preserve all production data, keys, permissions, processes, and boot scripts.
