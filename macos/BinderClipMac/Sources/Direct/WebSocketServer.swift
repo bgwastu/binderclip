@@ -63,8 +63,11 @@ public final class WebSocketServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "net.wastu.binderclip.websocket.server", qos: .userInitiated)
     private let transferQueue = DispatchQueue(label: "net.wastu.binderclip.file-transfers", qos: .utility)
     private let transferStore: FileTransferStore
+    private let preparationQueue = DispatchQueue(label: "net.wastu.binderclip.prepare-files", qos: .utility)
+    private var filePairings: [String: UUID] = [:]
     private var transferSessions: [ObjectIdentifier: ChunkedTransferSession] = [:]
     private let rosterManager: RosterManager
+    private let profile: AppProfile
     private let listenPort: UInt16
     private var bluetoothEnabled: Bool
     var onListening: ((UInt16) -> Void)?
@@ -93,6 +96,8 @@ public final class WebSocketServer: @unchecked Sendable {
     private var clipboardImage: ImagePayload?
     private var receivedShares = [String]()
     private var sharesBeingDelivered = Set<String>()
+    private let sharedTextOutbox: SharedTextOutbox
+    private var lastShareAttempt: [String: Date] = [:]
     private var clipboardEventSnapshot: String?
     private var lastBluetoothPoweredOn: Bool?
 
@@ -112,8 +117,12 @@ public final class WebSocketServer: @unchecked Sendable {
             receivedDirectory: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.appendingPathComponent(profile.displayName, isDirectory: true))
     }
 
-    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = AppProfile.current.bluetoothEnabledByDefault, receivedDirectory: URL? = nil) {
+    init(rosterManager: RosterManager, port: UInt16 = SyncProtocol.defaultPort, bluetoothEnabled: Bool = AppProfile.current.bluetoothEnabledByDefault,
+         receivedDirectory: URL? = nil, profile: AppProfile = .current) {
         self.rosterManager = rosterManager
+        self.profile = profile
+        self.sharedTextOutbox = SharedTextOutbox(directory: rosterManager.stateDirectory, key: rosterManager.groupKey,
+                                                peers: Set(rosterManager.peers.keys))
         self.transferStore = FileTransferStore(root: rosterManager.stateDirectory.appendingPathComponent("file-transfers", isDirectory: true),
             receivedDirectory: receivedDirectory ?? rosterManager.stateDirectory.appendingPathComponent("received-files", isDirectory: true))
         self.clipboardCheckpointURL = rosterManager.stateDirectory.appendingPathComponent("clipboard-state.json")
@@ -356,8 +365,53 @@ public final class WebSocketServer: @unchecked Sendable {
     func sendSharedText(_ text: String) {
         guard !text.isEmpty, text.utf8.count <= SyncProtocol.maximumTextBytes else { return }
         queue.async { [weak self] in
-            self?.broadcastText(["type": "shared_text", "id": UUID().uuidString.lowercased(), "text": text])
+            guard let self else { return }
+            let peers = Array(self.rosterManager.peers.keys)
+            guard !peers.isEmpty else { return }
+            do {
+                let queuedForEveryone = try self.sharedTextOutbox.enqueue(text, for: peers, key: self.rosterManager.groupKey)
+                if !queuedForEveryone {
+                    self.transferStatus(L10n.tr("transfer_failed"))
+                    self.onLog?("Shared text outbox is full")
+                }
+                self.drainSharedText()
+            } catch {
+                self.transferStatus(L10n.tr("transfer_failed"))
+                self.onLog?("Could not queue shared text")
+            }
         }
+    }
+
+    private func drainSharedText() {
+        guard lifecycle.active else { return }
+        let now = SessionLiveness.now()
+        for peerID in sharedTextOutbox.peers where rosterManager.peers[peerID] != nil {
+            if let last = lastShareAttempt[peerID], now.timeIntervalSince(last) < 20 { continue }
+            guard let share = sharedTextOutbox.next(for: peerID) else { continue }
+            let message: [String: Any] = ["type": "shared_text", "id": share.id, "text": share.text]
+            let expectsReceipt: Bool
+            if let session = activeSessions.values.first(where: {
+                $0.isAuthenticated && $0.sharing && $0.peerID == peerID &&
+                    !SessionLiveness.shouldEvict(boundLocal: $0.boundLocalAddress, currentLocals: lastLocalAddresses)
+            }) {
+                session.sendText(message)
+                expectsReceipt = session.shareReceipts
+            } else if let session = bluetoothConnector.authenticatedSessions.first(where: { $0.sharing && $0.peerID == peerID }),
+                      let fields = Self.btFields(from: message) {
+                session.sendFrame(fields)
+                expectsReceipt = session.shareReceipts
+            } else { continue }
+            lastShareAttempt[peerID] = now
+            if !expectsReceipt { acknowledgeSharedText(share.id, from: peerID) }
+        }
+    }
+
+    private func acknowledgeSharedText(_ id: String, from peerID: String) {
+        do {
+            if try sharedTextOutbox.acknowledge(id, from: peerID, key: rosterManager.groupKey) {
+                lastShareAttempt.removeValue(forKey: peerID)
+            }
+        } catch { onLog?("Could not save shared text receipt") }
     }
 
     public func sendOpenURL(_ url: URL, targetDeviceId: String? = nil) {
@@ -388,59 +442,116 @@ public final class WebSocketServer: @unchecked Sendable {
         sendFiles([url], targetDeviceID: targetDeviceID)
     }
 
-    func sendFiles(_ urls: [URL], targetDeviceID: String) {
-        guard (1...TransferBatch.maximumFiles).contains(urls.count) else { return }
-        stageFiles(urls, peerID: targetDeviceID, batchID: UUID().uuidString.lowercased(), items: [])
-    }
+    private enum ShareSource: Sendable {
+        case file(URL)
+        case image(ImagePayload)
 
-    private func stageFiles(_ urls: [URL], peerID: String, batchID: String, items: [TransferBatchSnapshot.Item]) {
-        queue.async { [weak self] in
-            guard let self, self.rosterManager.peers[peerID] != nil else { return }
-            self.transferQueue.async {
-                let index = items.count
-                if index == urls.count {
-                    let batch = TransferBatchSnapshot(id: batchID, count: urls.count, items: items)
-                    try? self.transferStore.recordBatch(peerID: peerID, batch: batch)
-                    for session in self.transferSessions.values where session.peerID == peerID { session.announce(batch.json) }
-                    return
-                }
-                let item = self.stageFile(urls[index], peerID: peerID,
-                                          batch: TransferBatch(id: batchID, index: index, count: urls.count))
-                self.stageFiles(urls, peerID: peerID, batchID: batchID, items: items + [item])
+        var name: String {
+            switch self {
+            case .file(let url): return FileTransferProtocol.safeName(url.lastPathComponent)
+            case .image(let image): return "image." + (UTType(mimeType: image.mimeType)?.preferredFilenameExtension ?? "png")
             }
         }
     }
 
-    private func stageFile(_ url: URL, peerID: String, batch: TransferBatch) -> TransferBatchSnapshot.Item {
+    func sendFiles(_ urls: [URL], targetDeviceID: String) {
+        guard (1...TransferBatch.maximumFiles).contains(urls.count) else { return }
+        queue.async { [weak self] in
+            self?.enqueueFiles(urls.map(ShareSource.file), peerID: targetDeviceID)
+        }
+    }
+
+    func shareImage(_ image: ImagePayload) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            for peerID in self.rosterManager.peers.keys {
+                self.enqueueFiles([.image(image)], peerID: peerID)
+            }
+        }
+    }
+
+    private func enqueueFiles(_ sources: [ShareSource], peerID: String) {
+        guard rosterManager.peers[peerID] != nil else { return }
+        transferQueue.async { [weak self] in
+            guard let self else { return }
+            let pairing = self.filePairings[peerID, default: UUID()]
+            self.filePairings[peerID] = pairing
+            self.preparationQueue.async { [weak self] in
+                self?.stageFiles(sources, peerID: peerID, pairing: pairing)
+            }
+        }
+    }
+
+    private func stageFiles(_ sources: [ShareSource], peerID: String, pairing: UUID) {
+        let batchID = UUID().uuidString.lowercased()
+        var items: [TransferBatchSnapshot.Item] = []
+        for (index, source) in sources.enumerated() {
+            let batch = TransferBatch(id: batchID, index: index, count: sources.count)
+            guard let item = stageFile(source, peerID: peerID, batch: batch, pairing: pairing) else { return }
+            items.append(item)
+        }
+        transferQueue.sync {
+            guard filePairings[peerID] == pairing else { return }
+            let batch = TransferBatchSnapshot(id: batchID, count: sources.count, items: items)
+            try? transferStore.recordBatch(peerID: peerID, batch: batch)
+            for session in transferSessions.values where session.peerID == peerID { session.announce(batch.json) }
+        }
+    }
+
+    private func stageFile(_ source: ShareSource, peerID: String, batch: TransferBatch, pairing: UUID) -> TransferBatchSnapshot.Item? {
         let id = UUID().uuidString.lowercased()
-        let name = FileTransferProtocol.safeName(url.lastPathComponent)
+        let name = source.name
         do {
-            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
-            guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize else {
-                throw FileTransferError.storage
+            let budget = try transferQueue.sync {
+                try filePairings[peerID] == pairing ? transferStore.stagingBudget(batched: true) : nil
             }
-            guard size <= FileTransferProtocol.maximumFileBytes else { throw FileTransferError.invalidMetadata }
-            let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-            let input = try FileHandle(forReadingFrom: url)
-            defer { try? input.close() }
-            let transfer = try transferStore.stage(peerID: peerID, name: name,
-                mimeType: contentType?.preferredMIMEType ?? "application/octet-stream",
-                kind: "file", input: input, batch: batch, id: id)
-            if !pumpTransfers(peerID: peerID, reporting: transfer.metadata) {
-                reportFile(transfer.metadata, to: peerID, phase: .queued)
+            guard let budget else { return nil }
+            let prepared: OutgoingTransfer
+            switch source {
+            case .file(let url):
+                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize else {
+                    throw FileTransferError.storage
+                }
+                guard size <= FileTransferProtocol.maximumFileBytes else { throw FileTransferError.invalidMetadata }
+                let mime = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)?.preferredMIMEType
+                let input = try FileHandle(forReadingFrom: url)
+                defer { try? input.close() }
+                prepared = try transferStore.prepare(peerID: peerID, name: name, mimeType: mime ?? "application/octet-stream",
+                                                     batch: batch, id: id, budget: budget) {
+                    try input.read(upToCount: 64 * 1024)
+                }
+            case .image(let image):
+                var bytes: Data? = image.data
+                prepared = try transferStore.prepare(peerID: peerID, name: name, mimeType: image.mimeType,
+                                                     batch: batch, id: id, budget: budget) {
+                    defer { bytes = nil }
+                    return bytes
+                }
             }
-            return .init(id: id, index: batch.index, name: name, size: transfer.metadata.size, state: "QUEUED")
+            defer { transferStore.discardPrepared(prepared) }
+            return try transferQueue.sync {
+                guard filePairings[peerID] == pairing else { return nil }
+                let transfer = try transferStore.commit(prepared)
+                if !pumpTransfers(peerID: peerID, reporting: transfer.metadata) {
+                    reportFile(transfer.metadata, to: peerID, phase: .queued)
+                }
+                return .init(id: id, index: batch.index, name: name, size: transfer.metadata.size, state: "QUEUED")
+            }
         } catch {
-            let failure = TransferMetadata(id: id, kind: "file", name: name, mimeType: "application/octet-stream",
-                                           size: 0, sha256: "", batch: batch)
-            reportFile(failure, to: peerID, phase: .failed)
             let status: String
             switch error {
             case FileTransferError.queueFull: status = "QUEUE_FULL"
             case FileTransferError.invalidMetadata: status = "TOO_LARGE"
             default: status = "STORAGE"
             }
-            return .init(id: id, index: batch.index, name: name, size: nil, state: status)
+            return transferQueue.sync {
+                guard filePairings[peerID] == pairing else { return nil }
+                let failure = TransferMetadata(id: id, kind: "file", name: name, mimeType: "application/octet-stream",
+                                               size: 0, sha256: "", batch: batch)
+                reportFile(failure, to: peerID, phase: .failed)
+                return .init(id: id, index: batch.index, name: name, size: nil, state: status)
+            }
         }
     }
 
@@ -469,10 +580,16 @@ public final class WebSocketServer: @unchecked Sendable {
     private func transferStatus(_ status: String) { DispatchQueue.main.async { [weak self] in self?.onTransferStatus?(status) } }
 
     private func clearFilePairing(peerID: String? = nil) {
+        do { try sharedTextOutbox.clear(peerID: peerID, key: rosterManager.groupKey) }
+        catch { onLog?("Could not clear shared text outbox") }
+        if let peerID { lastShareAttempt.removeValue(forKey: peerID) }
+        else { lastShareAttempt.removeAll() }
         transferQueue.async { [weak self] in
             guard let self else { return }
             let ids = self.transferSessions.filter { peerID == nil || $0.value.peerID == peerID }.map(\.key)
             for id in ids { self.transferSessions.removeValue(forKey: id)?.close() }
+            if let peerID { self.filePairings.removeValue(forKey: peerID) }
+            else { self.filePairings.removeAll() }
             self.transferStore.clearPairing(peerID: peerID)
         }
     }
@@ -526,7 +643,7 @@ public final class WebSocketServer: @unchecked Sendable {
                         guard let self, let session, self.activeSessions[id] === session else { return }
                         self.receivedClipboard(text: nil, image: image, stamp: stamp, peerID: peerID, reply: { session.sendText($0) })
                     }
-                })
+                }, onLog: { [weak self] message in self?.onLog?(message) })
             self.transferSessions[id] = engine
             if session.sharing {
                 for batch in self.transferStore.recentBatches(peerID: peerID) { engine.announce(batch) }
@@ -698,7 +815,8 @@ public final class WebSocketServer: @unchecked Sendable {
 
             listener.service = Self.makeBonjourService(
                 deviceID: localDeviceID,
-                deviceName: localDeviceName
+                deviceName: localDeviceName,
+                profile: profile
             )
 
             listener.stateUpdateHandler = { [weak self, weak listener] state in
@@ -706,8 +824,10 @@ public final class WebSocketServer: @unchecked Sendable {
                 switch state {
                 case .ready:
                     self.listenBackoffSeconds = 1
-                    if let port = listener?.port { self.onListening?(port.rawValue) }
-                    self.onLog?("Listening on port \(SyncProtocol.defaultPort)")
+                    if let port = listener?.port {
+                        self.onListening?(port.rawValue)
+                        self.onLog?("Listening on port \(port.rawValue)")
+                    }
                     self.onLocalNetworkPermissionRequired?(false)
                 case .failed(let error):
                     self.onLog?("Listener failed: \(error.localizedDescription)")
@@ -760,7 +880,7 @@ public final class WebSocketServer: @unchecked Sendable {
             nwConnection.forceCancel()
             return
         }
-        let session = WebSocketSession(connection: nwConnection)
+        let session = WebSocketSession(connection: nwConnection, profile: profile)
         let id = ObjectIdentifier(nwConnection)
         activeSessions[id] = session
         print("[WebSocketServer] Accepting incoming connection: \(nwConnection.endpoint)")
@@ -969,6 +1089,11 @@ public final class WebSocketServer: @unchecked Sendable {
             receiveSharedText(id: id, text: text, peerID: peerID) { [weak session] id in
                 session?.sendText(["type": "shared_ack", "id": id])
             }
+        case "shared_ack":
+            guard session.isAuthenticated, session.shareReceipts, let peerID = session.peerID,
+                  let id = json["id"] as? String, FileTransferProtocol.validID(id) else { return }
+            acknowledgeSharedText(id, from: peerID)
+            drainSharedText()
 
         case "transfer_batch":
             guard session.isAuthenticated, session.sharing, let peerID = session.peerID,
@@ -1061,6 +1186,7 @@ public final class WebSocketServer: @unchecked Sendable {
         session.peerName = clientName
         session.clipboardSync = json[ClipboardStamp.capability] as? Int == 1
         session.sharing = json["sharing"] as? Int == 1
+        session.shareReceipts = session.sharing && json["shareReceipts"] as? Int == 1
         session.livenessBudget = SyncProtocol.heartbeatBudget
 
         for (id, other) in activeSessions where id != incomingID && PeerPresence.shouldCancelExtra(
@@ -1073,7 +1199,7 @@ public final class WebSocketServer: @unchecked Sendable {
 
         let platform = json["platform"] as? String ?? "Android"
         let remoteHost = session.remoteHostString() ?? "unknown"
-        let endpoint = DirectEndpoint(host: remoteHost, port: SyncProtocol.defaultPort)
+        let endpoint = DirectEndpoint(host: remoteHost, port: profile.port)
         let peer = Peer(id: clientID, name: clientName, endpoint: endpoint, connected: true, platform: platform)
 
         _ = rosterManager.addOrUpdatePeer(peer)
@@ -1088,12 +1214,15 @@ public final class WebSocketServer: @unchecked Sendable {
             FileTransferProtocol.capability: FileTransferProtocol.version,
             ClipboardStamp.capability: 1,
             "sharing": 1,
+            "shareReceipts": 1,
             "clockProbe": json["clockProbe"] as? Int64 ?? 0,
             "clockReceive": clockReceive,
             "clockNow": Int64(Date().timeIntervalSince1970 * 1000),
             "endpoints": advertisedEndpointList()
         ])
         attachTransfers(session, peerID: clientID)
+        lastShareAttempt.removeValue(forKey: clientID)
+        drainSharedText()
         if session.clipboardSync {
             withCurrentClipboard { [weak self, weak session] in
                 guard let self, let session, self.activeSessions[incomingID] === session else { return }
@@ -1116,9 +1245,7 @@ public final class WebSocketServer: @unchecked Sendable {
 
     private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil, excludePeerID: String? = nil) {
         let locals = lastLocalAddresses
-        let needsSharing = object["type"] as? String == "shared_text"
         for (id, session) in activeSessions where session.isAuthenticated {
-            if needsSharing && !session.sharing { continue }
             if let excludeSessionId, id == excludeSessionId { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
             if let excludePeerID, session.peerID == excludePeerID { continue }
@@ -1126,7 +1253,6 @@ public final class WebSocketServer: @unchecked Sendable {
             session.sendText(object)
         }
         for session in bluetoothConnector.authenticatedSessions {
-            if needsSharing && !session.sharing { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
             if let excludePeerID, session.peerID == excludePeerID { continue }
             if let fields = Self.btFields(from: object) {
@@ -1387,6 +1513,7 @@ public final class WebSocketServer: @unchecked Sendable {
         if evicted {
             publishPresence()
         }
+        drainSharedText()
     }
 
     // MARK: - Bluetooth frames
@@ -1468,6 +1595,7 @@ public final class WebSocketServer: @unchecked Sendable {
             session.isAuthenticated = true
             session.clipboardSync = uint(ClipboardStamp.capability) == 1
             session.sharing = uint("sharing") == 1
+            session.shareReceipts = session.sharing && uint("shareReceipts") == 1
             session.peerID = clientID
             session.peerName = clientName
             session.livenessBudget = SyncProtocol.heartbeatBudget
@@ -1493,12 +1621,15 @@ public final class WebSocketServer: @unchecked Sendable {
                 ("version", .uint(UInt64(SyncProtocol.version))),
                 (ClipboardStamp.capability, .uint(1)),
                 ("sharing", .uint(1)),
+                ("shareReceipts", .uint(1)),
                 ("clockProbe", .uint(uint("clockProbe") ?? 0)),
                 ("clockReceive", .uint(UInt64(clockReceive))),
                 ("clockNow", .uint(UInt64(Date().timeIntervalSince1970 * 1000))),
                 ("endpoints", .array(advertisedEndpointList())),
             ]
             session.sendFrame(okFields)
+            lastShareAttempt.removeValue(forKey: clientID)
+            drainSharedText()
             if session.clipboardSync {
                 withCurrentClipboard { [weak self, weak session] in
                     guard let self, let session, session.isAuthenticated, let fields = Self.btFields(from: self.clipboardState()) else { return }
@@ -1536,6 +1667,11 @@ public final class WebSocketServer: @unchecked Sendable {
             receiveSharedText(id: id, text: body, peerID: peerID) { id in
                 session.sendFrame([("type", .text("shared_ack")), ("id", .text(id))])
             }
+        case "shared_ack":
+            guard session.isAuthenticated, session.shareReceipts, let peerID = session.peerID,
+                  let id = text("id"), FileTransferProtocol.validID(id) else { return }
+            acknowledgeSharedText(id, from: peerID)
+            drainSharedText()
         case "openUrl":
             guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
             session.lastHeard = SessionLiveness.now()
@@ -1575,7 +1711,8 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     private func advertisedEndpointList() -> [String] {
-        SyncProtocol.advertisedEndpoints(from: Self.localAddresses())
+        let port = listener?.port?.rawValue ?? (listenPort == 0 ? profile.port : listenPort)
+        return SyncProtocol.advertisedEndpoints(from: Self.localAddresses(), port: port)
     }
 
     private func broadcastCurrentEndpoints() {
@@ -1587,7 +1724,8 @@ public final class WebSocketServer: @unchecked Sendable {
     private func refreshBonjour() {
         listener?.service = Self.makeBonjourService(
             deviceID: localDeviceID,
-            deviceName: localDeviceName
+            deviceName: localDeviceName,
+            profile: profile
         )
     }
 
@@ -1597,10 +1735,10 @@ public final class WebSocketServer: @unchecked Sendable {
         ["id": deviceID, "name": deviceName, "v": String(version)]
     }
 
-    static func makeBonjourService(deviceID: String, deviceName: String) -> NWListener.Service {
+    static func makeBonjourService(deviceID: String, deviceName: String, profile: AppProfile = .current) -> NWListener.Service {
         NWListener.Service(
             name: deviceName,
-            type: AppProfile.current.bonjourType,
+            type: profile.bonjourType,
             txtRecord: NWTXTRecord(bonjourTXTRecords(
                 deviceID: deviceID,
                 deviceName: deviceName,
@@ -1655,11 +1793,12 @@ public final class WebSocketServer: @unchecked Sendable {
 
 private final class WebSocketSession: @unchecked Sendable {
     let connection: NWConnection
-    let handshake = SecureHandshake()
+    let handshake: SecureHandshake
     var secure: SecureChannel?
     var isAuthenticated: Bool = false
     var clipboardSync: Bool = false
     var sharing = false
+    var shareReceipts = false
     var peerID: String?
     var peerName: String?
     var boundLocalAddress: String?
@@ -1668,8 +1807,9 @@ private final class WebSocketSession: @unchecked Sendable {
     var nextPing = SessionLiveness.now()
     var authDeadline: DispatchWorkItem?
 
-    init(connection: NWConnection) {
+    init(connection: NWConnection, profile: AppProfile) {
         self.connection = connection
+        self.handshake = SecureHandshake(profile: profile)
     }
 
     func close() {

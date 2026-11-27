@@ -45,7 +45,7 @@ internal class ChunkedTransferSession(
         cancelled += id
         if (cancelled.size > 128) cancelled.remove(cancelled.first())
         onStatus(metadata.progress(TransferProgress.State.CANCELLED))
-        if (!sendText(JSONObject().put("type", "transfer_cancel").put("id", id))) {
+        if (!sendText(rejection(id, TransferFailure.CANCELLED))) {
             disconnect(); close()
         } else pump()
         return true
@@ -74,7 +74,8 @@ internal class ChunkedTransferSession(
             val entries = org.json.JSONArray().also { array ->
                 items.sortedBy { it.batch.index }.forEach { file ->
                     array.put(JSONObject().put("id", file.id).put("index", file.batch.index)
-                        .put("name", file.name).put("size", file.bytes).put("state", file.state.name))
+                        .put("name", file.name).put("size", file.bytes).put("state", file.state.name)
+                        .put("reason", file.failure?.name))
                 }
             }
             val json = JSONObject().put("type", "transfer_batch").put("id", batch.id)
@@ -100,7 +101,7 @@ internal class ChunkedTransferSession(
                 "transfer_offer" -> {
                     val meta = TransferMetadata.parse(json)
                     offeredMeta = meta
-                    require(incoming.size < 4 || incoming.containsKey(id))
+                    if (incoming.size >= 4 && !incoming.containsKey(id)) throw ShareQueueFull()
                     val state = store.accept(peerId, meta, publishDownload = publishFile != null)
                     if (state.completed) {
                         sendText(JSONObject().put("type", "transfer_done").put("id", id))
@@ -148,23 +149,36 @@ internal class ChunkedTransferSession(
                     pump()
                 }
                 "transfer_cancel" -> {
-                    incoming.remove(id)?.let { store.discardIncoming(peerId, id) }
+                    val reason = TransferFailure.parse(json.optString("reason"))
+                    if (reason != null && reason != TransferFailure.CANCELLED &&
+                        (incoming.containsKey(id) || outgoing?.metadata?.id == id)
+                    ) DiagnosticLog.warning("Peer transfer failure: ${reason.name}")
+                    incoming.remove(id)?.let { meta ->
+                        if (reason == null || reason == TransferFailure.CANCELLED) store.discardIncoming(peerId, id)
+                        else failReceive(meta, reason)
+                    }
                     outgoing?.takeIf { it.metadata.id == id }?.let { transfer ->
                         deadline?.cancel(false)
-                        store.finishOutgoing(peerId, id, ShareFileState.REJECTED)
+                        val cancelled = reason == TransferFailure.CANCELLED
+                        store.finishOutgoing(peerId, id, if (cancelled) ShareFileState.CANCELLED else ShareFileState.REJECTED, reason)
                         outgoing = null
-                        onStatus(transfer.metadata.progress(TransferProgress.State.DECLINED))
+                        onStatus(transfer.metadata.progress(
+                            if (cancelled) TransferProgress.State.CANCELLED else TransferProgress.State.DECLINED,
+                            failure = reason,
+                        ))
                         pump()
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            val reason = TransferFailure.from(error)
             if (type == "transfer_offer") {
-                if (acceptedOffer && offeredMeta != null) failReceive(offeredMeta)
-                sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
-                offeredMeta?.let { onStatus(it.progress(TransferProgress.State.FAILED, isOutgoing = false)) }
+                if (offeredMeta != null && (acceptedOffer || reason != TransferFailure.INVALID)) failReceive(offeredMeta, reason)
+                reject(id, reason)
+                offeredMeta?.let { onStatus(it.progress(TransferProgress.State.FAILED, isOutgoing = false, failure = reason)) }
             } else if (outgoing?.metadata?.id == id) {
-                outgoing?.let { onStatus(it.metadata.progress(TransferProgress.State.FAILED)) }
+                reject(id, reason)
+                outgoing?.let { onStatus(it.metadata.progress(TransferProgress.State.FAILED, failure = reason)) }
                 disconnect()
                 close()
             }
@@ -185,19 +199,32 @@ internal class ChunkedTransferSession(
                 acknowledge(chunkId, next)
                 onStatus(meta.progress(TransferProgress.State.RECEIVING, (next * 100 / meta.size).toInt(), isOutgoing = false))
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            val reason = TransferFailure.from(error)
             if (id != null) {
-                metadata?.let(::failReceive)
-                sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
-            } else disconnect()
-            onStatus(metadata?.progress(TransferProgress.State.INVALID, isOutgoing = false) ?: TransferProgress(TransferProgress.State.INVALID, transferId = id))
+                metadata?.let { failReceive(it, reason) }
+                reject(id, reason)
+            } else {
+                DiagnosticLog.warning("Transfer rejected: ${reason.name}")
+                disconnect()
+            }
+            onStatus(metadata?.progress(TransferProgress.State.FAILED, isOutgoing = false, failure = reason)
+                ?: TransferProgress(TransferProgress.State.FAILED, isOutgoing = false, failure = reason))
         }
     }
 
-    private fun failReceive(meta: TransferMetadata) {
+    private fun rejection(id: String, reason: TransferFailure) =
+        JSONObject().put("type", "transfer_cancel").put("id", id).put("reason", reason.name)
+
+    private fun reject(id: String, reason: TransferFailure) {
+        DiagnosticLog.warning("Transfer rejected: ${reason.name}")
+        if (!sendText(rejection(id, reason))) disconnect()
+    }
+
+    private fun failReceive(meta: TransferMetadata, reason: TransferFailure) {
         incoming.remove(meta.id)
         runCatching {
-            if (meta.kind == "file") store.markReceiveFailed(peerId, meta)
+            if (meta.kind == "file") store.markReceiveFailed(peerId, meta, reason)
             else store.discardIncoming(peerId, meta.id)
         }
     }
@@ -212,8 +239,11 @@ internal class ChunkedTransferSession(
             if (onOrderedImage != null) onOrderedImage.invoke(image, meta.clipboard) else onImage(image)
             file.file.delete()
         } else if (publishFile != null) {
-            val uri = publishFile.invoke(file)
-            store.finishPublication(peerId, file, uri)
+            val uri = try {
+                publishFile.invoke(file).also { store.finishPublication(peerId, file, it) }
+            } catch (error: Exception) {
+                throw java.io.IOException("Could not publish download", error)
+            }
             onFile(file.copy(downloadUri = uri))
         } else onFile(file)
         incoming.remove(meta.id)

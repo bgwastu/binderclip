@@ -100,6 +100,9 @@
     <string name="transfer_declined">Transfer ditolak; periksa perangkat penerima</string>
     <string name="transfer_failed">Transfer gagal; periksa ukuran file dan ruang penyimpanan</string>
     <string name="transfer_invalid">Validasi integritas atau urutan transfer gagal</string>
+    <string name="transfer_integrity_failed">Verifikasi file gagal</string>
+    <string name="transfer_storage_failed">File tidak dapat dibaca atau disimpan</string>
+    <string name="transfer_receiver_full">Perangkat penerima tidak memiliki ruang untuk transfer lain</string>
     <string name="transfer_paused">Transfer dijeda; menghubungkan kembali…</string>
     <string name="share_error_file">File gagal masuk antrean. Batas: 512 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.</string>
     <string name="received_files">File Diterima</string>

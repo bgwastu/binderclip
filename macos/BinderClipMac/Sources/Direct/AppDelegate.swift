@@ -820,8 +820,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                 transport.sendSharedText(text)
             }
         case .image(let image):
-            transport.sendImage(image)
-            ToastHUD.shared.show(message: L10n.tr("sent_image_to_phones"), icon: "photo.fill")
+            transport.shareImage(image)
         case .unsupported:
             break
         }

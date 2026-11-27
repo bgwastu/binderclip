@@ -16,7 +16,8 @@ final class TransferHistory: ObservableObject {
         var terminal: Bool {
             saved || ["transfer_failed", "transfer_declined", "transfer_invalid", "transfers_cancelled",
                       "transfers_unreadable", "transfers_too_large", "transfers_storage",
-                      "transfers_queue_full", "transfers_expired"].contains(status)
+                      "transfers_queue_full", "transfers_expired"].contains(status) ||
+                TransferFailure.allCases.contains { $0.messageKey == status }
         }
     }
 
@@ -63,8 +64,9 @@ final class TransferHistory: ObservableObject {
             if let known = batch.files.first(where: { $0.index == file.index }), known.id != file.id { continue }
             var item = batch.files.first(where: { $0.id == file.id }) ??
                 Entry(id: file.id, index: file.index, name: file.name, size: file.size)
-            if !item.saved && item.fraction == nil {
-                item.status = statuses[file.state] ?? "transfers_waiting"
+            let reason = file.reason.flatMap(TransferFailure.init(rawValue:))
+            if !item.saved && item.fraction == nil && (!item.terminal || reason != nil || file.state == "CANCELLED") {
+                item.status = reason?.messageKey ?? statuses[file.state] ?? "transfers_waiting"
             }
             set(item, in: &batch)
         }
@@ -84,11 +86,13 @@ final class TransferHistory: ObservableObject {
         switch progress.phase {
         case .sent, .received: item.status = "transfers_saved"
         case .declined: item.status = "transfer_declined"
+        case .cancelled: item.status = "transfers_cancelled"
         case .invalid: item.status = "transfer_invalid"
         case .failed: item.status = "transfer_failed"
         case .paused: item.status = "transfer_paused"
         default: item.status = progress.phase == .verifying ? "transfer_verifying" : "transfers_waiting"
         }
+        if let failure = progress.failure { item.status = failure.messageKey }
         item.fraction = progress.isActive && progress.phase != .preparing
             ? Double(Int(progress.fraction * 100)) / 100 : nil
         item.destination = progress.destination ?? item.destination

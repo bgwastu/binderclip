@@ -28,6 +28,25 @@ data class TransferBatch(val id: String, val index: Int, val count: Int) {
 
 internal enum class ShareFileState { PREPARING, QUEUED, SENT, RECEIVED, REJECTED, CANCELLED, UNREADABLE, TOO_LARGE, STORAGE, QUEUE_FULL, EXPIRED }
 
+enum class TransferFailure(val message: Int) {
+    CANCELLED(R.string.transfer_cancelled),
+    INVALID(R.string.transfer_invalid),
+    INTEGRITY(R.string.transfer_integrity_failed),
+    STORAGE(R.string.transfer_storage_failed),
+    QUEUE_FULL(R.string.transfer_receiver_full);
+
+    companion object {
+        fun parse(value: String): TransferFailure? = entries.find { it.name == value }
+
+        internal fun from(error: Exception): TransferFailure = when (error) {
+            is ShareQueueFull -> QUEUE_FULL
+            is TransferIntegrityError -> INTEGRITY
+            is java.io.IOException, is SecurityException -> STORAGE
+            else -> INVALID
+        }
+    }
+}
+
 internal data class ShareFile(
     val id: String,
     val batch: TransferBatch,
@@ -36,10 +55,13 @@ internal data class ShareFile(
     val bytes: Long?,
     val isOutgoing: Boolean = true,
     val downloadUri: String? = null,
+    val mimeType: String? = null,
+    val failure: TransferFailure? = null,
 )
 
 internal class ShareQueueFull : java.io.IOException()
 internal class ShareFileTooLarge : java.io.IOException()
+internal class TransferIntegrityError : java.io.IOException()
 
 internal data class TransferMetadata(
     val id: String,
@@ -150,6 +172,7 @@ data class TransferProgress(
     val mimeType: String? = null,
     val isOutgoing: Boolean = true,
     val batch: TransferBatch? = null,
+    val failure: TransferFailure? = null,
 ) {
     enum class State { QUEUED, OFFERING, RECEIVING, SENDING, VERIFYING, SENT, RECEIVED, CANCELLED, DECLINED, FAILED, INVALID, PAUSED }
     val canCancel: Boolean get() = isOutgoing && transferId != null &&
@@ -159,6 +182,7 @@ data class TransferProgress(
     val isSuccess: Boolean get() = state in setOf(State.SENT, State.RECEIVED)
     val isError: Boolean get() = state in setOf(State.DECLINED, State.FAILED, State.INVALID)
     fun message(context: android.content.Context): String {
+        failure?.let { return context.getString(it.message) }
         val label = context.getString(when (kind) {
             "image" -> R.string.transfer_kind_image
             "text" -> R.string.transfer_kind_text
@@ -181,8 +205,12 @@ data class TransferProgress(
     }
 }
 
-internal fun TransferMetadata.progress(state: TransferProgress.State, percent: Int = 0, isOutgoing: Boolean = true) =
-    TransferProgress(state, kind, percent, id, name, mimeType, isOutgoing, batch)
+internal fun TransferMetadata.progress(
+    state: TransferProgress.State,
+    percent: Int = 0,
+    isOutgoing: Boolean = true,
+    failure: TransferFailure? = null,
+) = TransferProgress(state, kind, percent, id, name, mimeType, isOutgoing, batch, failure)
 
 /** Disk-backed, peer-bound transfers. Every instance shares the lock with share-sheet imports. */
 internal class FileTransferStore(private val root: File) {
@@ -291,7 +319,8 @@ internal class FileTransferStore(private val root: File) {
                 if (batchId != null && batch.id != batchId) return@mapNotNull null
                 val state = ShareFileState.valueOf(manifest.optString("shareState", ShareFileState.QUEUED.name))
                 ShareFile(directory.name, batch, manifest.optString("name").takeIf(String::isNotEmpty),
-                    state, manifest.optLong("size", -1).takeIf { it >= 0 })
+                    state, manifest.optLong("size", -1).takeIf { it >= 0 },
+                    failure = TransferFailure.parse(manifest.optString("reason")))
             }.getOrNull()
         }
         val seen = files.mapTo(mutableSetOf(), ShareFile::id)
@@ -333,7 +362,8 @@ internal class FileTransferStore(private val root: File) {
             val name = row.optString("name").takeIf(String::isNotBlank)?.let(FileTransferProtocol::safeName)
             val bytes = row.optLong("size", -1).takeIf { it in 0..FileTransferProtocol.MAXIMUM_FILE_BYTES }
             val state = ShareFileState.valueOf(row.getString("state"))
-            ShareFile(fileId, batch, name, state, bytes, isOutgoing = false)
+            ShareFile(fileId, batch, name, state, bytes, isOutgoing = false,
+                failure = TransferFailure.parse(row.optString("reason")))
         }
     }
 
@@ -350,7 +380,8 @@ internal class FileTransferStore(private val root: File) {
                     else -> ShareFileState.QUEUED
                 }
                 ShareFile(metadata.id, metadata.batch ?: TransferBatch(metadata.id, 0, 1), metadata.name, state, metadata.size,
-                    isOutgoing = false, downloadUri = json.optString("download").takeIf(String::isNotBlank))
+                    isOutgoing = false, downloadUri = json.optString("download").takeIf(String::isNotBlank),
+                    mimeType = metadata.mimeType, failure = TransferFailure.parse(json.optString("reason")))
             }.getOrNull()
         }
         val localIds = local.mapTo(mutableSetOf(), ShareFile::id)
@@ -368,6 +399,7 @@ internal class FileTransferStore(private val root: File) {
         val manifest = runCatching { readJson(file) }.getOrNull() ?: return@synchronized false
         if (manifest.optString("peerId") != peerId || manifest.optString("shareState") != ShareFileState.REJECTED.name ||
             !File(directory, "body").isFile) return@synchronized false
+        manifest.remove("reason")
         writeJson(file, manifest.put("shareState", ShareFileState.QUEUED.name))
         directory.setLastModified(System.currentTimeMillis())
         shareChanges.update { it + 1 }
@@ -440,7 +472,7 @@ internal class FileTransferStore(private val root: File) {
         }
     }
 
-    fun finishOutgoing(peerId: String, id: String, state: ShareFileState) = synchronized(lock) {
+    fun finishOutgoing(peerId: String, id: String, state: ShareFileState, failure: TransferFailure? = null) = synchronized(lock) {
         require(FileTransferProtocol.validId(id))
         val directory = File(outgoing, id)
         val manifest = File(directory, "metadata")
@@ -450,7 +482,7 @@ internal class FileTransferStore(private val root: File) {
         if (!json.has("batch")) {
             directory.deleteRecursively()
         } else {
-            writeJson(manifest, json.put("shareState", state.name))
+            writeJson(manifest, json.put("shareState", state.name).put("reason", failure?.name))
             if (state != ShareFileState.REJECTED) File(directory, "body").delete()
             shareChanges.update { it + 1 }
         }
@@ -486,17 +518,17 @@ internal class FileTransferStore(private val root: File) {
                 if (!publishDownload || saved.optBoolean("published") || !legacyStaged) return TransferReceipt(meta.size, true)
             }
         } else {
-            require(incoming.listFiles().orEmpty().count {
+            if (incoming.listFiles().orEmpty().count {
                 !runCatching {
                     val saved = readJson(File(it, "metadata"))
                     saved.optBoolean("completed") || saved.optBoolean("failed")
                 }.getOrDefault(false)
-            } < MAX_PARTIAL)
+            } >= MAX_PARTIAL) throw ShareQueueFull()
             if (meta.kind == "file") {
                 val files = receivedFiles()
-                require(files.size < MAX_RECEIVED_FILES && files.sumOf { it.metadata.size } + meta.size <= MAX_RECEIVED_BYTES)
+                if (files.size >= MAX_RECEIVED_FILES || files.sumOf { it.metadata.size } + meta.size > MAX_RECEIVED_BYTES) throw ShareQueueFull()
             }
-            check(directory.mkdirs())
+            if (!directory.mkdirs()) throw java.io.IOException("Could not create incoming transfer")
             writeJson(manifest, meta.json())
             if (meta.kind == "file") shareChanges.update { it + 1 }
         }
@@ -504,12 +536,12 @@ internal class FileTransferStore(private val root: File) {
         val committed = File(File(received, directory.name), "body")
         if (meta.kind == "file" && !body.exists() && committed.isFile && committed.length() == meta.size) {
             require(TransferMetadata.parse(readJson(File(committed.parentFile, "metadata"))) == meta)
-            require(FileInputStream(committed).use(FileTransferProtocol::hash) == meta.sha256)
+            if (FileInputStream(committed).use(FileTransferProtocol::hash) != meta.sha256) throw TransferIntegrityError()
             if (publishDownload) return TransferReceipt(meta.size, false)
             writeJson(manifest, meta.json().put("completed", true))
             return TransferReceipt(meta.size, true)
         }
-        if (!body.exists()) check(body.createNewFile())
+        if (!body.exists() && !body.createNewFile()) throw java.io.IOException("Could not create transfer body")
         require(body.length() <= meta.size)
         // An interrupted write can leave a fraction of a chunk. Re-request that chunk.
         val length = body.length()
@@ -537,17 +569,17 @@ internal class FileTransferStore(private val root: File) {
         }
         require(body.isFile && body.length() == meta.size)
         if (FileInputStream(body).use(FileTransferProtocol::hash) != meta.sha256) {
-            directory.deleteRecursively()
-            error("Transfer integrity failed")
+            body.delete()
+            throw TransferIntegrityError()
         }
         val destination = if (meta.kind == "file") {
             val files = receivedFiles()
-            require(files.size < MAX_RECEIVED_FILES && files.sumOf { it.metadata.size } + meta.size <= MAX_RECEIVED_BYTES)
+            if (files.size >= MAX_RECEIVED_FILES || files.sumOf { it.metadata.size } + meta.size > MAX_RECEIVED_BYTES) throw ShareQueueFull()
             val targetDirectory = File(received, directory.name)
-            check(targetDirectory.mkdirs() || targetDirectory.isDirectory)
+            if (!targetDirectory.mkdirs() && !targetDirectory.isDirectory) throw java.io.IOException("Could not create download staging directory")
             val target = File(targetDirectory, "body")
             writeJson(File(targetDirectory, "metadata"), meta.json())
-            check(body.renameTo(target))
+            if (!body.renameTo(target)) throw java.io.IOException("Could not stage received file")
             target
         } else body
         writeJson(File(directory, "metadata"), meta.json().put("completed", !publishDownload || meta.kind != "file"))
@@ -561,12 +593,12 @@ internal class FileTransferStore(private val root: File) {
         shareChanges.update { it + 1 }
     }
 
-    fun markReceiveFailed(peerId: String, meta: TransferMetadata) = synchronized(lock) {
+    fun markReceiveFailed(peerId: String, meta: TransferMetadata, reason: TransferFailure) = synchronized(lock) {
         val directory = incomingDirectory(peerId, meta.id)
         val manifest = File(directory, "metadata")
         if (directory.isDirectory) {
             File(directory, "body").delete()
-            writeJson(manifest, meta.json().put("failed", true))
+            writeJson(manifest, meta.json().put("failed", true).put("reason", reason.name))
             shareChanges.update { it + 1 }
         }
     }

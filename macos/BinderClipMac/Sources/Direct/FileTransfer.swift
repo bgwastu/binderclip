@@ -23,6 +23,7 @@ struct TransferBatchSnapshot: Codable, Sendable {
         let name: String?
         let size: Int64?
         let state: String
+        var reason: String? = nil
     }
 
     let id: String
@@ -34,6 +35,7 @@ struct TransferBatchSnapshot: Codable, Sendable {
             var result: [String: Any] = ["id": item.id, "index": item.index, "state": item.state]
             result["name"] = item.name
             result["size"] = item.size
+            result["reason"] = item.reason
             return result
         }
         return ["type": "transfer_batch", "id": id, "count": count, "items": entries]
@@ -101,6 +103,33 @@ struct TransferMetadata: Codable, Equatable, Sendable {
 
 enum FileTransferError: Error { case invalidMetadata, invalidChunk, queueFull, integrity, storage }
 
+enum TransferFailure: String, Codable, CaseIterable, Sendable {
+    case cancelled = "CANCELLED"
+    case invalid = "INVALID"
+    case integrity = "INTEGRITY"
+    case storage = "STORAGE"
+    case queueFull = "QUEUE_FULL"
+
+    init(_ error: Error) {
+        switch error {
+        case FileTransferError.queueFull: self = .queueFull
+        case FileTransferError.integrity: self = .integrity
+        case FileTransferError.invalidMetadata, FileTransferError.invalidChunk: self = .invalid
+        default: self = .storage
+        }
+    }
+
+    var messageKey: String {
+        switch self {
+        case .cancelled: return "transfers_cancelled"
+        case .invalid: return "transfer_invalid"
+        case .integrity: return "transfer_integrity_failed"
+        case .storage: return "transfer_storage_failed"
+        case .queueFull: return "transfer_receiver_full"
+        }
+    }
+}
+
 enum FileTransferProtocol {
     static let capability = "chunkedTransfers"
     static let version = 1
@@ -159,13 +188,14 @@ struct TransferReceipt {
 
 struct TransferProgress: Sendable {
     enum Direction: String, Codable, Sendable { case sending, receiving }
-    enum Phase: String, Codable, Sendable { case queued, preparing, sending, receiving, verifying, sent, received, declined, failed, invalid, paused }
+    enum Phase: String, Codable, Sendable { case queued, preparing, sending, receiving, verifying, sent, received, declined, cancelled, failed, invalid, paused }
     let peerID: String
     let metadata: TransferMetadata
     let direction: Direction
     let phase: Phase
     let completedBytes: Int64
     var destination: URL? = nil
+    var failure: TransferFailure? = nil
     var identity: String { peerID + "/" + direction.rawValue + "/" + metadata.id }
     var isActive: Bool { [.preparing, .sending, .receiving, .verifying].contains(phase) }
     var fraction: Double {
@@ -174,6 +204,7 @@ struct TransferProgress: Sendable {
         return min(1, max(0, Double(completedBytes) / Double(metadata.size)))
     }
     var message: String {
+        if let failure { return L10n.tr(failure.messageKey) }
         let kind = L10n.tr(metadata.kind == "image" ? "transfer_kind_image" : "transfer_kind_file")
         switch phase {
         case .queued: return L10n.tr("transfers_waiting")
@@ -184,6 +215,7 @@ struct TransferProgress: Sendable {
         case .sent: return L10n.tr("transfer_sent", kind)
         case .received: return L10n.tr("transfer_received", kind)
         case .declined: return L10n.tr("transfer_declined")
+        case .cancelled: return L10n.tr("transfers_cancelled")
         case .failed: return L10n.tr("transfer_failed")
         case .invalid: return L10n.tr("transfer_invalid")
         case .paused: return L10n.tr("transfer_paused")
@@ -192,7 +224,7 @@ struct TransferProgress: Sendable {
     var icon: String {
         switch phase {
         case .sent, .received: return "checkmark.circle.fill"
-        case .declined, .failed, .invalid: return "exclamationmark.circle.fill"
+        case .declined, .cancelled, .failed, .invalid: return "exclamationmark.circle.fill"
         case .paused: return "pause.circle.fill"
         case .verifying: return "checkmark.shield.fill"
         default: return direction == .sending ? "arrow.up.doc.fill" : "arrow.down.doc.fill"
@@ -205,6 +237,7 @@ final class FileTransferStore: @unchecked Sendable {
     let receivedDirectory: URL
     private let manager = FileManager.default
     private var outgoing: URL { root.appendingPathComponent("outgoing", isDirectory: true) }
+    private var preparing: URL { root.appendingPathComponent("preparing", isDirectory: true) }
     private var batches: URL { root.appendingPathComponent("batches", isDirectory: true) }
     private var incoming: URL { root.appendingPathComponent("incoming", isDirectory: true) }
     private let maximumAge: TimeInterval = 24 * 60 * 60
@@ -212,10 +245,20 @@ final class FileTransferStore: @unchecked Sendable {
     init(root: URL, receivedDirectory: URL) {
         self.root = root
         self.receivedDirectory = receivedDirectory
+        // A terminated process cannot commit any of its unfinished staging files.
+        try? manager.removeItem(at: preparing)
     }
 
     func stage(peerID: String, name: String, mimeType: String, kind: String, input: FileHandle,
                clipboard: ClipboardStamp? = nil, batch: TransferBatch? = nil, id: String = UUID().uuidString.lowercased()) throws -> OutgoingTransfer {
+        try stage(peerID: peerID, name: name, mimeType: mimeType, kind: kind, clipboard: clipboard, batch: batch, id: id) {
+            try input.read(upToCount: 64 * 1024)
+        }
+    }
+
+    private func stage(peerID: String, name: String, mimeType: String, kind: String,
+                       clipboard: ClipboardStamp?, batch: TransferBatch? = nil, id: String = UUID().uuidString.lowercased(),
+                       read: () throws -> Data?) throws -> OutgoingTransfer {
         cleanup()
         if let clipboard {
             for directory in children(outgoing) {
@@ -225,12 +268,33 @@ final class FileTransferStore: @unchecked Sendable {
                 return OutgoingTransfer(peerID: peerID, metadata: meta, file: directory.appendingPathComponent("body"))
             }
         }
+        let budget = try availableStagingBudget(batched: batch != nil)
+        let prepared = try prepare(peerID: peerID, name: name, mimeType: mimeType, kind: kind,
+                                   clipboard: clipboard, batch: batch, id: id, budget: budget, read: read)
+        defer { discardPrepared(prepared) }
+        return try commit(prepared)
+    }
+
+    func stagingBudget(batched: Bool) throws -> Int64 {
+        cleanup()
+        return try availableStagingBudget(batched: batched)
+    }
+
+    /// Checked on the transfer queue both before spending I/O and at the final commit.
+    private func availableStagingBudget(batched: Bool) throws -> Int64 {
         let queued = children(outgoing)
-        let limit = batch == nil ? 8 : TransferBatch.maximumFiles
-        let spoolBytes = queued.reduce(Int64(0)) { $0 + max(0, fileSize($1.appendingPathComponent("body"))) }
-        guard !peerID.isEmpty, FileTransferProtocol.validID(id), queued.count < limit,
-              spoolBytes < 1024 * 1024 * 1024 else { throw FileTransferError.queueFull }
-        let directory = outgoing.appendingPathComponent(id, isDirectory: true)
+        let used = queued.reduce(Int64(0)) { $0 + max(0, fileSize($1.appendingPathComponent("body"))) }
+        let available = 1024 * 1024 * 1024 - used
+        guard queued.count < (batched ? TransferBatch.maximumFiles : 8), available > 0 else { throw FileTransferError.queueFull }
+        return available
+    }
+
+    /// The preparation queue owns the isolated directory until commit atomically moves it into the outbox.
+    func prepare(peerID: String, name: String, mimeType: String, kind: String = "file",
+                 clipboard: ClipboardStamp? = nil, batch: TransferBatch?, id: String, budget: Int64,
+                 read: () throws -> Data?) throws -> OutgoingTransfer {
+        guard !peerID.isEmpty, FileTransferProtocol.validID(id) else { throw FileTransferError.invalidMetadata }
+        let directory = preparing.appendingPathComponent(id, isDirectory: true)
         try makeDirectory(directory)
         let body = directory.appendingPathComponent("body")
         do {
@@ -240,9 +304,9 @@ final class FileTransferStore: @unchecked Sendable {
             let maximum = kind == "image" ? Int64(ImagePayload.maximumBytes) : FileTransferProtocol.maximumFileBytes
             var size: Int64 = 0
             var hash = SHA256()
-            while let data = try input.read(upToCount: 64 * 1024), !data.isEmpty {
+            while let data = try read(), !data.isEmpty {
                 size += Int64(data.count)
-                guard spoolBytes + size <= 1024 * 1024 * 1024 else { throw FileTransferError.queueFull }
+                guard size <= budget else { throw FileTransferError.queueFull }
                 guard size <= maximum else { throw FileTransferError.invalidMetadata }
                 hash.update(data: data)
                 try output.write(contentsOf: data)
@@ -257,14 +321,25 @@ final class FileTransferStore: @unchecked Sendable {
             return OutgoingTransfer(peerID: peerID, metadata: meta, file: body)
         } catch { try? manager.removeItem(at: directory); throw error }
     }
+
+    func commit(_ prepared: OutgoingTransfer) throws -> OutgoingTransfer {
+        let metadata = prepared.metadata
+        guard metadata.size <= (try availableStagingBudget(batched: metadata.batch != nil)) else { throw FileTransferError.queueFull }
+        try makeDirectory(outgoing)
+        let destination = outgoing.appendingPathComponent(metadata.id, isDirectory: true)
+        try manager.moveItem(at: prepared.file.deletingLastPathComponent(), to: destination)
+        return OutgoingTransfer(peerID: prepared.peerID, metadata: metadata, file: destination.appendingPathComponent("body"))
+    }
+
+    func discardPrepared(_ transfer: OutgoingTransfer) {
+        try? manager.removeItem(at: transfer.file.deletingLastPathComponent())
+    }
     func stageImage(peerID: String, image: ImagePayload, clipboard: ClipboardStamp? = nil) throws -> OutgoingTransfer {
-        try makeDirectory(root)
-        let temporary = root.appendingPathComponent("image-\(UUID().uuidString)")
-        defer { try? manager.removeItem(at: temporary) }
-        try image.data.write(to: temporary, options: .atomic)
-        let input = try FileHandle(forReadingFrom: temporary)
-        defer { try? input.close() }
-        return try stage(peerID: peerID, name: "image", mimeType: image.mimeType, kind: "image", input: input, clipboard: clipboard)
+        var bytes: Data? = image.data
+        return try stage(peerID: peerID, name: "image", mimeType: image.mimeType, kind: "image", clipboard: clipboard) {
+            defer { bytes = nil }
+            return bytes
+        }
     }
     func next(peerID: String) -> OutgoingTransfer? {
         cleanup()

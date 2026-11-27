@@ -100,6 +100,9 @@
     <string name="transfer_declined">Transfert refusé ; vérifiez l’appareil destinataire</string>
     <string name="transfer_failed">Échec du transfert ; vérifiez la taille et l’espace disponible</string>
     <string name="transfer_invalid">Échec de la validation de l’intégrité ou de la séquence</string>
+    <string name="transfer_integrity_failed">La vérification du fichier a échoué</string>
+    <string name="transfer_storage_failed">Impossible de lire ou d’enregistrer le fichier</string>
+    <string name="transfer_receiver_full">L’appareil destinataire ne peut pas accueillir un autre transfert</string>
     <string name="transfer_paused">Transfert en pause ; reconnexion…</string>
     <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 512 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
     <string name="received_files">Fichiers reçus</string>

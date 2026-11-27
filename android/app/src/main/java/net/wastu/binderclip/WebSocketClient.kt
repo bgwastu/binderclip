@@ -39,7 +39,7 @@ internal class WebSocketClient(
     private val onSyncText: ((String, ClipboardStamp?) -> Unit)? = null,
     private val publishFile: ((ReceivedFile) -> String)? = null,
     private val onSharedAck: (String) -> Unit = {},
-    private val onSharedText: (String) -> Unit = {},
+    private val onSharedText: (QueuedShare, () -> Boolean, () -> Unit) -> Unit = { _, _, _ -> },
     private val onSyncImage: ((ImagePayload, ClipboardStamp?) -> Unit)? = null,
 ) {
     companion object {
@@ -61,6 +61,7 @@ internal class WebSocketClient(
     private val transferSessions = HashMap<WebSocket, ChunkedTransferSession>()
     @Volatile private var clipboardSync = false
     @Volatile private var sharing = false
+    @Volatile private var shareReceipts = false
     private val candidateSockets = ConcurrentHashMap<String, WebSocket>()
     @Volatile
     private var activeSocket: WebSocket? = null
@@ -248,7 +249,8 @@ internal class WebSocketClient(
                             sendSecureText(webSocket, JSONObject().put("type", "auth").put("deviceId", localId)
                                 .put("deviceName", localName).put("platform", "Android").put("version", SyncProtocol.VERSION)
                                 .put(FileTransferProtocol.CAPABILITY, FileTransferProtocol.VERSION)
-                                .put("sharing", 1).put(ClipboardStamp.CAPABILITY, 1).put("clockProbe", android.os.SystemClock.elapsedRealtime())
+                                .put("sharing", 1).put("shareReceipts", 1)
+                                .put(ClipboardStamp.CAPABILITY, 1).put("clockProbe", android.os.SystemClock.elapsedRealtime())
                                 .put("pairing", pairingScan).toString())
                         } else {
                             require(objectJson.optString("type") == "secure")
@@ -338,6 +340,7 @@ internal class WebSocketClient(
                 activeSocket = webSocket
                 clipboardSync = json.optInt(ClipboardStamp.CAPABILITY) == 1
                 sharing = json.optInt("sharing") == 1
+                shareReceipts = json.optInt("shareReceipts") == 1
                 transferExecutor.execute {
                     if (activeSocket !== webSocket) return@execute
                     transferSessions[webSocket] = ChunkedTransferSession(
@@ -407,11 +410,16 @@ internal class WebSocketClient(
 
             "shared_ack", "shared_text" -> {
                 require(isConnected.get() && activeSocket === webSocket && sharing)
+                val id = json.optString("id").takeIf(FileTransferProtocol::validId) ?: return
                 if (json.optString("type") == "shared_ack") {
-                    json.optString("id").takeIf(FileTransferProtocol::validId)?.let(onSharedAck)
+                    onSharedAck(id)
                 } else {
-                    json.optString("text").takeIf { it.isNotBlank() && it.toByteArray().size <= SyncProtocol.MAXIMUM_TEXT_BYTES }
-                        ?.let(onSharedText)
+                    val body = json.optString("text")
+                    if (body.isEmpty() || body.toByteArray().size > SyncProtocol.MAXIMUM_TEXT_BYTES) return
+                    val isCurrent = { activeSocket === webSocket && generation.get() == myGeneration }
+                    onSharedText(QueuedShare(id, body), isCurrent) {
+                        if (isCurrent() && shareReceipts) sendSecureText(webSocket, JSONObject().put("type", "shared_ack").put("id", id).toString())
+                    }
                 }
             }
 

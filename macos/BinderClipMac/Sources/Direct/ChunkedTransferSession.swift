@@ -12,6 +12,7 @@ final class ChunkedTransferSession {
     private let onFile: (ReceivedFile) -> Void
     private let onStatus: (String) -> Void
     private let onProgress: (TransferProgress) -> Void
+    private let onLog: (String) -> Void
     private let announceBatches: Bool
     private let onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)?
     private var outgoing: OutgoingTransfer?
@@ -28,13 +29,15 @@ final class ChunkedTransferSession {
          disconnect: @escaping () -> Void, onImage: @escaping (ImagePayload) -> Void,
          onFile: @escaping (ReceivedFile) -> Void, onStatus: @escaping (String) -> Void,
          onProgress: @escaping (TransferProgress) -> Void = { _ in },
-         announceBatches: Bool = false, onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)? = nil) {
+         announceBatches: Bool = false, onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)? = nil,
+         onLog: @escaping (String) -> Void = { _ in }) {
         self.peerID = peerID; self.store = store; self.queue = queue
         self.sendText = sendText; self.sendBinary = sendBinary; self.disconnect = disconnect
         self.onImage = onImage; self.onFile = onFile; self.onStatus = onStatus
         self.onProgress = onProgress
         self.onOrderedImage = onOrderedImage
         self.announceBatches = announceBatches
+        self.onLog = onLog
     }
 
     func announce(_ batch: [String: Any]) {
@@ -114,33 +117,39 @@ final class ChunkedTransferSession {
                 progress(transfer.metadata, .sent, bytes: transfer.metadata.size, direction: .sending)
                 pump()
             case "transfer_cancel":
+                let reason = (json["reason"] as? String).flatMap(TransferFailure.init(rawValue:))
+                if let reason, reason != .cancelled, incoming[id] != nil || outgoing?.metadata.id == id {
+                    onLog("Peer transfer failure: \(reason.rawValue)")
+                }
+                let phase: TransferProgress.Phase = reason == .cancelled ? .cancelled : .declined
                 if let meta = incoming.removeValue(forKey: id) {
-                    progress(meta, .declined, bytes: incomingOffsets.removeValue(forKey: id) ?? 0, direction: .receiving)
+                    progress(meta, phase, bytes: incomingOffsets.removeValue(forKey: id) ?? 0, direction: .receiving, failure: reason)
                     store.discardIncoming(peerID: peerID, id: id)
                 }
                 if let transfer = outgoing, transfer.metadata.id == id {
                     deadline?.cancel()
-                    store.rejectOutgoing(transfer)
+                    if reason == .cancelled { store.removeOutgoing(id) }
+                    else { store.rejectOutgoing(transfer) }
                     outgoing = nil
-                    onStatus(L10n.tr("transfer_declined"))
-                    progress(transfer.metadata, .declined, bytes: lastAcknowledged, direction: .sending)
+                    onStatus(L10n.tr(reason?.messageKey ?? "transfer_declined"))
+                    progress(transfer.metadata, phase, bytes: lastAcknowledged, direction: .sending, failure: reason)
                     pump()
                 }
             default: break
             }
         } catch {
+            let reason = TransferFailure(error)
             if let meta = offeredMeta {
                 let offset = acceptedOffer ? incomingOffsets.removeValue(forKey: id) ?? 0 : 0
-                progress(meta, .failed, bytes: offset, direction: .receiving)
+                progress(meta, .failed, bytes: offset, direction: .receiving, failure: reason)
                 if acceptedOffer {
                     incoming.removeValue(forKey: id)
                     store.discardIncoming(peerID: peerID, id: id)
                 }
             }
-            sendText(["type": "transfer_cancel", "id": id])
-            onStatus(L10n.tr("transfer_failed"))
+            reject(id, reason: reason)
             if let transfer = outgoing, transfer.metadata.id == id {
-                progress(transfer.metadata, .failed, bytes: lastAcknowledged, direction: .sending)
+                progress(transfer.metadata, .failed, bytes: lastAcknowledged, direction: .sending, failure: reason)
                 outgoing = nil
                 disconnect(); close()
             }
@@ -164,14 +173,18 @@ final class ChunkedTransferSession {
                 progress(meta, .receiving, bytes: next, direction: .receiving)
             }
         } catch {
+            let reason = TransferFailure(error)
             if let id {
                 incoming.removeValue(forKey: id)
                 let bytes = incomingOffsets.removeValue(forKey: id) ?? 0
-                if let metadata { progress(metadata, .invalid, bytes: bytes, direction: .receiving) }
+                if let metadata { progress(metadata, .failed, bytes: bytes, direction: .receiving, failure: reason) }
                 if metadata != nil { store.discardIncoming(peerID: peerID, id: id) }
-                sendText(["type": "transfer_cancel", "id": id])
-            } else { disconnect() }
-            onStatus(L10n.tr("transfer_invalid"))
+                reject(id, reason: reason)
+            } else {
+                onLog("Transfer rejected: \(reason.rawValue)")
+                onStatus(L10n.tr(reason.messageKey))
+                disconnect()
+            }
         }
     }
     private func complete(_ meta: TransferMetadata) throws {
@@ -189,9 +202,14 @@ final class ChunkedTransferSession {
         progress(meta, .received, bytes: meta.size, direction: .receiving, destination: meta.kind == "file" ? file.file : nil)
     }
     private func progress(_ meta: TransferMetadata, _ phase: TransferProgress.Phase, bytes: Int64,
-                          direction: TransferProgress.Direction, destination: URL? = nil) {
+                          direction: TransferProgress.Direction, destination: URL? = nil, failure: TransferFailure? = nil) {
         onProgress(TransferProgress(peerID: peerID, metadata: meta, direction: direction,
-                                    phase: phase, completedBytes: bytes, destination: destination))
+                                    phase: phase, completedBytes: bytes, destination: destination, failure: failure))
+    }
+    private func reject(_ id: String, reason: TransferFailure) {
+        onLog("Transfer rejected: \(reason.rawValue)")
+        onStatus(L10n.tr(reason.messageKey))
+        sendText(["type": "transfer_cancel", "id": id, "reason": reason.rawValue])
     }
     private func kind(_ meta: TransferMetadata) -> String { L10n.tr(meta.kind == "image" ? "transfer_kind_image" : "transfer_kind_file") }
     private func acknowledge(_ id: String, offset: Int64) { sendText(["type": "transfer_ack", "id": id, "offset": offset]) }

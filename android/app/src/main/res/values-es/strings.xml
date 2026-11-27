@@ -100,6 +100,9 @@
     <string name="transfer_declined">Transferencia rechazada; revisa el dispositivo receptor</string>
     <string name="transfer_failed">Transferencia fallida; revisa el tamaño y el espacio disponible</string>
     <string name="transfer_invalid">Falló la validación de integridad o secuencia</string>
+    <string name="transfer_integrity_failed">El archivo no superó la verificación</string>
+    <string name="transfer_storage_failed">No se pudo leer o guardar el archivo</string>
+    <string name="transfer_receiver_full">El dispositivo receptor no tiene espacio para otra transferencia</string>
     <string name="transfer_paused">Transferencia pausada; reconectando…</string>
     <string name="share_error_file">No se pudo poner el archivo en cola. Límite: 512 MiB (imágenes del portapapeles: 30 MiB). Revisa el acceso y el espacio.</string>
     <string name="received_files">Archivos recibidos</string>

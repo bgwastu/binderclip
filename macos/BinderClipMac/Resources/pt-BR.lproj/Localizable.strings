@@ -91,6 +91,9 @@
 "transfer_declined" = "Transferência recusada; verifique o dispositivo receptor";
 "transfer_failed" = "Falha na transferência; verifique o tamanho e o espaço disponível";
 "transfer_invalid" = "Falha na validação de integridade ou sequência";
+"transfer_integrity_failed" = "A verificação do arquivo falhou";
+"transfer_storage_failed" = "Não foi possível ler ou salvar o arquivo";
+"transfer_receiver_full" = "O dispositivo receptor não tem espaço para outra transferência";
 "transfer_paused" = "Transferência pausada; reconectando…";
 "share_error_file" = "Não foi possível colocar o arquivo na fila. Limite: 512 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.";
 "send_file" = "Enviar arquivo…";

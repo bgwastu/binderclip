@@ -23,6 +23,7 @@ protocol BluetoothSession: AnyObject {
     var isAuthenticated: Bool { get set }
     var clipboardSync: Bool { get set }
     var sharing: Bool { get set }
+    var shareReceipts: Bool { get set }
     var peerID: String? { get set }
     var peerName: String? { get set }
     var lastHeard: Date { get set }
@@ -65,6 +66,7 @@ final class BleL2capSession: NSObject, BluetoothSession, StreamDelegate {
     @Locked var isAuthenticated = false
     @Locked var clipboardSync = false
     @Locked var sharing = false
+    @Locked var shareReceipts = false
     @Locked var peerID: String? = nil
     @Locked var peerName: String? = nil
     @Locked var lastHeard = SessionLiveness.now()
@@ -186,6 +188,7 @@ final class BleGattSession: BluetoothSession {
     @Locked var isAuthenticated = false
     @Locked var clipboardSync = false
     @Locked var sharing = false
+    @Locked var shareReceipts = false
     @Locked var peerID: String? = nil
     @Locked var peerName: String? = nil
     @Locked var lastHeard = SessionLiveness.now()

@@ -99,6 +99,9 @@
     <string name="transfer_declined">Transfer declined; check the receiving device</string>
     <string name="transfer_failed">Transfer failed; check file size and available storage</string>
     <string name="transfer_invalid">Transfer failed integrity or sequence validation</string>
+    <string name="transfer_integrity_failed">The file failed verification</string>
+    <string name="transfer_storage_failed">Could not read or save the file</string>
+    <string name="transfer_receiver_full">The receiving device has no room for another transfer</string>
     <string name="transfer_paused">Transfer paused; reconnecting…</string>
     <string name="share_error_file">Couldn’t prepare files. Nothing from this selection was sent. Check file access, free space, and the size limit: 512 MiB per file (30 MiB for clipboard images).</string>
     <string name="share_preparing">Preparing to send…</string>

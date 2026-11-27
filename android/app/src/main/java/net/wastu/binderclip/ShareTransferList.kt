@@ -2,6 +2,7 @@ package net.wastu.binderclip
 
 import android.app.DownloadManager
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +60,7 @@ internal fun ShareTransferList(
                     headlineContent = { Text(row.name ?: stringResource(R.string.transfer_kind_file)) },
                     supportingContent = {
                         Column {
-                            val status = active?.message(context) ?: stringResource(when (row.state) {
+                            val status = active?.message(context) ?: stringResource(row.failure?.message ?: when (row.state) {
                                 ShareFileState.PREPARING -> R.string.share_preparing
                                 ShareFileState.QUEUED -> R.string.transfers_waiting
                                 ShareFileState.SENT, ShareFileState.RECEIVED -> R.string.transfers_saved
@@ -83,12 +84,21 @@ internal fun ShareTransferList(
                                 TextButton(onClick = { retry(row.id) }) { Text(stringResource(R.string.transfers_retry)) }
                             row.isOutgoing && row.state == ShareFileState.QUEUED && (active == null || active.canCancel) ->
                                 TextButton(onClick = { cancel(row.id) }) { Text(stringResource(R.string.cancel_transfer)) }
-                            row.downloadUri != null -> TextButton(onClick = {
-                                val view = Intent(Intent.ACTION_VIEW, Uri.parse(row.downloadUri))
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                runCatching { context.startActivity(view) }
-                                    .onFailure { runCatching { context.startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) } }
-                            }) { Text(stringResource(R.string.transfers_open)) }
+                            row.downloadUri != null -> Column {
+                                TextButton(onClick = {
+                                    val view = Intent(Intent.ACTION_VIEW, Uri.parse(row.downloadUri))
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    runCatching { context.startActivity(view) }
+                                        .onFailure { runCatching { context.startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) } }
+                                }) { Text(stringResource(R.string.transfers_open)) }
+                                if (row.mimeType in ImagePayload.ALLOWED_MIME_TYPES && (row.bytes ?: 0) in 1..ImagePayload.MAXIMUM_BYTES.toLong()) {
+                                    TextButton(onClick = {
+                                        ContextCompat.startForegroundService(context, Intent(context, BinderClipService::class.java)
+                                            .setAction(BinderClipService.ACTION_COPY_SHARED_IMAGE)
+                                            .putExtra(BinderClipService.EXTRA_TRANSFER_ID, row.id))
+                                    }) { Text(stringResource(R.string.copy)) }
+                                }
+                            }
                         }
                     },
                 )

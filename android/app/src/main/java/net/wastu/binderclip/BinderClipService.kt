@@ -84,6 +84,7 @@ class BinderClipService : Service() {
         val ACTION_UNPAIR = "${BuildConfig.APPLICATION_ID}.UNPAIR"
         val ACTION_SEND_CURRENT = "${BuildConfig.APPLICATION_ID}.SEND_CURRENT"
         val ACTION_COPY_SHARED_TEXT = "${BuildConfig.APPLICATION_ID}.COPY_SHARED_TEXT"
+        val ACTION_COPY_SHARED_IMAGE = "${BuildConfig.APPLICATION_ID}.COPY_SHARED_IMAGE"
         val ACTION_COPY_PENDING = "${BuildConfig.APPLICATION_ID}.COPY_PENDING"
         val ACTION_UI_VISIBLE = "${BuildConfig.APPLICATION_ID}.UI_VISIBLE"
         val ACTION_SET_SYNC_TOASTS = "${BuildConfig.APPLICATION_ID}.SET_SYNC_TOASTS"
@@ -336,7 +337,8 @@ class BinderClipService : Service() {
             override fun onSyncControl(json: org.json.JSONObject) = clipboardControl(json, websocket = false)
             override fun onSyncText(text: String, stamp: ClipboardStamp?) = receiveOrderedClipboard(LocalClipboardContent.Text(text), stamp)
             override fun onSharedAck(id: String) = sharedAcknowledged(id)
-            override fun onSharedText(text: String) = receiveSharedText(text)
+            override fun onSharedText(share: QueuedShare, isCurrent: () -> Boolean, acknowledge: () -> Unit) =
+                receiveSharedText(share, isCurrent, acknowledge)
             override fun onText(text: String) = receiveText(text)
             override fun onOpenUrl(url: String) = receiveOpenUrl(url)
 
@@ -432,10 +434,22 @@ class BinderClipService : Service() {
             }
 
             ACTION_COPY_SHARED_TEXT -> runServiceWork {
-                store.pendingSharedText?.let { text ->
-                    applyText(text)
-                    store.pendingSharedText = null
+                store.nextReceivedShare()?.let { share ->
+                    applyText(share.text)
+                    store.removeReceivedShare(share.id)
                     publishState()
+                }
+            }
+
+            ACTION_COPY_SHARED_IMAGE -> intent?.getStringExtra(EXTRA_TRANSFER_ID)?.let { id ->
+                runServiceWork {
+                    val peer = store.peer ?: return@runServiceWork
+                    val row = FileTransferStore.forContext(this).downloadHistory(peer.deviceId).firstOrNull { it.id == id }
+                    val uri = row?.downloadUri ?: return@runServiceWork
+                    val image = ImageClipboard.readUri(this, android.net.Uri.parse(uri), row.mimeType)
+                    if (image == null || runCatching { applyImage(image) }.isFailure) {
+                        syncToast(getString(R.string.transfer_failed))
+                    }
                 }
             }
 
@@ -946,10 +960,12 @@ class BinderClipService : Service() {
         drainQueuedShares()
     }
 
-    private fun receiveSharedText(text: String) = runServiceWork {
-        if (store.groupKey == null) return@runServiceWork
-        store.pendingSharedText = text
-        publishState()
+    private fun receiveSharedText(share: QueuedShare, isCurrent: () -> Boolean, acknowledge: () -> Unit) = runServiceWork {
+        if (!isCurrent() || store.groupKey == null) return@runServiceWork
+        if (runCatching { store.receiveShare(share) }.getOrDefault(false)) {
+            acknowledge()
+            publishState()
+        }
     }
 
     private fun applyText(text: String) {

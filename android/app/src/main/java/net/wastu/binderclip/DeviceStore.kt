@@ -54,6 +54,9 @@ class DeviceStore(context: Context) {
     companion object {
         private val shareLock = Any()
         private const val SHARE_OUTBOX = "share_outbox"
+        private const val SHARE_INBOX = "share_inbox"
+        private const val LEGACY_INBOX = "pending_shared_text"
+        private const val RECEIVED_SHARES = "received_shares"
         private const val MAX_QUEUED_SHARES = 8
         const val KEY_ALIAS = "net.wastu.binderclip.group-key"
         const val GCM_NONCE_BYTES = 12
@@ -97,8 +100,10 @@ class DeviceStore(context: Context) {
         prefs.edit().remove(SHARE_OUTBOX).remove("delivered_shares").commit()
     }
 
-    private fun queuedSharesLocked(): List<QueuedShare> = runCatching {
-        val encrypted = prefs.getString(SHARE_OUTBOX, null) ?: return emptyList()
+    private fun queuedSharesLocked() = readShares(SHARE_OUTBOX)
+
+    private fun readShares(key: String): List<QueuedShare> = runCatching {
+        val encrypted = prefs.getString(key, null) ?: return emptyList()
         val data = decrypt(encrypted) ?: return emptyList()
         val array = JSONArray(String(data, Charsets.UTF_8))
         buildList {
@@ -109,12 +114,16 @@ class DeviceStore(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    private fun saveSharesLocked(shares: List<QueuedShare>, delivered: List<String>? = null): Boolean {
+    private fun encodeShares(shares: List<QueuedShare>): String {
         val array = JSONArray().also { output -> shares.forEach { share ->
             output.put(JSONObject().put("id", share.id).put("text", share.text))
         } }
+        return encrypt(array.toString().toByteArray(Charsets.UTF_8))
+    }
+
+    private fun saveSharesLocked(shares: List<QueuedShare>, delivered: List<String>? = null): Boolean {
         return prefs.edit().apply {
-            putString(SHARE_OUTBOX, encrypt(array.toString().toByteArray(Charsets.UTF_8)))
+            putString(SHARE_OUTBOX, encodeShares(shares))
             delivered?.let { putString("delivered_shares", it.joinToString(" ")) }
         }.commit()
     }
@@ -235,7 +244,9 @@ class DeviceStore(context: Context) {
         fileTransfers.clearPairing()
         members = emptyList()
         pendingText = null
-        pendingSharedText = null
+        synchronized(shareLock) {
+            prefs.edit().remove(SHARE_INBOX).remove(RECEIVED_SHARES).remove(LEGACY_INBOX).commit()
+        }
     }
 
     /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
@@ -262,14 +273,39 @@ class DeviceStore(context: Context) {
             if (value == null) remove("pending_text_enc")
             else putString("pending_text_enc", encrypt(value.toByteArray(Charsets.UTF_8)))
         }.apply()
-    fun hasPendingSharedText(): Boolean = prefs.contains("pending_shared_text")
+    fun hasPendingSharedText(): Boolean = prefs.contains(SHARE_INBOX) || prefs.contains(LEGACY_INBOX)
 
-    var pendingSharedText: String?
-        get() = prefs.getString("pending_shared_text", null)?.let(::decrypt)?.toString(Charsets.UTF_8)
-        set(value) = prefs.edit().apply {
-            if (value == null) remove("pending_shared_text")
-            else putString("pending_shared_text", encrypt(value.toByteArray(Charsets.UTF_8)))
-        }.apply()
+    fun nextReceivedShare(): QueuedShare? = synchronized(shareLock) { inbox().firstOrNull() }
+
+    fun removeReceivedShare(id: String): Boolean = synchronized(shareLock) {
+        val shares = inbox()
+        if (shares.firstOrNull()?.id != id) return@synchronized false
+        prefs.edit().remove(LEGACY_INBOX).apply {
+            if (shares.size == 1) remove(SHARE_INBOX)
+            else putString(SHARE_INBOX, encodeShares(shares.drop(1)))
+        }.commit()
+    }
+
+    fun receiveShare(share: QueuedShare): Boolean = synchronized(shareLock) {
+        val shares = inbox()
+        val received = prefs.getString(RECEIVED_SHARES, null)?.split(' ').orEmpty()
+        if (share.id in received || shares.any { it.id == share.id }) return@synchronized true
+        if (shares.size >= MAX_QUEUED_SHARES) return@synchronized false
+        val saved = listOf(SHARE_INBOX, LEGACY_INBOX, RECEIVED_SHARES).associateWith { prefs.getString(it, null) }
+        val committed = prefs.edit().remove(LEGACY_INBOX)
+            .putString(SHARE_INBOX, encodeShares(shares + share))
+            .putString(RECEIVED_SHARES, (received + share.id).takeLast(64).joinToString(" "))
+            .commit()
+        // SharedPreferences updates memory even when it fails to write to disk.
+        if (!committed) prefs.edit().apply { saved.forEach { (key, value) -> putString(key, value) } }.commit()
+        committed
+    }
+
+    private fun inbox(): List<QueuedShare> {
+        val legacy = prefs.getString(LEGACY_INBOX, null)?.let(::decrypt)?.toString(Charsets.UTF_8)
+        val shares = readShares(SHARE_INBOX)
+        return if (legacy == null) shares else listOf(QueuedShare("", legacy)) + shares
+    }
 
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
     /** Set after Shizuku capture first works, so a later missing Shizuku is reported as paused rather than unset. */

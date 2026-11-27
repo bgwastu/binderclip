@@ -91,6 +91,9 @@
 "transfer_declined" = "Transfert refusé ; vérifiez l’appareil destinataire";
 "transfer_failed" = "Échec du transfert ; vérifiez la taille et l’espace disponible";
 "transfer_invalid" = "Échec de la validation de l’intégrité ou de la séquence";
+"transfer_integrity_failed" = "La vérification du fichier a échoué";
+"transfer_storage_failed" = "Impossible de lire ou d’enregistrer le fichier";
+"transfer_receiver_full" = "L’appareil destinataire ne peut pas accueillir un autre transfert";
 "transfer_paused" = "Transfert en pause ; reconnexion…";
 "share_error_file" = "Impossible de mettre le fichier en attente. Limite : 512 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.";
 "send_file" = "Envoyer un fichier…";

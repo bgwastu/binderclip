@@ -91,6 +91,9 @@
 "transfer_declined" = "Übertragung abgelehnt; Empfangsgerät prüfen";
 "transfer_failed" = "Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen";
 "transfer_invalid" = "Integritäts- oder Reihenfolgeprüfung fehlgeschlagen";
+"transfer_integrity_failed" = "Die Dateiprüfung ist fehlgeschlagen";
+"transfer_storage_failed" = "Die Datei konnte nicht gelesen oder gespeichert werden";
+"transfer_receiver_full" = "Auf dem Empfangsgerät ist kein Platz für eine weitere Übertragung";
 "transfer_paused" = "Übertragung pausiert; Verbindung wird wiederhergestellt…";
 "share_error_file" = "Datei konnte nicht vorgemerkt werden. Limit: 512 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.";
 "send_file" = "Datei senden…";

@@ -92,7 +92,7 @@ class BluetoothLink(
         fun onSyncConnected(supported: Boolean, sample: ClipboardClockSample?) {}
         fun onSyncControl(json: org.json.JSONObject) {}
         fun onSharedAck(id: String) {}
-        fun onSharedText(text: String) {}
+        fun onSharedText(share: QueuedShare, isCurrent: () -> Boolean, acknowledge: () -> Unit) {}
         fun onSyncText(text: String, stamp: ClipboardStamp?) = onText(text)
         fun onOpenUrl(url: String)
         fun onRemoteSleep() {}
@@ -109,6 +109,7 @@ class BluetoothLink(
     private val connected = AtomicBoolean(false)
     @Volatile private var clipboardSync = false
     @Volatile private var sharing = false
+    @Volatile private var shareReceipts = false
     fun supportsClipboardSync(): Boolean = connected.get() && clipboardSync
 
     @Volatile private var gatt: BluetoothGatt? = null
@@ -771,6 +772,7 @@ class BluetoothLink(
     }
 
     private fun handleFrame(payload: ByteArray) {
+        val frameChannel = secure
         val fields = try {
             val wire = BtCbor.decode(payload)
             val type = wire.firstOrNull { it.first == "type" }?.second as? String
@@ -784,11 +786,12 @@ class BluetoothLink(
                 sendWireFrame(listOf("type" to "secure_reply", "nonce" to java.util.Base64.getEncoder().encodeToString(clientNonce),
                     "proof" to java.util.Base64.getEncoder().encodeToString(SecureChannel.proof(psk, serverNonce, clientNonce, "ble"))))
                 sendFrame(listOf("type" to "auth", "deviceId" to store.deviceId, "deviceName" to deviceNameProvider(), "version" to SyncProtocol.VERSION,
-                    "sharing" to 1, ClipboardStamp.CAPABILITY to 1, "clockProbe" to android.os.SystemClock.elapsedRealtime()))
+                    "sharing" to 1, "shareReceipts" to 1, ClipboardStamp.CAPABILITY to 1,
+                    "clockProbe" to android.os.SystemClock.elapsedRealtime()))
                 return
             }
             require(type == "secure")
-            val channel = secure ?: error("Missing encrypted session")
+            val channel = frameChannel ?: error("Missing encrypted session")
             val packet = java.util.Base64.getDecoder().decode(wire.first { it.first == "data" }.second as String)
             BtCbor.decode(channel.open(packet, 3))
         } catch (_: Exception) {
@@ -819,6 +822,7 @@ class BluetoothLink(
                 if (!updateConnectionPriority()) return
                 clipboardSync = uint(ClipboardStamp.CAPABILITY) == 1L
                 sharing = uint("sharing") == 1L
+                shareReceipts = uint("shareReceipts") == 1L
                 val clockJson = org.json.JSONObject().also { json -> fields.forEach { (key, value) -> json.put(key, value) } }
                 callbacks.onSyncConnected(clipboardSync, clipboardClockSample(clockJson, android.os.SystemClock.elapsedRealtime()))
                 callbacks.onAuthenticated(id, name)
@@ -841,8 +845,15 @@ class BluetoothLink(
                 text("id")?.takeIf(FileTransferProtocol::validId)?.let(callbacks::onSharedAck)
             } else Unit
             "shared_text" -> if (connected.get() && sharing) {
-                text("text")?.takeIf { it.isNotBlank() && it.toByteArray().size <= SyncProtocol.MAXIMUM_TEXT_BYTES }
-                    ?.let(callbacks::onSharedText)
+                val id = text("id")?.takeIf(FileTransferProtocol::validId) ?: return
+                val body = text("text") ?: return
+                if (body.isEmpty() || body.toByteArray().size > SyncProtocol.MAXIMUM_TEXT_BYTES) return
+                val isCurrent = { connected.get() && secure === frameChannel }
+                callbacks.onSharedText(QueuedShare(id, body), isCurrent) {
+                    synchronized(frameLock) {
+                        if (isCurrent() && shareReceipts) sendFrame(listOf("type" to "shared_ack", "id" to id))
+                    }
+                }
             } else Unit
             "openUrl" -> text("url")?.let(callbacks::onOpenUrl)
             "unpair" -> callbacks.onUnpair()

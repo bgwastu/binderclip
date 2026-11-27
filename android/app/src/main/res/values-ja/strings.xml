@@ -100,6 +100,9 @@
     <string name="transfer_declined">転送が拒否されました。受信端末を確認してください</string>
     <string name="transfer_failed">転送に失敗しました。サイズと空き容量を確認してください</string>
     <string name="transfer_invalid">転送の整合性または順序の検証に失敗しました</string>
+    <string name="transfer_integrity_failed">ファイルの検証に失敗しました</string>
+    <string name="transfer_storage_failed">ファイルを読み込めないか保存できません</string>
+    <string name="transfer_receiver_full">受信側のデバイスに次の転送に必要な空き容量がありません</string>
     <string name="transfer_paused">転送を一時停止しました。再接続中…</string>
     <string name="share_error_file">ファイルを待機列に追加できませんでした。上限は512 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。</string>
     <string name="received_files">受信ファイル</string>

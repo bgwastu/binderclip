@@ -100,6 +100,9 @@
     <string name="transfer_declined">Übertragung abgelehnt; Empfangsgerät prüfen</string>
     <string name="transfer_failed">Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen</string>
     <string name="transfer_invalid">Integritäts- oder Reihenfolgeprüfung fehlgeschlagen</string>
+    <string name="transfer_integrity_failed">Die Dateiprüfung ist fehlgeschlagen</string>
+    <string name="transfer_storage_failed">Die Datei konnte nicht gelesen oder gespeichert werden</string>
+    <string name="transfer_receiver_full">Auf dem Empfangsgerät ist kein Platz für eine weitere Übertragung</string>
     <string name="transfer_paused">Übertragung pausiert; Verbindung wird wiederhergestellt…</string>
     <string name="share_error_file">Datei konnte nicht vorgemerkt werden. Limit: 512 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.</string>
     <string name="received_files">Empfangene Dateien</string>

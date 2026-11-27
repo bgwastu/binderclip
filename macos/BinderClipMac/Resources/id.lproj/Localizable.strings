@@ -91,6 +91,9 @@
 "transfer_declined" = "Transfer ditolak; periksa perangkat penerima";
 "transfer_failed" = "Transfer gagal; periksa ukuran file dan ruang penyimpanan";
 "transfer_invalid" = "Validasi integritas atau urutan transfer gagal";
+"transfer_integrity_failed" = "Verifikasi file gagal";
+"transfer_storage_failed" = "File tidak dapat dibaca atau disimpan";
+"transfer_receiver_full" = "Perangkat penerima tidak memiliki ruang untuk transfer lain";
 "transfer_paused" = "Transfer dijeda; menghubungkan kembali…";
 "share_error_file" = "File gagal masuk antrean. Batas: 512 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.";
 "send_file" = "Kirim File…";

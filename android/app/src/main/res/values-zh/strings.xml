@@ -100,6 +100,9 @@
     <string name="transfer_declined">传输被拒绝，请检查接收设备</string>
     <string name="transfer_failed">传输失败，请检查文件大小和可用空间</string>
     <string name="transfer_invalid">传输完整性或顺序验证失败</string>
+    <string name="transfer_integrity_failed">文件校验失败</string>
+    <string name="transfer_storage_failed">无法读取或保存文件</string>
+    <string name="transfer_receiver_full">接收设备没有空间处理另一项传输</string>
     <string name="transfer_paused">传输已暂停，正在重新连接…</string>
     <string name="share_error_file">无法将文件加入队列。上限为512 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。</string>
     <string name="received_files">已接收的文件</string>

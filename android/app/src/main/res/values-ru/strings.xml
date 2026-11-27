@@ -100,6 +100,9 @@
     <string name="transfer_declined">Передача отклонена; проверьте принимающее устройство</string>
     <string name="transfer_failed">Ошибка передачи; проверьте размер файла и свободное место</string>
     <string name="transfer_invalid">Ошибка проверки целостности или порядка передачи</string>
+    <string name="transfer_integrity_failed">Файл не прошёл проверку</string>
+    <string name="transfer_storage_failed">Не удалось прочитать или сохранить файл</string>
+    <string name="transfer_receiver_full">На принимающем устройстве нет места для ещё одной передачи</string>
     <string name="transfer_paused">Передача приостановлена; повторное подключение…</string>
     <string name="share_error_file">Не удалось добавить файл в очередь. Лимит: 512 MiB (изображения буфера: 30 MiB). Проверьте доступ и свободное место.</string>
     <string name="received_files">Полученные файлы</string>

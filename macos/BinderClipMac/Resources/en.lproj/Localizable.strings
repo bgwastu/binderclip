@@ -91,6 +91,9 @@
 "transfer_declined" = "Transfer declined; check the receiving device";
 "transfer_failed" = "Transfer failed; check file size and available storage";
 "transfer_invalid" = "Transfer failed integrity or sequence validation";
+"transfer_integrity_failed" = "The file failed verification";
+"transfer_storage_failed" = "Could not read or save the file";
+"transfer_receiver_full" = "The receiving device has no room for another transfer";
 "transfer_paused" = "Transfer paused; reconnecting…";
 "share_error_file" = "Couldn’t queue file. Limit: 512 MiB (clipboard images: 30 MiB). Check access and free space.";
 "send_file" = "Send File…";
