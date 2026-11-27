@@ -1,71 +1,26 @@
-<p align="center"><img src="assets/binderclip-icon.svg" alt="BinderClip icon" width="96"></p>
+# BinderClip
 
-<h1 align="center">BinderClip</h1>
+Sync your clipboard and share files between Android and Mac over your local network or mesh VPN. Bluetooth also supports text and links.
 
-<p align="center">The most toughest clipboard sync for Android phones and Mac over your local network, mesh VPN, or Bluetooth.</p>
-
-<p align="center">AI disclosure: Human validated.</p>
-
-
-## Preview
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/binderclip-preview-dark.png">
-    <img src="assets/binderclip-preview-light.png" alt="BinderClip menu on a Mac with a phone connected, next to the Android app connected to that Mac" width="720">
-  </picture>
-</p>
-
-## Features
-
-- Clipboard sync for text and images up to 30 MiB. Incoming clipboard changes apply automatically by default. Turn off **Automatically replace clipboard** on a device to use **Copy** instead.
-- Share up to 128 files from Android or Mac, up to 512 MiB each, over LAN or mesh VPN. The **Transfers** view shows each file’s outcome. Files received on Mac are saved in `~/Downloads/BinderClip`.
-- Share text and browser links between devices. Shared text is available to copy, and attachments leave the clipboard alone.
-- Encrypted, replay-resistant connections over LAN, mesh VPN, and Bluetooth (protocol 3)
-- Sleep-aware background sync and automatic reconnection
-- macOS updates in the app. Android updates in the app or through [Obtainium](https://obtainium.imranr.dev/).
-- Available in **9 languages**: English, Indonesian, Spanish, Simplified Chinese, Japanese, German, French, Portuguese, and Russian
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/binderclip-preview-dark.png">
+  <img src="assets/binderclip-preview-light.png" alt="BinderClip on a Mac and its paired Android phone" width="720">
+</picture>
 
 ## Install
 
-Requires an **Apple Silicon Mac with macOS 13 or later** and a phone with **Android 12 or later**. Automatic phone → Mac clipboard sync needs either [KernelSU](https://kernelsu.org/)/[Magisk](https://github.com/topjohnwu/Magisk) root or [Shizuku](https://shizuku.rikka.app/) (no root). Mac → phone sync and sharing work on any supported phone. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
+Requires an Apple Silicon Mac with macOS 13 or later and a phone with Android 12 or later. Download the Mac DMG and Android APK from the [latest release](https://github.com/bgwastu/binderclip/releases/latest).
 
-[BinderClip 1.20.0](https://github.com/bgwastu/binderclip/releases/tag/v1.20.0) is the last Mac release for Intel.
+1. Open the DMG and drag BinderClip into Applications. If macOS blocks the first launch, use **Open Anyway** in **System Settings → Privacy & Security**.
+2. Install the APK and open BinderClip on Android. Allow notifications when prompted.
+3. Choose **Add Device** from the Mac menu bar icon. Tap **Scan QR to Pair** on Android and scan the code.
 
-Update both apps together to use batch status, larger files, and explicit text sharing.
+Automatic Android-to-Mac clipboard sync requires root or [Shizuku](https://shizuku.rikka.app/). The Android setup screen guides you through Shizuku. Receiving clipboard items and sharing files work without it.
 
-### Mac — option 1: Terminal
+## Use
 
-For a fresh install, run this in an empty folder. It finds the newest available Mac ZIP, installs the app in `/Applications`, and opens it:
+- Incoming clipboard items replace your clipboard by default. Turn off **Automatically replace clipboard** to copy them manually.
+- Share files from either device and check their status in **Transfers**. Files received on Mac go to `~/Downloads/BinderClip`.
+- Check for updates in BinderClip. On Android, you can also track this repository with [Obtainium](https://obtainium.imranr.dev/).
 
-```sh
-curl -fL -o BinderClip.zip \
-  "$(curl -fsSL 'https://api.github.com/repos/bgwastu/BinderClip/releases?per_page=100' \
-    | grep -Eo 'https://[^"]+/BinderClip-[^"]+\.zip' | head -n 1)" \
-  && unzip -q BinderClip.zip \
-  && xattr -cr BinderClip.app \
-  && mv BinderClip.app /Applications/ \
-  && rm BinderClip.zip \
-  && open /Applications/BinderClip.app
-```
-
-**Why `xattr -cr`?** The Mac release uses BinderClip’s signing certificate and is not notarized by Apple. This command clears the download quarantine flag so macOS can open this copy of the app. For later updates, use BinderClip’s in-app updater.
-
-### Mac — option 2: no Terminal
-
-1. From [Releases](https://github.com/bgwastu/BinderClip/releases), download the newest `BinderClip-*.dmg` and open it. Some releases contain only Android updates, so choose the newest release with a Mac DMG.
-2. Drag **BinderClip.app** into **Applications**, then try to open it.
-3. If macOS blocks it, open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway**, then confirm **Open**. The button appears after the first blocked launch. See [Apple’s instructions](https://support.apple.com/en-ie/102445).
-
-### Android and pairing
-
-1. Download the newest `BinderClip-*.apk` from [Releases](https://github.com/bgwastu/BinderClip/releases) and install it on the phone.
-2. Open BinderClip, grant root access if the phone is rooted, and allow notifications when prompted. Without root, the setup card walks you through installing, starting, and allowing Shizuku. Bluetooth permission is only needed if you enable Bluetooth fallback.
-3. On the Mac, choose **Add Device** from the BinderClip menu bar icon. On Android, tap **Scan QR to Pair** and scan the code.
-
-For Obtainium, add `https://github.com/bgwastu/binderclip` and enable **Fallback to older releases** so Mac-only releases don't block Android updates. Set **Version string extraction regular expression** to `[0-9]+\.[0-9]+\.[0-9]+$` so both `v` and `android-v` tags match the installed version. Use the default tag-based version with OS version detection set to the version name.
-
-
-## Acknowledgments
-
-Thanks to [ClipRelay](https://github.com/geekflyer/cliprelay) for the initial implementation and inspiration.
+Based on [ClipRelay](https://github.com/geekflyer/cliprelay). AI-assisted and human-validated.
