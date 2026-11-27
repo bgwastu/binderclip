@@ -101,11 +101,11 @@
     <string name="transfer_failed">転送に失敗しました。サイズと空き容量を確認してください</string>
     <string name="transfer_invalid">転送の整合性または順序の検証に失敗しました</string>
     <string name="transfer_paused">転送を一時停止しました。再接続中…</string>
-    <string name="share_error_file">ファイルを待機列に追加できませんでした。上限は100 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。</string>
+    <string name="share_error_file">ファイルを待機列に追加できませんでした。上限は512 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。</string>
     <string name="received_files">受信ファイル</string>
     <string name="send_file">ファイルを送信…</string>
     <string name="file_connection_required">ファイルにはWi-Fiまたはmesh接続と、両端末のアプリの更新が必要です。</string>
-    <string name="file_picker_help">最大8個、各100 MiB以下のファイルを選択してください。</string>
+    <string name="file_picker_help">1 ファイルあたり 512 MiB まで、最大 128 件を選択できます。</string>
     <string name="share_preparing">送信を準備中…</string>
     <string name="transfer_queued">Wi-Fi またはメッシュ接続を待っています。Mac が再接続するとファイルを送信します。</string>
     <string name="transfer_kind_text">テキスト</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">接続中…</string>
     <string name="scan_error">QR コードを読み取れませんでした。もう一度お試しください。</string>
     <string name="search">検索</string>
-    <string name="share_error_too_many">一度に共有できるファイルは8個までです。</string>
+    <string name="share_error_too_many">一度に最大 128 件のファイルを選択できます。</string>
     <plurals name="share_file_count">
         <item quantity="other">%d 個のファイル</item>
     </plurals>
@@ -196,4 +196,21 @@
     <string name="debug_clip_content">プライベート内容: %1$s</string>
     <string name="debug_clip_image">プライベート画像を受信済み／準備完了</string>
     <string name="debug_clip_empty">プライベートクリップボードは空です</string>
+    <string name="transfers_title">転送</string>
+    <string name="transfers_empty">転送はまだありません</string>
+    <string name="transfers_saved_count">%2$d 件中 %1$d 件を保存済み</string>
+    <string name="transfers_waiting">接続を待機中</string>
+    <string name="transfers_saved">保存済み</string>
+    <string name="transfers_unreadable">このファイルを読み込めません。選択し直してください。</string>
+    <string name="transfers_too_large">ファイルが 512 MiB を超えています</string>
+    <string name="transfers_storage">このファイルを準備できませんでした</string>
+    <string name="transfers_queue_full">送信トレイに空きがありません。空きができたらファイルを選択し直してください。</string>
+    <string name="transfers_expired">転送の有効期限切れ</string>
+    <string name="transfers_retry">再試行</string>
+    <string name="transfers_verifying">配信を確認中…</string>
+    <string name="clipboard_auto_apply">クリップボードを自動で置き換える</string>
+    <string name="clipboard_auto_apply_on">受信したクリップボード項目を自動でコピーします。</string>
+    <string name="clipboard_auto_apply_off">「コピー」で受信したクリップボード項目を適用します。</string>
+    <string name="shared_text_ready">共有テキストをコピーできます</string>
+    <string name="transfers_open">開く</string>
 </resources>

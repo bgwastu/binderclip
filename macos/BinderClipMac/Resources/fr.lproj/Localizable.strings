@@ -92,10 +92,10 @@
 "transfer_failed" = "Échec du transfert ; vérifiez la taille et l’espace disponible";
 "transfer_invalid" = "Échec de la validation de l’intégrité ou de la séquence";
 "transfer_paused" = "Transfert en pause ; reconnexion…";
-"share_error_file" = "Impossible de mettre le fichier en attente. Limite : 100 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.";
+"share_error_file" = "Impossible de mettre le fichier en attente. Limite : 512 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.";
 "send_file" = "Envoyer un fichier…";
 "file_connection_required" = "Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.";
-"file_picker_help" = "Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.";
+"file_picker_help" = "Sélectionnez jusqu’à 128 fichiers de 512 Mio maximum chacun.";
 "file_received_format" = "Fichier reçu : %@";
 "launch_at_login" = "Lancer à la connexion";
 "diagnostic_logs" = "Journaux de diagnostic…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "Contenu privé : %@";
 "debug_clip_image" = "Image privée : %@, %d octets";
 "debug_clip_empty" = "Le presse-papiers privé est vide ou non pris en charge";
+
+"transfers_title" = "Transferts";
+"transfers_empty" = "Aucun transfert pour le moment";
+"transfers_saved_count" = "%1$d fichiers enregistrés sur %2$d";
+"transfers_waiting" = "En attente d’une connexion";
+"transfers_saved" = "Enregistré";
+"transfers_unreadable" = "Impossible de lire ce fichier. Sélectionnez-le à nouveau.";
+"transfers_too_large" = "Le fichier dépasse 512 MiB";
+"transfers_storage" = "Impossible de préparer ce fichier";
+"transfers_queue_full" = "La boîte d’envoi est pleine. Sélectionnez à nouveau le fichier dès qu’il y a de la place.";
+"transfers_expired" = "Transfert expiré";
+"transfers_retry" = "Réessayer";
+"clipboard_auto_apply" = "Remplacer automatiquement le presse-papiers";
+"transfers_reveal" = "Afficher dans le Finder";
+"transfers_open_folder" = "Ouvrir le dossier Téléchargements";
+"transfers_notify" = "Notifier à la fin des transferts";
+"clipboard_copy_received" = "Copier l’élément reçu";
+"shared_text_ready" = "Texte partagé prêt à être copié";
+"transfers_cancelled" = "Annulé";
+"clipboard_copy_shared" = "Copier le texte partagé";

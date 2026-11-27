@@ -92,10 +92,10 @@
 "transfer_failed" = "Transfer failed; check file size and available storage";
 "transfer_invalid" = "Transfer failed integrity or sequence validation";
 "transfer_paused" = "Transfer paused; reconnecting…";
-"share_error_file" = "Couldn’t queue file. Limit: 100 MiB (clipboard images: 30 MiB). Check access and free space.";
+"share_error_file" = "Couldn’t queue file. Limit: 512 MiB (clipboard images: 30 MiB). Check access and free space.";
 "send_file" = "Send File…";
 "file_connection_required" = "Files need Wi-Fi or mesh and updated apps on both devices.";
-"file_picker_help" = "Choose up to eight files, at most 100 MiB each.";
+"file_picker_help" = "Choose up to 128 files, at most 512 MiB each.";
 "file_received_format" = "Received file: %@";
 "launch_at_login" = "Launch at Login";
 "diagnostic_logs" = "Diagnostic Logs…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "Private content: %@";
 "debug_clip_image" = "Private image: %@, %d bytes";
 "debug_clip_empty" = "Private clipboard is empty or unsupported";
+
+"transfers_title" = "Transfers";
+"transfers_empty" = "No transfers yet";
+"transfers_saved_count" = "%1$d of %2$d files saved";
+"transfers_waiting" = "Waiting for a connection";
+"transfers_saved" = "Saved";
+"transfers_unreadable" = "Cannot read this file. Select it again.";
+"transfers_too_large" = "File exceeds 512 MiB";
+"transfers_storage" = "Could not prepare this file";
+"transfers_queue_full" = "Outbox is full. Select this file again when space is available.";
+"transfers_expired" = "Transfer expired";
+"transfers_retry" = "Retry";
+"clipboard_auto_apply" = "Automatically replace clipboard";
+"transfers_reveal" = "Show in Finder";
+"transfers_open_folder" = "Open Downloads Folder";
+"transfers_notify" = "Notify when transfers finish";
+"clipboard_copy_received" = "Copy Received Clipboard Item";
+"shared_text_ready" = "Shared text ready to copy";
+"transfers_cancelled" = "Cancelled";
+"clipboard_copy_shared" = "Copy Shared Text";

@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -116,11 +117,14 @@ class MainActivity : AppCompatActivity() {
     /** A pairing link from outside the app (browser, chat) waiting for the user to confirm. */
     private var pendingInvite by mutableStateOf<Pair<String, PairingInfo>?>(null)
     private val chooseFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.size > TransferBatch.MAX_FILES) {
+            Toast.makeText(this, R.string.share_error_too_many, Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
         if (uris.isNotEmpty()) startActivity(Intent(this, ShareReceiverActivity::class.java).apply {
             action = Intent.ACTION_SEND_MULTIPLE
             type = "*/*"
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            putExtra("share_as_file", true)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
     }
@@ -195,6 +199,13 @@ class MainActivity : AppCompatActivity() {
                             .setAction(BinderClipService.ACTION_CANCEL_TRANSFER)
                             .putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
                     },
+                    onRetryTransfer = { id ->
+                        ContextCompat.startForegroundService(this, Intent(this, BinderClipService::class.java)
+                            .setAction(BinderClipService.ACTION_RETRY_TRANSFER)
+                            .putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
+                    },
+                    onAutoApplyClipboard = { enabled -> startService(BinderClipService.ACTION_AUTO_APPLY_CLIPBOARD, enabled = enabled) },
+                    onCopyShared = { startService(BinderClipService.ACTION_COPY_SHARED_TEXT) },
                     onCopy = { startService(BinderClipService.ACTION_COPY_PENDING) },
                     onCheckCapture = {
                         ShizukuAccess.refresh()
@@ -360,7 +371,10 @@ internal fun BinderClipScreen(
     onSend: () -> Unit,
     onSendFile: () -> Unit,
     onCancelTransfer: (String) -> Unit,
+    onRetryTransfer: (String) -> Unit = {},
+    onAutoApplyClipboard: (Boolean) -> Unit = {},
     onCopy: () -> Unit,
+    onCopyShared: () -> Unit = {},
     onReconnect: () -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
     onToggleAutostart: (Boolean) -> Unit = {},
@@ -446,11 +460,28 @@ internal fun BinderClipScreen(
             onBack = { screen = Screen.Home },
             onToggleBtFallback = onToggleBtFallback,
             onToggleAutostart = onToggleAutostart,
+            onAutoApplyClipboard = onAutoApplyClipboard,
             onRequestBluetooth = onRequestBluetooth,
             onScan = onScan,
             onShowLogs = { showLogs = true },
             onCheckUpdates = { checkUpdates(manual = true) },
         )
+        Screen.Transfers -> Scaffold(topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.transfers_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { screen = Screen.Home }) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+            )
+        }) { insets ->
+            Box(Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp)) {
+                val peer = state.peer
+                if (peer == null) Text(stringResource(R.string.transfers_empty))
+                else ShareTransferList(peer.deviceId, null, state.transferProgress, onRetryTransfer, onCancelTransfer)
+            }
+        }
         Screen.Home -> HomeScreen(
             state = state,
             devices = devices,
@@ -465,8 +496,10 @@ internal fun BinderClipScreen(
             onSend = onSend,
             onSendFile = onSendFile,
             onCopy = onCopy,
+            onCopyShared = onCopyShared,
             onRefresh = onRefresh,
             onManage = { selectedDevice = it },
+            onOpenTransfers = { screen = Screen.Transfers },
             onOpenSetup = { screen = Screen.Setup },
             onOpenSettings = { screen = Screen.Settings },
         )

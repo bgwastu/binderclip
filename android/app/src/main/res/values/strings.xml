@@ -100,13 +100,13 @@
     <string name="transfer_failed">Transfer failed; check file size and available storage</string>
     <string name="transfer_invalid">Transfer failed integrity or sequence validation</string>
     <string name="transfer_paused">Transfer paused; reconnecting…</string>
-    <string name="share_error_file">Couldn’t prepare files. Nothing from this selection was sent. Check file access, free space, and the size limit: 100 MiB per file (30 MiB for clipboard images).</string>
+    <string name="share_error_file">Couldn’t prepare files. Nothing from this selection was sent. Check file access, free space, and the size limit: 512 MiB per file (30 MiB for clipboard images).</string>
     <string name="share_preparing">Preparing to send…</string>
     <string name="transfer_queued">Waiting for Wi-Fi or mesh. Files will send when your Mac reconnects.</string>
     <string name="received_files">Received Files</string>
     <string name="send_file">Send File…</string>
     <string name="file_connection_required">Files need Wi-Fi or mesh and updated apps on both devices.</string>
-    <string name="file_picker_help">Choose up to eight files, at most 100 MiB each.</string>
+    <string name="file_picker_help">Choose up to 128 files, at most 512 MiB each.</string>
     <string name="hide_transfer">Hide</string>
     <string name="cancel_transfer">Cancel transfer</string>
     <string name="transfer_cancelled">Transfer cancelled</string>
@@ -170,7 +170,7 @@
     <string name="pair_connecting">Connecting…</string>
     <string name="scan_error">Couldn\'t read the QR code. Try again.</string>
     <string name="search">Search</string>
-    <string name="share_error_too_many">You can share up to eight files at once.</string>
+    <string name="share_error_too_many">Select up to 128 files at a time.</string>
     <plurals name="share_file_count">
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>
@@ -195,4 +195,21 @@
     <string name="debug_clip_content">Private content: %1$s</string>
     <string name="debug_clip_image">Private image received/ready</string>
     <string name="debug_clip_empty">Private clipboard is empty</string>
+    <string name="transfers_title">Transfers</string>
+    <string name="transfers_empty">No transfers yet</string>
+    <string name="transfers_saved_count">%1$d of %2$d files saved</string>
+    <string name="transfers_waiting">Waiting for a connection</string>
+    <string name="transfers_saved">Saved</string>
+    <string name="transfers_unreadable">Cannot read this file. Select it again.</string>
+    <string name="transfers_too_large">File exceeds 512 MiB</string>
+    <string name="transfers_storage">Could not prepare this file</string>
+    <string name="transfers_queue_full">Outbox is full. Select this file again when space is available.</string>
+    <string name="transfers_expired">Transfer expired</string>
+    <string name="transfers_retry">Retry</string>
+    <string name="transfers_verifying">Verifying delivery…</string>
+    <string name="clipboard_auto_apply">Automatically replace clipboard</string>
+    <string name="clipboard_auto_apply_on">Incoming clipboard items are copied automatically.</string>
+    <string name="clipboard_auto_apply_off">Use Copy to apply incoming clipboard items.</string>
+    <string name="shared_text_ready">Shared text ready to copy</string>
+    <string name="transfers_open">Open</string>
 </resources>

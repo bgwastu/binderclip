@@ -91,6 +91,8 @@ class BluetoothLink(
         fun onText(text: String)
         fun onSyncConnected(supported: Boolean, sample: ClipboardClockSample?) {}
         fun onSyncControl(json: org.json.JSONObject) {}
+        fun onSharedAck(id: String) {}
+        fun onSharedText(text: String) {}
         fun onSyncText(text: String, stamp: ClipboardStamp?) = onText(text)
         fun onOpenUrl(url: String)
         fun onRemoteSleep() {}
@@ -106,6 +108,7 @@ class BluetoothLink(
     private val connecting = AtomicBoolean(false)
     private val connected = AtomicBoolean(false)
     @Volatile private var clipboardSync = false
+    @Volatile private var sharing = false
     fun supportsClipboardSync(): Boolean = connected.get() && clipboardSync
 
     @Volatile private var gatt: BluetoothGatt? = null
@@ -684,6 +687,9 @@ class BluetoothLink(
         }
     }
 
+    fun sendShare(share: QueuedShare): Boolean = isConnected() && sharing &&
+        sendFrame(listOf("type" to "shared_text", "id" to share.id, "text" to share.text))
+
     fun sendClipboard(text: String, stamp: ClipboardStamp? = null): Boolean = sendFrame(
         listOf("type" to "clipboard", "text" to text) + (stamp?.fields() ?: listOf("shared" to 1))
     )
@@ -778,7 +784,7 @@ class BluetoothLink(
                 sendWireFrame(listOf("type" to "secure_reply", "nonce" to java.util.Base64.getEncoder().encodeToString(clientNonce),
                     "proof" to java.util.Base64.getEncoder().encodeToString(SecureChannel.proof(psk, serverNonce, clientNonce, "ble"))))
                 sendFrame(listOf("type" to "auth", "deviceId" to store.deviceId, "deviceName" to deviceNameProvider(), "version" to SyncProtocol.VERSION,
-                    ClipboardStamp.CAPABILITY to 1, "clockProbe" to android.os.SystemClock.elapsedRealtime()))
+                    "sharing" to 1, ClipboardStamp.CAPABILITY to 1, "clockProbe" to android.os.SystemClock.elapsedRealtime()))
                 return
             }
             require(type == "secure")
@@ -812,6 +818,7 @@ class BluetoothLink(
                 sendPowerState(if (interactive) "awake" else "sleep")
                 if (!updateConnectionPriority()) return
                 clipboardSync = uint(ClipboardStamp.CAPABILITY) == 1L
+                sharing = uint("sharing") == 1L
                 val clockJson = org.json.JSONObject().also { json -> fields.forEach { (key, value) -> json.put(key, value) } }
                 callbacks.onSyncConnected(clipboardSync, clipboardClockSample(clockJson, android.os.SystemClock.elapsedRealtime()))
                 callbacks.onAuthenticated(id, name)
@@ -830,6 +837,13 @@ class BluetoothLink(
                     } else if (clipboardSync) callbacks.onSyncControl(json)
                 } catch (_: Exception) { drop("invalid clipboard version") }
             }
+            "shared_ack" -> if (connected.get() && sharing) {
+                text("id")?.takeIf(FileTransferProtocol::validId)?.let(callbacks::onSharedAck)
+            } else Unit
+            "shared_text" -> if (connected.get() && sharing) {
+                text("text")?.takeIf { it.isNotBlank() && it.toByteArray().size <= SyncProtocol.MAXIMUM_TEXT_BYTES }
+                    ?.let(callbacks::onSharedText)
+            } else Unit
             "openUrl" -> text("url")?.let(callbacks::onOpenUrl)
             "unpair" -> callbacks.onUnpair()
             "rename" -> {

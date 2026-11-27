@@ -15,6 +15,9 @@ public enum PeerTransportType: String, Sendable {
 
 public final class WebSocketServer: @unchecked Sendable {
     public var onClipboard: ((String) -> Void)?
+    var onSharedText: ((String) -> Bool)?
+    var onTransferBatch: ((TransferBatchSnapshot, String) -> Void)?
+    var receivedFolder: URL { transferStore.receivedDirectory }
     var onPrepareClipboardSync: (() -> Void)?
     public var onOpenURL: ((URL) -> Void)?
     public var onImage: ((ImagePayload) -> Void)?
@@ -88,6 +91,8 @@ public final class WebSocketServer: @unchecked Sendable {
     private let clipboardCheckpointURL: URL
     private var clipboardText: String?
     private var clipboardImage: ImagePayload?
+    private var receivedShares = [String]()
+    private var sharesBeingDelivered = Set<String>()
     private var clipboardEventSnapshot: String?
     private var lastBluetoothPoweredOn: Bool?
 
@@ -348,6 +353,13 @@ public final class WebSocketServer: @unchecked Sendable {
         }
     }
 
+    func sendSharedText(_ text: String) {
+        guard !text.isEmpty, text.utf8.count <= SyncProtocol.maximumTextBytes else { return }
+        queue.async { [weak self] in
+            self?.broadcastText(["type": "shared_text", "id": UUID().uuidString.lowercased(), "text": text])
+        }
+    }
+
     public func sendOpenURL(_ url: URL, targetDeviceId: String? = nil) {
         queue.async { [weak self] in
             guard let self else { return }
@@ -373,24 +385,85 @@ public final class WebSocketServer: @unchecked Sendable {
     }
 
     public func sendFile(_ url: URL, targetDeviceID: String) {
+        sendFiles([url], targetDeviceID: targetDeviceID)
+    }
+
+    func sendFiles(_ urls: [URL], targetDeviceID: String) {
+        guard (1...TransferBatch.maximumFiles).contains(urls.count) else { return }
+        stageFiles(urls, peerID: targetDeviceID, batchID: UUID().uuidString.lowercased(), items: [])
+    }
+
+    private func stageFiles(_ urls: [URL], peerID: String, batchID: String, items: [TransferBatchSnapshot.Item]) {
         queue.async { [weak self] in
-            guard let self, let session = self.activeSessions.values.first(where: {
-                $0.isAuthenticated && $0.peerID == targetDeviceID
-            }) else { return }
-            let id = ObjectIdentifier(session.connection)
+            guard let self, self.rosterManager.peers[peerID] != nil else { return }
             self.transferQueue.async {
-                do {
-                    let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey, .contentTypeKey])
-                    guard values.isRegularFile == true, values.isSymbolicLink != true,
-                          let size = values.fileSize, size <= FileTransferProtocol.maximumFileBytes else { throw FileTransferError.invalidMetadata }
-                    let input = try FileHandle(forReadingFrom: url)
-                    defer { try? input.close() }
-                    _ = try self.transferStore.stage(peerID: targetDeviceID, name: url.lastPathComponent,
-                        mimeType: values.contentType?.preferredMIMEType ?? "application/octet-stream", kind: "file", input: input)
-                    self.transferSessions[id]?.pump()
-                } catch { self.transferStatus(L10n.tr("share_error_file")) }
+                let index = items.count
+                if index == urls.count {
+                    let batch = TransferBatchSnapshot(id: batchID, count: urls.count, items: items)
+                    try? self.transferStore.recordBatch(peerID: peerID, batch: batch)
+                    for session in self.transferSessions.values where session.peerID == peerID { session.announce(batch.json) }
+                    return
+                }
+                let item = self.stageFile(urls[index], peerID: peerID,
+                                          batch: TransferBatch(id: batchID, index: index, count: urls.count))
+                self.stageFiles(urls, peerID: peerID, batchID: batchID, items: items + [item])
             }
         }
+    }
+
+    private func stageFile(_ url: URL, peerID: String, batch: TransferBatch) -> TransferBatchSnapshot.Item {
+        let id = UUID().uuidString.lowercased()
+        let name = FileTransferProtocol.safeName(url.lastPathComponent)
+        do {
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize else {
+                throw FileTransferError.storage
+            }
+            guard size <= FileTransferProtocol.maximumFileBytes else { throw FileTransferError.invalidMetadata }
+            let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
+            let input = try FileHandle(forReadingFrom: url)
+            defer { try? input.close() }
+            let transfer = try transferStore.stage(peerID: peerID, name: name,
+                mimeType: contentType?.preferredMIMEType ?? "application/octet-stream",
+                kind: "file", input: input, batch: batch, id: id)
+            if !pumpTransfers(peerID: peerID, reporting: transfer.metadata) {
+                reportFile(transfer.metadata, to: peerID, phase: .queued)
+            }
+            return .init(id: id, index: batch.index, name: name, size: transfer.metadata.size, state: "QUEUED")
+        } catch {
+            let failure = TransferMetadata(id: id, kind: "file", name: name, mimeType: "application/octet-stream",
+                                           size: 0, sha256: "", batch: batch)
+            reportFile(failure, to: peerID, phase: .failed)
+            let status: String
+            switch error {
+            case FileTransferError.queueFull: status = "QUEUE_FULL"
+            case FileTransferError.invalidMetadata: status = "TOO_LARGE"
+            default: status = "STORAGE"
+            }
+            return .init(id: id, index: batch.index, name: name, size: nil, state: status)
+        }
+    }
+
+    func retryFile(peerID: String, id: String) {
+        transferQueue.async { [weak self] in
+            guard let self, let meta = self.transferStore.retryOutgoing(peerID: peerID, id: id) else { return }
+            if !self.pumpTransfers(peerID: peerID, reporting: meta) {
+                self.reportFile(meta, to: peerID, phase: .queued)
+            }
+        }
+    }
+
+    private func reportFile(_ meta: TransferMetadata, to peerID: String, phase: TransferProgress.Phase) {
+        DispatchQueue.main.async { [weak self] in
+            self?.onTransferProgress?(TransferProgress(peerID: peerID, metadata: meta, direction: .sending, phase: phase, completedBytes: 0))
+        }
+    }
+
+    @discardableResult
+    private func pumpTransfers(peerID: String, reporting meta: TransferMetadata? = nil) -> Bool {
+        guard let session = transferSessions.values.first(where: { $0.peerID == peerID }) else { return false }
+        if session.pump() != meta?.id, let meta { reportFile(meta, to: peerID, phase: .queued) }
+        return true
     }
 
     private func transferStatus(_ status: String) { DispatchQueue.main.async { [weak self] in self?.onTransferStatus?(status) } }
@@ -448,13 +521,16 @@ public final class WebSocketServer: @unchecked Sendable {
                 }, onStatus: { [weak self] status in self?.transferStatus(status) },
                 onProgress: { [weak self] progress in
                     DispatchQueue.main.async { self?.onTransferProgress?(progress) }
-                }, onOrderedImage: { [weak self, weak session] image, stamp in
+                }, announceBatches: session.sharing, onOrderedImage: { [weak self, weak session] image, stamp in
                     self?.queue.async { [weak self, weak session] in
                         guard let self, let session, self.activeSessions[id] === session else { return }
                         self.receivedClipboard(text: nil, image: image, stamp: stamp, peerID: peerID, reply: { session.sendText($0) })
                     }
                 })
             self.transferSessions[id] = engine
+            if session.sharing {
+                for batch in self.transferStore.recentBatches(peerID: peerID) { engine.announce(batch) }
+            }
             engine.pump()
         }
     }
@@ -469,6 +545,8 @@ public final class WebSocketServer: @unchecked Sendable {
 
     private func clearClipboardPairing() {
         clipboardOrdering.reset(); clipboardText = nil; clipboardImage = nil
+        receivedShares.removeAll()
+        sharesBeingDelivered.removeAll()
         stateLock.lock(); clipboardEventSnapshot = nil; stateLock.unlock()
         try? FileManager.default.removeItem(at: clipboardCheckpointURL)
     }
@@ -825,6 +903,38 @@ public final class WebSocketServer: @unchecked Sendable {
         }
     }
 
+    private func receiveSharedText(id: String?, text: String, peerID: String, reply: @escaping (String) -> Void) {
+        guard !text.isEmpty, text.utf8.count <= SyncProtocol.maximumTextBytes else { return }
+        let key: String?
+        if let id {
+            guard FileTransferProtocol.validID(id) else { return }
+            let peerShare = peerID + "/" + id
+            if receivedShares.contains(peerShare) { reply(id); return }
+            guard sharesBeingDelivered.insert(peerShare).inserted else { return }
+            key = peerShare
+        } else {
+            key = nil
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let accepted: Bool
+            if let url = ServicesShare.webURL(from: text), SyncProtocol.isBrowsableURL(url), let open = self.onOpenURL {
+                open(url)
+                accepted = true
+            } else {
+                accepted = self.onSharedText?(text) == true
+            }
+            if let id, let key {
+                self.queue.async {
+                    guard self.sharesBeingDelivered.remove(key) != nil, accepted else { return }
+                    self.receivedShares.append(key)
+                    if self.receivedShares.count > 256 { self.receivedShares.removeFirst() }
+                    reply(id)
+                }
+            }
+        }
+    }
+
     private func handleTextMessage(_ data: Data, from session: WebSocketSession) {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let type = json["type"] as? String else {
@@ -838,8 +948,12 @@ public final class WebSocketServer: @unchecked Sendable {
 
         case "clipboard":
             guard session.isAuthenticated, let peerID = session.peerID, let text = json["text"] as? String else { return }
+            if json["shared"] as? Int == 1 {
+                receiveSharedText(id: nil, text: text, peerID: peerID, reply: { _ in })
+                return
+            }
             guard let stamp = try? ClipboardStamp.parse(json) else {
-                if session.clipboardSync && json["shared"] as? Int != 1 { return }
+                if session.clipboardSync { return }
                 receivedClipboard(text: text, image: nil, stamp: nil, peerID: peerID, reply: { session.sendText($0) })
                 return
             }
@@ -848,6 +962,20 @@ public final class WebSocketServer: @unchecked Sendable {
         case "clipboard_state", "clipboard_request":
             guard session.isAuthenticated, session.clipboardSync, let peerID = session.peerID else { return }
             handleClipboardControl(json, peerID: peerID, images: true, reply: { session.sendText($0) })
+
+        case "shared_text":
+            guard session.isAuthenticated, session.sharing, let peerID = session.peerID,
+                  let id = json["id"] as? String, let text = json["text"] as? String else { return }
+            receiveSharedText(id: id, text: text, peerID: peerID) { [weak session] id in
+                session?.sendText(["type": "shared_ack", "id": id])
+            }
+
+        case "transfer_batch":
+            guard session.isAuthenticated, session.sharing, let peerID = session.peerID,
+                  let snapshot = TransferBatchSnapshot.parse(json) else { return }
+            transferQueue.async { [weak self] in
+                DispatchQueue.main.async { [weak self] in self?.onTransferBatch?(snapshot, peerID) }
+            }
 
         case "openUrl":
             guard session.isAuthenticated else { return }
@@ -932,6 +1060,7 @@ public final class WebSocketServer: @unchecked Sendable {
         session.peerID = clientID
         session.peerName = clientName
         session.clipboardSync = json[ClipboardStamp.capability] as? Int == 1
+        session.sharing = json["sharing"] as? Int == 1
         session.livenessBudget = SyncProtocol.heartbeatBudget
 
         for (id, other) in activeSessions where id != incomingID && PeerPresence.shouldCancelExtra(
@@ -958,6 +1087,7 @@ public final class WebSocketServer: @unchecked Sendable {
             "version": SyncProtocol.version,
             FileTransferProtocol.capability: FileTransferProtocol.version,
             ClipboardStamp.capability: 1,
+            "sharing": 1,
             "clockProbe": json["clockProbe"] as? Int64 ?? 0,
             "clockReceive": clockReceive,
             "clockNow": Int64(Date().timeIntervalSince1970 * 1000),
@@ -986,7 +1116,9 @@ public final class WebSocketServer: @unchecked Sendable {
 
     private func broadcastText(_ object: [String: Any], targetPeerId: String? = nil, excludeSessionId: ObjectIdentifier? = nil, excludePeerID: String? = nil) {
         let locals = lastLocalAddresses
+        let needsSharing = object["type"] as? String == "shared_text"
         for (id, session) in activeSessions where session.isAuthenticated {
+            if needsSharing && !session.sharing { continue }
             if let excludeSessionId, id == excludeSessionId { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
             if let excludePeerID, session.peerID == excludePeerID { continue }
@@ -994,6 +1126,7 @@ public final class WebSocketServer: @unchecked Sendable {
             session.sendText(object)
         }
         for session in bluetoothConnector.authenticatedSessions {
+            if needsSharing && !session.sharing { continue }
             if let targetPeerId, session.peerID != targetPeerId { continue }
             if let excludePeerID, session.peerID == excludePeerID { continue }
             if let fields = Self.btFields(from: object) {
@@ -1019,6 +1152,9 @@ public final class WebSocketServer: @unchecked Sendable {
                 ])
             }
             return fields
+        case "shared_text":
+            guard let id = object["id"] as? String, let text = object["text"] as? String else { return nil }
+            return [("type", .text(type)), ("id", .text(id)), ("text", .text(text))]
         case "openUrl":
             guard let url = object["url"] as? String else { return nil }
             return [("type", .text(type)), ("url", .text(url))]
@@ -1331,6 +1467,7 @@ public final class WebSocketServer: @unchecked Sendable {
             }
             session.isAuthenticated = true
             session.clipboardSync = uint(ClipboardStamp.capability) == 1
+            session.sharing = uint("sharing") == 1
             session.peerID = clientID
             session.peerName = clientName
             session.livenessBudget = SyncProtocol.heartbeatBudget
@@ -1355,6 +1492,7 @@ public final class WebSocketServer: @unchecked Sendable {
                 ("deviceName", .text(localDeviceName)),
                 ("version", .uint(UInt64(SyncProtocol.version))),
                 (ClipboardStamp.capability, .uint(1)),
+                ("sharing", .uint(1)),
                 ("clockProbe", .uint(uint("clockProbe") ?? 0)),
                 ("clockReceive", .uint(UInt64(clockReceive))),
                 ("clockNow", .uint(UInt64(Date().timeIntervalSince1970 * 1000))),
@@ -1382,11 +1520,21 @@ public final class WebSocketServer: @unchecked Sendable {
                 if let fields = Self.btFields(from: value) { session.sendFrame(fields) }
             }
             if type == "clipboard", let body = text("text") {
+                if uint("shared") == 1 {
+                    receiveSharedText(id: nil, text: body, peerID: peerID, reply: { _ in })
+                    return
+                }
                 let stamp = try? ClipboardStamp.parse(json)
-                guard stamp != nil || !session.clipboardSync || uint("shared") == 1 else { return }
+                guard stamp != nil || !session.clipboardSync else { return }
                 receivedClipboard(text: body, image: nil, stamp: stamp, peerID: peerID, reply: reply)
             } else if session.clipboardSync {
                 handleClipboardControl(json, peerID: peerID, images: false, reply: reply)
+            }
+        case "shared_text":
+            guard session.isAuthenticated, session.sharing, let peerID = session.peerID,
+                  let id = text("id"), let body = text("text") else { return }
+            receiveSharedText(id: id, text: body, peerID: peerID) { id in
+                session.sendFrame([("type", .text("shared_ack")), ("id", .text(id))])
             }
         case "openUrl":
             guard session.isAuthenticated, let url = text("url"), let value = URL(string: url) else { return }
@@ -1511,6 +1659,7 @@ private final class WebSocketSession: @unchecked Sendable {
     var secure: SecureChannel?
     var isAuthenticated: Bool = false
     var clipboardSync: Bool = false
+    var sharing = false
     var peerID: String?
     var peerName: String?
     var boundLocalAddress: String?

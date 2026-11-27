@@ -101,11 +101,11 @@
     <string name="transfer_failed">Transferencia fallida; revisa el tamaño y el espacio disponible</string>
     <string name="transfer_invalid">Falló la validación de integridad o secuencia</string>
     <string name="transfer_paused">Transferencia pausada; reconectando…</string>
-    <string name="share_error_file">No se pudo poner el archivo en cola. Límite: 100 MiB (imágenes del portapapeles: 30 MiB). Revisa el acceso y el espacio.</string>
+    <string name="share_error_file">No se pudo poner el archivo en cola. Límite: 512 MiB (imágenes del portapapeles: 30 MiB). Revisa el acceso y el espacio.</string>
     <string name="received_files">Archivos recibidos</string>
     <string name="send_file">Enviar archivo…</string>
     <string name="file_connection_required">Los archivos requieren Wi-Fi o mesh y ambas aplicaciones actualizadas.</string>
-    <string name="file_picker_help">Elige hasta ocho archivos de un máximo de 100 MiB cada uno.</string>
+    <string name="file_picker_help">Selecciona hasta 128 archivos, con un máximo de 512 MiB por archivo.</string>
     <string name="share_preparing">Preparando el envío…</string>
     <string name="transfer_queued">Esperando Wi-Fi o mesh. Los archivos se enviarán cuando el Mac se conecte de nuevo.</string>
     <string name="transfer_kind_text">texto</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">Conectando…</string>
     <string name="scan_error">No se pudo leer el código QR. Inténtalo de nuevo.</string>
     <string name="search">Buscar</string>
-    <string name="share_error_too_many">Puedes compartir hasta ocho archivos a la vez.</string>
+    <string name="share_error_too_many">Selecciona hasta 128 archivos a la vez.</string>
     <plurals name="share_file_count">
         <item quantity="one">%d archivo</item>
         <item quantity="other">%d archivos</item>
@@ -197,4 +197,21 @@
     <string name="debug_clip_content">Contenido privado: %1$s</string>
     <string name="debug_clip_image">Imagen privada recibida/lista</string>
     <string name="debug_clip_empty">El portapapeles privado está vacío</string>
+    <string name="transfers_title">Transferencias</string>
+    <string name="transfers_empty">Aún no hay transferencias</string>
+    <string name="transfers_saved_count">%1$d de %2$d archivos guardados</string>
+    <string name="transfers_waiting">Esperando una conexión</string>
+    <string name="transfers_saved">Guardado</string>
+    <string name="transfers_unreadable">No se puede leer este archivo. Vuelve a seleccionarlo.</string>
+    <string name="transfers_too_large">El archivo supera los 512 MiB</string>
+    <string name="transfers_storage">No se pudo preparar este archivo</string>
+    <string name="transfers_queue_full">La bandeja de salida está llena. Selecciona el archivo de nuevo cuando haya espacio.</string>
+    <string name="transfers_expired">Transferencia caducada</string>
+    <string name="transfers_retry">Reintentar</string>
+    <string name="transfers_verifying">Verificando la entrega…</string>
+    <string name="clipboard_auto_apply">Reemplazar el portapapeles automáticamente</string>
+    <string name="clipboard_auto_apply_on">Los elementos entrantes se copian automáticamente.</string>
+    <string name="clipboard_auto_apply_off">Usa Copiar para aplicar un elemento entrante.</string>
+    <string name="shared_text_ready">Texto compartido listo para copiar</string>
+    <string name="transfers_open">Abrir</string>
 </resources>

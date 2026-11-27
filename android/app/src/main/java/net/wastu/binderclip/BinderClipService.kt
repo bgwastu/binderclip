@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -21,10 +20,8 @@ import android.net.Uri
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
-import android.os.Environment
 import android.os.IBinder
 import android.os.PowerManager
-import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -53,6 +50,8 @@ data class AppState(
     val peer: RememberedPeer? = null,
     val pendingText: Boolean = false,
     val pendingImage: Boolean = false,
+    val pendingSharedText: Boolean = false,
+    val autoApplyClipboard: Boolean = false,
     val transferStatus: String? = null,
     val transferProgress: TransferProgress? = null,
     val transferRevision: Long = 0,
@@ -84,6 +83,7 @@ class BinderClipService : Service() {
         val ACTION_PAIR = "${BuildConfig.APPLICATION_ID}.PAIR"
         val ACTION_UNPAIR = "${BuildConfig.APPLICATION_ID}.UNPAIR"
         val ACTION_SEND_CURRENT = "${BuildConfig.APPLICATION_ID}.SEND_CURRENT"
+        val ACTION_COPY_SHARED_TEXT = "${BuildConfig.APPLICATION_ID}.COPY_SHARED_TEXT"
         val ACTION_COPY_PENDING = "${BuildConfig.APPLICATION_ID}.COPY_PENDING"
         val ACTION_UI_VISIBLE = "${BuildConfig.APPLICATION_ID}.UI_VISIBLE"
         val ACTION_SET_SYNC_TOASTS = "${BuildConfig.APPLICATION_ID}.SET_SYNC_TOASTS"
@@ -93,6 +93,8 @@ class BinderClipService : Service() {
         val ACTION_REMOVE_MEMBER = "${BuildConfig.APPLICATION_ID}.REMOVE_MEMBER"
         val ACTION_UPDATE_DEVICE_NAME = "${BuildConfig.APPLICATION_ID}.UPDATE_DEVICE_NAME"
         val ACTION_SEND_SHARED = "${BuildConfig.APPLICATION_ID}.SEND_SHARED"
+        val ACTION_RETRY_TRANSFER = "${BuildConfig.APPLICATION_ID}.RETRY_TRANSFER"
+        val ACTION_AUTO_APPLY_CLIPBOARD = "${BuildConfig.APPLICATION_ID}.AUTO_APPLY_CLIPBOARD"
         val ACTION_CANCEL_TRANSFER = "${BuildConfig.APPLICATION_ID}.CANCEL_TRANSFER"
         const val EXTRA_TRANSFER_ID = "transfer_id"
         val ACTION_SEARCH_RECONNECT = "${BuildConfig.APPLICATION_ID}.SEARCH_RECONNECT"
@@ -140,6 +142,7 @@ class BinderClipService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val executor = Executors.newSingleThreadExecutor()
     private val reconnectExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private var shareRetry: ScheduledFuture<*>? = null
     private var networkDebounceFuture: ScheduledFuture<*>? = null
     private var bluetoothLink: BluetoothLink? = null
     private var bluetoothEvaluator: ScheduledFuture<*>? = null
@@ -253,6 +256,9 @@ class BinderClipService : Service() {
             onOpenUrl = { url -> runServiceWork { receiveOpenUrl(url) } },
             onImage = ::receiveImage,
             onFile = { file -> runServiceWork { receiveFile(file) } },
+            publishFile = DownloadPublisher(contentResolver)::publish,
+            onSharedAck = ::sharedAcknowledged,
+            onSharedText = ::receiveSharedText,
             onTransferStatus = { progress -> runServiceWork { updateTransferStatus(progress) } },
             onStatus = { status -> runServiceWork { updateStatus(status) } },
             onFailure = { failure -> runServiceWork { reportFailure(failureText(failure)) } },
@@ -321,6 +327,7 @@ class BinderClipService : Service() {
                 btClipboardReady = false
                 if (store.groupKey != null) DiagnosticLog.info("Bluetooth link down ($reason)")
                 client.setReconnectSuppressed(false)
+                if (!client.isConnected()) resumeTextShares()
                 refreshNsdDiscovery()
                 publishState()
             }
@@ -328,6 +335,8 @@ class BinderClipService : Service() {
             override fun onSyncConnected(supported: Boolean, sample: ClipboardClockSample?) = clipboardConnected(supported, sample, websocket = false)
             override fun onSyncControl(json: org.json.JSONObject) = clipboardControl(json, websocket = false)
             override fun onSyncText(text: String, stamp: ClipboardStamp?) = receiveOrderedClipboard(LocalClipboardContent.Text(text), stamp)
+            override fun onSharedAck(id: String) = sharedAcknowledged(id)
+            override fun onSharedText(text: String) = receiveSharedText(text)
             override fun onText(text: String) = receiveText(text)
             override fun onOpenUrl(url: String) = receiveOpenUrl(url)
 
@@ -409,8 +418,25 @@ class BinderClipService : Service() {
                 }
             }
 
+            ACTION_RETRY_TRANSFER -> intent?.getStringExtra(EXTRA_TRANSFER_ID)?.let { id ->
+                runServiceWork { client.retryTransfer(id) }
+            }
+
+            ACTION_AUTO_APPLY_CLIPBOARD -> runServiceWork {
+                store.autoApplyClipboard = intent?.getBooleanExtra("enabled", false) == true
+                publishState()
+            }
+
             ACTION_CANCEL_TRANSFER -> intent?.getStringExtra(EXTRA_TRANSFER_ID)?.let { id ->
                 runServiceWork { client.cancelTransfer(id) }
+            }
+
+            ACTION_COPY_SHARED_TEXT -> runServiceWork {
+                store.pendingSharedText?.let { text ->
+                    applyText(text)
+                    store.pendingSharedText = null
+                    publishState()
+                }
             }
 
             ACTION_COPY_PENDING -> runServiceWork {
@@ -638,7 +664,7 @@ class BinderClipService : Service() {
         commitPairingSwap(id)
         if (automaticClipboardEnabled && interactive) startBackgroundPolling()
         updateShizukuCapture()
-        drainQueuedShares()
+        resumeTextShares()
         store.peer = store.peer?.copy(name = name, deviceId = id)
         refreshNsdDiscovery()
         publishState()
@@ -649,6 +675,7 @@ class BinderClipService : Service() {
             updateTransferStatus(it.copy(state = TransferProgress.State.PAUSED))
         }
         wsClipboardReady = false
+        resumeTextShares()
         // If the WebSocket just dropped and we had handed the session to it after tearing down
         // Bluetooth, bring Bluetooth back immediately — the tunnel was flaky and BT is the reliable
         // fallback. Fastest re-arm wins over the 20s stall detector.
@@ -691,6 +718,8 @@ class BinderClipService : Service() {
     }
 
     private fun resetClipboardOrdering() {
+        shareRetry?.cancel(false)
+        shareRetry = null
         shizukuToken = null
         transferProgress = null; transferStatus = null; transferRevision += 1
         clipboardOrdering.reset(); currentClipboard = null; lastReadFingerprint = null; hasObservedClipboard = false
@@ -856,12 +885,14 @@ class BinderClipService : Service() {
         hasObservedClipboard = true
         when (value) {
             is LocalClipboardContent.Text -> {
-                val applied = runCatching { applyText(value.value); true }.getOrDefault(false)
+                pendingImage = null
+                val applied = store.autoApplyClipboard && runCatching { applyText(value.value); true }.getOrDefault(false)
                 if (applied) { ActivityLog.record(ActivityEvent.Kind.Text, outgoing = false); syncToast(getString(R.string.notif_received_text)); store.pendingText = null }
                 else store.pendingText = value.value
             }
             is LocalClipboardContent.Image -> {
-                val applied = runCatching { applyImage(value.value); true }.getOrDefault(false)
+                store.pendingText = null
+                val applied = store.autoApplyClipboard && runCatching { applyImage(value.value); true }.getOrDefault(false)
                 if (applied) { ActivityLog.record(ActivityEvent.Kind.Image, outgoing = false); syncToast(getString(R.string.notif_received_image, value.value.mimeType)); pendingImage = null }
                 else pendingImage = value.value
             }
@@ -872,73 +903,53 @@ class BinderClipService : Service() {
 
     private fun receiveFile(file: ReceivedFile) {
         if (stopping) return
-        val uri = runCatching { saveToDownloads(file) }.getOrNull()
-        val builder = NotificationCompat.Builder(this, FILE_CHANNEL)
+        val uri = file.downloadUri?.let(android.net.Uri::parse) ?: return
+        val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, file.metadata.mimeType)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        val fallback = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val target = if (view.resolveActivity(packageManager) != null) view else fallback
+        val notification = NotificationCompat.Builder(this, FILE_CHANNEL)
             .setSmallIcon(R.drawable.ic_binder_clip)
             .setContentTitle(file.metadata.name)
+            .setContentText(getString(R.string.file_saved_downloads))
             .setAutoCancel(true)
-        if (uri != null) {
-            runCatching { FileTransferStore.forContext(this).deleteReceived(file.storageId) }
-            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, file.metadata.mimeType)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            val fallback = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val target = if (view.resolveActivity(packageManager) != null) view else fallback
-            builder.setContentText(getString(R.string.file_saved_downloads))
-                .setContentIntent(PendingIntent.getActivity(this, file.metadata.id.hashCode(), target,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
-        } else {
-            builder.setContentText(getString(R.string.file_save_downloads_failed))
-        }
-        getSystemService(NotificationManager::class.java).notify("received-file", file.metadata.id.hashCode(), builder.build())
-        publishState()
+            .setContentIntent(PendingIntent.getActivity(this, file.metadata.id.hashCode(), target,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            .build()
+        getSystemService(NotificationManager::class.java).notify("received-file", file.metadata.id.hashCode(), notification)
     }
 
-    /** Received files go straight to Downloads; nothing is kept in a private inbox. */
-    private fun saveToDownloads(file: ReceivedFile): android.net.Uri {
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, file.metadata.name)
-            put(MediaStore.MediaColumns.MIME_TYPE, file.metadata.mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
-        val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error("Could not create download entry")
-        try {
-            contentResolver.openOutputStream(uri)?.use { out ->
-                file.file.inputStream().use { it.copyTo(out, 64 * 1024) }
-            } ?: error("Could not write download content")
-        } catch (error: Throwable) {
-            runCatching { contentResolver.delete(uri, null, null) }
-            throw error
-        }
-        return uri
+    private fun resumeTextShares() {
+        shareRetry?.cancel(false)
+        shareRetry = null
+        drainQueuedShares()
     }
 
     private fun drainQueuedShares() {
-        if (store.groupKey == null) return
-        while (true) {
-            val share = store.nextQueuedShare() ?: return
-            val text = share.text
-            val trimmed = text.trim()
-            val isLink = isWebUrl(trimmed)
-            val sent = if (isLink) {
-                if (client.isConnected()) client.sendOpenUrl(trimmed)
-                else bluetoothLink?.takeIf { it.isConnected() }?.sendOpenUrl(trimmed) == true
-            } else {
-                if (client.isConnected()) client.sendText(text)
-                else bluetoothLink?.takeIf { it.isConnected() }?.sendClipboard(text) == true
-            }
-            if (!sent) return
-            if (!store.removeQueuedShare(share.id)) {
-                reportFailure(getString(R.string.error_clear_share))
-                return
-            }
-            if (!isLink) {
-                observeClipboard(LocalClipboardContent.Text(text), force = true, publish = false)
-                applyText(text)
-            }
-            DiagnosticLog.info("Queued share sent (${if (isLink) "link" else "text"})")
-            updateTransferStatus(TransferProgress(TransferProgress.State.SENT, if (isLink) "link" else "text"))
-        }
+        if (store.groupKey == null || shareRetry != null) return
+        val share = store.nextQueuedShare() ?: return
+        val sent = if (client.isConnected()) client.sendShare(share) else bluetoothLink?.sendShare(share) == true
+        if (!sent) return
+        shareRetry = reconnectExecutor.schedule({ runServiceWork {
+            shareRetry = null
+            drainQueuedShares()
+        } }, 20, TimeUnit.SECONDS)
+    }
+
+    private fun sharedAcknowledged(id: String) = runServiceWork {
+        val share = store.nextQueuedShare()
+        if (share?.id != id || !store.removeQueuedShare(id)) return@runServiceWork
+        shareRetry?.cancel(false)
+        shareRetry = null
+        val kind = if (isWebUrl(share.text.trim())) "link" else "text"
+        updateTransferStatus(TransferProgress(TransferProgress.State.SENT, kind, transferId = id))
+        drainQueuedShares()
+    }
+
+    private fun receiveSharedText(text: String) = runServiceWork {
+        if (store.groupKey == null) return@runServiceWork
+        store.pendingSharedText = text
+        publishState()
     }
 
     private fun applyText(text: String) {
@@ -1221,6 +1232,7 @@ class BinderClipService : Service() {
             peer = peer,
             pendingText = store.pendingText != null,
             pendingImage = pendingImage != null,
+            pendingSharedText = store.hasPendingSharedText(),
             transferStatus = transferStatus,
             transferProgress = transferProgress,
             transferRevision = transferRevision,
@@ -1231,6 +1243,7 @@ class BinderClipService : Service() {
             shizukuCaptureActive = shizukuCapture?.active == true,
             shizukuCapturePaused = shizukuCapturePaused(),
             syncToastHidden = store.isSyncToastHidden(),
+            autoApplyClipboard = store.autoApplyClipboard,
             btFallbackEnabled = store.isBtFallbackEnabled(),
             bluetoothActive = bluetoothLink?.isConnected() == true,
             bluetoothEnabled = bluetoothLink?.adapterEnabled() == true,

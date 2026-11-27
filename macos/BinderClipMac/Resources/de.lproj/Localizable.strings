@@ -92,10 +92,10 @@
 "transfer_failed" = "Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen";
 "transfer_invalid" = "Integritäts- oder Reihenfolgeprüfung fehlgeschlagen";
 "transfer_paused" = "Übertragung pausiert; Verbindung wird wiederhergestellt…";
-"share_error_file" = "Datei konnte nicht vorgemerkt werden. Limit: 100 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.";
+"share_error_file" = "Datei konnte nicht vorgemerkt werden. Limit: 512 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.";
 "send_file" = "Datei senden…";
 "file_connection_required" = "Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.";
-"file_picker_help" = "Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.";
+"file_picker_help" = "Wähle bis zu 128 Dateien mit jeweils höchstens 512 MiB aus.";
 "file_received_format" = "Datei empfangen: %@";
 "launch_at_login" = "Beim Login starten";
 "diagnostic_logs" = "Diagnoseprotokolle…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "Privater Inhalt: %@";
 "debug_clip_image" = "Privates Bild: %@, %d Byte";
 "debug_clip_empty" = "Private Zwischenablage ist leer oder nicht unterstützt";
+
+"transfers_title" = "Übertragungen";
+"transfers_empty" = "Noch keine Übertragungen";
+"transfers_saved_count" = "%1$d von %2$d Dateien gespeichert";
+"transfers_waiting" = "Warten auf eine Verbindung";
+"transfers_saved" = "Gespeichert";
+"transfers_unreadable" = "Diese Datei kann nicht gelesen werden. Wähle sie erneut aus.";
+"transfers_too_large" = "Die Datei ist größer als 512 MiB";
+"transfers_storage" = "Datei konnte nicht vorbereitet werden";
+"transfers_queue_full" = "Der Postausgang ist voll. Wähle die Datei erneut aus, sobald Platz frei ist.";
+"transfers_expired" = "Übertragung abgelaufen";
+"transfers_retry" = "Erneut versuchen";
+"clipboard_auto_apply" = "Zwischenablage automatisch ersetzen";
+"transfers_reveal" = "Im Finder anzeigen";
+"transfers_open_folder" = "Downloadordner öffnen";
+"transfers_notify" = "Bei abgeschlossenen Übertragungen benachrichtigen";
+"clipboard_copy_received" = "Empfangenen Zwischenablageinhalt kopieren";
+"shared_text_ready" = "Geteilter Text kann kopiert werden";
+"transfers_cancelled" = "Abgebrochen";
+"clipboard_copy_shared" = "Geteilten Text kopieren";

@@ -12,6 +12,7 @@ final class ChunkedTransferSession {
     private let onFile: (ReceivedFile) -> Void
     private let onStatus: (String) -> Void
     private let onProgress: (TransferProgress) -> Void
+    private let announceBatches: Bool
     private let onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)?
     private var outgoing: OutgoingTransfer?
     private var offered = false
@@ -27,15 +28,21 @@ final class ChunkedTransferSession {
          disconnect: @escaping () -> Void, onImage: @escaping (ImagePayload) -> Void,
          onFile: @escaping (ReceivedFile) -> Void, onStatus: @escaping (String) -> Void,
          onProgress: @escaping (TransferProgress) -> Void = { _ in },
-         onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)? = nil) {
+         announceBatches: Bool = false, onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Void)? = nil) {
         self.peerID = peerID; self.store = store; self.queue = queue
         self.sendText = sendText; self.sendBinary = sendBinary; self.disconnect = disconnect
         self.onImage = onImage; self.onFile = onFile; self.onStatus = onStatus
         self.onProgress = onProgress
         self.onOrderedImage = onOrderedImage
+        self.announceBatches = announceBatches
     }
-    func pump() {
-        guard !closed, outgoing == nil, let next = store.next(peerID: peerID) else { return }
+
+    func announce(_ batch: [String: Any]) {
+        if announceBatches && !closed { sendText(batch) }
+    }
+    @discardableResult
+    func pump() -> String? {
+        guard !closed, outgoing == nil, let next = store.next(peerID: peerID) else { return nil }
         outgoing = next
         lastAcknowledged = 0
         expectedOffset = 0
@@ -44,20 +51,27 @@ final class ChunkedTransferSession {
         waitForReply()
         onStatus(L10n.tr("transfer_offering", kind(next.metadata)))
         progress(next.metadata, .preparing, bytes: 0, direction: .sending)
+        return next.metadata.id
     }
     func handle(_ json: [String: Any]) {
         guard !closed else { return }
         guard let id = json["id"] as? String, FileTransferProtocol.validID(id) else { disconnect(); return }
+        var offeredMeta: TransferMetadata?
+        var acceptedOffer = false
         do {
             switch json["type"] as? String {
             case "transfer_offer":
                 let meta = try TransferMetadata.parse(json)
+                offeredMeta = meta
                 guard incoming.count < 4 || incoming[id] != nil else { throw FileTransferError.queueFull }
                 let state = try store.accept(peerID: peerID, meta: meta)
                 if state.completed {
+                    incoming.removeValue(forKey: id)
+                    incomingOffsets.removeValue(forKey: id)
                     sendText(["type": "transfer_done", "id": id])
-                    progress(meta, .received, bytes: meta.size, direction: .receiving)
+                    progress(meta, .received, bytes: meta.size, direction: .receiving, destination: state.destination)
                 } else {
+                    acceptedOffer = true
                     incoming[id] = meta
                     incomingOffsets[id] = state.offset
                     if state.offset == meta.size { try complete(meta) }
@@ -106,7 +120,7 @@ final class ChunkedTransferSession {
                 }
                 if let transfer = outgoing, transfer.metadata.id == id {
                     deadline?.cancel()
-                    store.removeOutgoing(id)
+                    store.rejectOutgoing(transfer)
                     outgoing = nil
                     onStatus(L10n.tr("transfer_declined"))
                     progress(transfer.metadata, .declined, bytes: lastAcknowledged, direction: .sending)
@@ -115,10 +129,14 @@ final class ChunkedTransferSession {
             default: break
             }
         } catch {
-            if let meta = incoming.removeValue(forKey: id) {
-                progress(meta, .failed, bytes: incomingOffsets.removeValue(forKey: id) ?? 0, direction: .receiving)
+            if let meta = offeredMeta {
+                let offset = acceptedOffer ? incomingOffsets.removeValue(forKey: id) ?? 0 : 0
+                progress(meta, .failed, bytes: offset, direction: .receiving)
+                if acceptedOffer {
+                    incoming.removeValue(forKey: id)
+                    store.discardIncoming(peerID: peerID, id: id)
+                }
             }
-            store.discardIncoming(peerID: peerID, id: id)
             sendText(["type": "transfer_cancel", "id": id])
             onStatus(L10n.tr("transfer_failed"))
             if let transfer = outgoing, transfer.metadata.id == id {
@@ -150,7 +168,7 @@ final class ChunkedTransferSession {
                 incoming.removeValue(forKey: id)
                 let bytes = incomingOffsets.removeValue(forKey: id) ?? 0
                 if let metadata { progress(metadata, .invalid, bytes: bytes, direction: .receiving) }
-                store.discardIncoming(peerID: peerID, id: id)
+                if metadata != nil { store.discardIncoming(peerID: peerID, id: id) }
                 sendText(["type": "transfer_cancel", "id": id])
             } else { disconnect() }
             onStatus(L10n.tr("transfer_invalid"))
@@ -168,10 +186,12 @@ final class ChunkedTransferSession {
         } else { onFile(file) }
         sendText(["type": "transfer_done", "id": meta.id])
         onStatus(L10n.tr("transfer_received", kind(meta)))
-        progress(meta, .received, bytes: meta.size, direction: .receiving)
+        progress(meta, .received, bytes: meta.size, direction: .receiving, destination: meta.kind == "file" ? file.file : nil)
     }
-    private func progress(_ meta: TransferMetadata, _ phase: TransferProgress.Phase, bytes: Int64, direction: TransferProgress.Direction) {
-        onProgress(TransferProgress(peerID: peerID, metadata: meta, direction: direction, phase: phase, completedBytes: bytes))
+    private func progress(_ meta: TransferMetadata, _ phase: TransferProgress.Phase, bytes: Int64,
+                          direction: TransferProgress.Direction, destination: URL? = nil) {
+        onProgress(TransferProgress(peerID: peerID, metadata: meta, direction: direction,
+                                    phase: phase, completedBytes: bytes, destination: destination))
     }
     private func kind(_ meta: TransferMetadata) -> String { L10n.tr(meta.kind == "image" ? "transfer_kind_image" : "transfer_kind_file") }
     private func acknowledge(_ id: String, offset: Int64) { sendText(["type": "transfer_ack", "id": id, "offset": offset]) }

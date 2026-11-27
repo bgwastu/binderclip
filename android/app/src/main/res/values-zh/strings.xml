@@ -101,11 +101,11 @@
     <string name="transfer_failed">传输失败，请检查文件大小和可用空间</string>
     <string name="transfer_invalid">传输完整性或顺序验证失败</string>
     <string name="transfer_paused">传输已暂停，正在重新连接…</string>
-    <string name="share_error_file">无法将文件加入队列。上限为100 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。</string>
+    <string name="share_error_file">无法将文件加入队列。上限为512 MiB（剪贴板图片为30 MiB）。请检查访问权限和可用空间。</string>
     <string name="received_files">已接收的文件</string>
     <string name="send_file">发送文件…</string>
     <string name="file_connection_required">文件传输需要Wi-Fi或mesh连接，且两端应用均已更新。</string>
-    <string name="file_picker_help">最多选择八个文件，每个不超过100 MiB。</string>
+    <string name="file_picker_help">最多选择 128 个文件，每个文件不超过 512 MiB。</string>
     <string name="share_preparing">正在准备发送…</string>
     <string name="transfer_queued">正在等待 Wi-Fi 或 mesh 网络。Mac 重新连接后将发送文件。</string>
     <string name="transfer_kind_text">文本</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">正在连接…</string>
     <string name="scan_error">无法读取二维码，请重试。</string>
     <string name="search">搜索</string>
-    <string name="share_error_too_many">一次最多可分享八个文件。</string>
+    <string name="share_error_too_many">每次最多选择 128 个文件。</string>
     <plurals name="share_file_count">
         <item quantity="other">%d 个文件</item>
     </plurals>
@@ -196,4 +196,21 @@
     <string name="debug_clip_content">私有内容：%1$s</string>
     <string name="debug_clip_image">私有图片已接收/就绪</string>
     <string name="debug_clip_empty">私有剪贴板为空</string>
+    <string name="transfers_title">传输</string>
+    <string name="transfers_empty">暂无传输</string>
+    <string name="transfers_saved_count">已保存 %1$d 个文件，共 %2$d 个</string>
+    <string name="transfers_waiting">正在等待连接</string>
+    <string name="transfers_saved">已保存</string>
+    <string name="transfers_unreadable">无法读取此文件。请重新选择。</string>
+    <string name="transfers_too_large">文件超过 512 MiB</string>
+    <string name="transfers_storage">无法准备此文件</string>
+    <string name="transfers_queue_full">发件箱已满。请在有空间后重新选择此文件。</string>
+    <string name="transfers_expired">传输已过期</string>
+    <string name="transfers_retry">重试</string>
+    <string name="transfers_verifying">正在验证传输结果…</string>
+    <string name="clipboard_auto_apply">自动替换剪贴板</string>
+    <string name="clipboard_auto_apply_on">接收的剪贴板项目会自动复制。</string>
+    <string name="clipboard_auto_apply_off">点击“复制”以使用接收的剪贴板项目。</string>
+    <string name="shared_text_ready">共享的文本可供复制</string>
+    <string name="transfers_open">打开</string>
 </resources>

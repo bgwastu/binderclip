@@ -17,7 +17,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private let logWindow = LogWindowController()
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let statusIconView = StatusItemIconView()
-    private var activeTransferProgress: TransferProgress?
+    private enum ClipboardItem {
+        case text(String)
+        case image(ImagePayload)
+    }
+    private var pendingClipboard: ClipboardItem? { didSet { scheduleStateRefresh() } }
+    private var pendingSharedTexts = [String]() { didSet { scheduleStateRefresh() } }
+    private let transferHistory = TransferHistory()
+    private lazy var transfersWindow = TransfersWindow(history: transferHistory, folder: transport.receivedFolder) { [weak self] peerID, id in
+        self?.transport.retryFile(peerID: peerID, id: id)
+    }
+    private var activeTransfers = [String: TransferProgress]()
+    private var activeTransferProgress: TransferProgress? { activeTransfers.values.first }
+    private var autoApplyClipboard: Bool {
+        AppProfile.current.defaults.object(forKey: "auto-apply-clipboard") as? Bool ?? AppProfile.current.isDebug
+    }
+    private var transferNotifications: Bool {
+        AppProfile.current.defaults.object(forKey: "transfer-notifications") as? Bool ?? true
+    }
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: !AppProfile.current.isDebug,
         updaterDelegate: self,
@@ -88,37 +105,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         center.delegate = self
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
-        transport.onClipboard = { [weak self] text in
-            guard self?.clipboard.applyRemote(text) == true else { return }
-            let msg = L10n.tr("received_text")
-            ToastHUD.shared.show(message: msg, icon: "doc.on.clipboard.fill")
-            self?.statusIconView.pulseSync()
-        }
+        transport.onClipboard = { [weak self] text in self?.receiveClipboard(.text(text)) }
+        transport.onImage = { [weak self] image in self?.receiveClipboard(.image(image)) }
+        transport.onSharedText = { [weak self] text in self?.queueSharedText(text) ?? false }
         transport.onOpenURL = { [weak self] url in
-            if AppProfile.current.isDebug { self?.clipboard.applyRemote(url.absoluteString); return }
-            // A paired phone may only open web pages; file:, custom app schemes, and the like could
-            // launch local apps or reveal files, so they land on the clipboard instead.
-            guard SyncProtocol.isBrowsableURL(url) else {
-                guard self?.clipboard.applyRemote(url.absoluteString) == true else { return }
-                ToastHUD.shared.show(message: L10n.tr("received_text"), icon: "doc.on.clipboard.fill")
+            guard !AppProfile.current.isDebug, SyncProtocol.isBrowsableURL(url) else {
+                _ = self?.queueSharedText(url.absoluteString)
                 return
             }
             NSWorkspace.shared.open(url)
-            let msg = L10n.tr("opened_link_in_browser")
-            ToastHUD.shared.show(message: msg, icon: "safari.fill")
+            ToastHUD.shared.show(message: L10n.tr("opened_link_in_browser"), icon: "safari.fill")
             self?.statusIconView.pulseSync()
         }
-        transport.onImage = { [weak self] image in
-            guard self?.clipboard.applyRemote(image) == true else { return }
-            let msg = L10n.tr("received_image_format", image.mimeType)
-            ToastHUD.shared.show(message: msg, icon: "photo.fill")
-            self?.statusIconView.pulseSync()
-        }
-        transport.onFile = { [weak self] url in
-            let message = L10n.tr("file_received_format", url.lastPathComponent)
-            self?.notifyIncoming(title: AppProfile.current.displayName, body: message, sound: .default, userInfo: ["fileURL": url.path])
-            NSSound(named: "Glass")?.play()
-            ToastHUD.shared.showFileReceived(url: url, message: message)
+        transport.onTransferBatch = { [weak self] snapshot, peerID in
+            guard let self, let peer = self.peers.first(where: { $0.id == peerID }) else { return }
+            if let batch = self.transferHistory.apply(snapshot, peerID: peerID, name: peer.name) {
+                self.notifyTransfer(batch)
+            }
         }
         transport.onPeersChanged = { [weak self] peers in
             self?.peers = peers
@@ -132,31 +135,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             self?.status = message
         }
         transport.onTransferProgress = { [weak self] progress in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if progress.isActive {
-                    self.activeTransferProgress = progress
-                    self.statusIconView.transition(to: .progress(fraction: progress.fraction))
-                } else {
-                    let wasActive = self.activeTransferProgress != nil
-                    self.activeTransferProgress = nil
-                    if wasActive && progress.phase == .sent {
-                        let isFile = progress.metadata.kind == "file"
-                        let kind = L10n.tr(isFile ? "transfer_kind_file" : "transfer_kind_image")
-                        let name = progress.metadata.name.isEmpty ? kind : progress.metadata.name
-                        let msg = L10n.tr("transfer_sent", name)
-                        // Clipboard images sync silently; only files the user chose to share notify.
-                        if isFile {
-                            self.notifyIncoming(title: AppProfile.current.displayName, body: msg, sound: .default)
-                            NSSound(named: "Glass")?.play()
-                        } else {
-                            ToastHUD.shared.show(message: msg, icon: "checkmark.circle.fill")
-                        }
-                    }
-                    self.updateStatusIcon()
+            guard let self, let peer = self.peers.first(where: { $0.id == progress.peerID }) else { return }
+            self.activeTransfers[progress.identity] = progress.isActive ? progress : nil
+            if progress.metadata.kind == "file" {
+                if let batch = self.transferHistory.apply(progress, name: peer.name) {
+                    self.notifyTransfer(batch)
                 }
-                ToastHUD.shared.showTransfer(progress)
+            } else if progress.phase == .sent {
+                ToastHUD.shared.show(message: progress.message, icon: progress.icon)
             }
+            self.updateStatusIcon()
         }
         transport.onLocalNetworkPermissionRequired = { [weak self] required in
             DispatchQueue.main.async { self?.localNetworkPermissionRequired = required }
@@ -278,6 +266,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             return
         }
         DispatchQueue.main.async(execute: action)
+    }
+
+    private func receiveClipboard(_ item: ClipboardItem) {
+        let applied: Bool
+        switch item {
+        case .text(let text): applied = autoApplyClipboard && clipboard.applyRemote(text)
+        case .image(let image): applied = autoApplyClipboard && clipboard.applyRemote(image)
+        }
+        pendingClipboard = applied ? nil : item
+        if applied {
+            statusIconView.pulseSync()
+            let message: String
+            switch item {
+            case .text: message = L10n.tr("received_text")
+            case .image(let image): message = L10n.tr("received_image_format", image.mimeType)
+            }
+            ToastHUD.shared.show(message: message, icon: "doc.on.clipboard.fill")
+        }
+    }
+
+    private func notifyTransfer(_ batch: TransferHistory.Batch) {
+        guard transferNotifications else { return }
+        notifyIncoming(title: batch.peerName, body: L10n.tr("transfers_saved_count", batch.saved, batch.count),
+                       userInfo: ["showTransfers": true])
+    }
+
+    @objc private func copyReceivedClipboard() {
+        guard let pendingClipboard else { return }
+        let applied: Bool
+        switch pendingClipboard {
+        case .text(let text): applied = clipboard.copyReceived(text)
+        case .image(let image): applied = clipboard.copyReceived(image)
+        }
+        if applied { self.pendingClipboard = nil }
+    }
+
+    private func queueSharedText(_ text: String) -> Bool {
+        guard pendingSharedTexts.count < 32 else { return false }
+        pendingSharedTexts.append(text)
+        ToastHUD.shared.show(message: L10n.tr("shared_text_ready"), icon: "doc.on.clipboard")
+        return true
+    }
+
+    @objc private func copySharedText() {
+        if let text = pendingSharedTexts.first, clipboard.copyReceived(text) { pendingSharedTexts.removeFirst() }
+    }
+
+    @objc private func toggleAutoApplyClipboard() {
+        AppProfile.current.defaults.set(!autoApplyClipboard, forKey: "auto-apply-clipboard")
+        scheduleStateRefresh()
+    }
+
+    @objc private func toggleTransferNotifications() {
+        AppProfile.current.defaults.set(!transferNotifications, forKey: "transfer-notifications")
+        scheduleStateRefresh()
+    }
+
+    @objc private func showTransfers() {
+        runAfterMenuCloses { [weak self] in
+            self?.transfersWindow.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func notifyIncoming(title: String, body: String, sound: UNNotificationSound? = .default, userInfo: [AnyHashable: Any] = [:]) {
@@ -425,6 +475,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         pair.target = self
         menu.addItem(pair)
 
+        func command(_ key: String, _ selector: Selector) -> NSMenuItem {
+            let item = NSMenuItem(title: L10n.tr(key), action: selector, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+            return item
+        }
+        _ = command("transfers_title", #selector(showTransfers))
+        command("transfers_notify", #selector(toggleTransferNotifications)).state = transferNotifications ? .on : .off
+        command("clipboard_auto_apply", #selector(toggleAutoApplyClipboard)).state = autoApplyClipboard ? .on : .off
+        if pendingClipboard != nil { _ = command("clipboard_copy_received", #selector(copyReceivedClipboard)) }
+        if !pendingSharedTexts.isEmpty { _ = command("clipboard_copy_shared", #selector(copySharedText)) }
+
         let logs = NSMenuItem(title: L10n.tr("diagnostic_logs"), action: #selector(showLogs), keyEquivalent: "l")
         logs.target = self
         menu.addItem(logs)
@@ -527,6 +589,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
         if alert.runModal() == .alertFirstButtonReturn {
             transport.resetPairingKey()
+            transferHistory.clear()
+            pendingClipboard = nil
+            pendingSharedTexts.removeAll()
             showPairing()
         }
     }
@@ -578,11 +643,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             panel.prompt = L10n.tr("send_file")
             panel.message = L10n.tr("file_picker_help")
             guard panel.runModal() == .OK else { return }
-            guard panel.urls.count <= 8, self.transport.canSendFile(to: peerID) else {
-                ToastHUD.shared.show(message: L10n.tr("file_connection_required"), icon: "exclamationmark.circle")
+            guard panel.urls.count <= TransferBatch.maximumFiles else {
+                ToastHUD.shared.show(message: L10n.tr("file_picker_help"), icon: "exclamationmark.circle")
                 return
             }
-            for url in panel.urls { self.transport.sendFile(url, targetDeviceID: peerID) }
+            self.transport.sendFiles(panel.urls, targetDeviceID: peerID)
+            self.showTransfers()
         }
     }
 
@@ -613,7 +679,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         alert.informativeText = L10n.tr("dialog_unpair_all_message")
         alert.addButton(withTitle: L10n.tr("dialog_unpair_button"))
         alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
-        if alert.runModal() == .alertFirstButtonReturn { transport.unpairAll() }
+        if alert.runModal() == .alertFirstButtonReturn {
+            transport.unpairAll()
+            transferHistory.clear()
+            pendingClipboard = nil
+            pendingSharedTexts.removeAll()
+        }
     }
 
     @objc private func removePeer(_ sender: NSMenuItem) {
@@ -625,7 +696,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         alert.informativeText = L10n.tr("dialog_unpair_single_message")
         alert.addButton(withTitle: L10n.tr("dialog_unpair_button"))
         alert.addButton(withTitle: L10n.tr("dialog_cancel_button"))
-        if alert.runModal() == .alertFirstButtonReturn { transport.removePeer(id) }
+        if alert.runModal() == .alertFirstButtonReturn {
+            transport.removePeer(id)
+            transferHistory.clear(peerID: id)
+            pendingClipboard = nil
+            pendingSharedTexts.removeAll()
+        }
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -741,8 +817,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
                 transport.sendOpenURL(url)
                 ToastHUD.shared.show(message: L10n.tr("sent_url_to_phones"), icon: "safari.fill")
             } else {
-                transport.sendClipboard(text)
-                ToastHUD.shared.show(message: L10n.tr("sent_clipboard_to_phones"), icon: "doc.on.clipboard.fill")
+                transport.sendSharedText(text)
             }
         case .image(let image):
             transport.sendImage(image)
@@ -759,9 +834,8 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let path = response.notification.request.content.userInfo["fileURL"] as? String {
-            let url = URL(fileURLWithPath: path)
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+        if response.notification.request.content.userInfo["showTransfers"] as? Bool == true {
+            DispatchQueue.main.async { [weak self] in self?.showTransfers() }
         }
         completionHandler()
     }

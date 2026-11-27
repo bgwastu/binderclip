@@ -75,11 +75,12 @@ class DeviceStore(context: Context) {
     }
 
     /** Explicit text/link shares survive service startup, reconnects, and process death. */
-    fun enqueueShare(text: String): Boolean = synchronized(shareLock) {
+    fun enqueueShare(text: String, id: String = UUID.randomUUID().toString()): Boolean = synchronized(shareLock) {
         if (text.isBlank() || text.toByteArray(Charsets.UTF_8).size > SyncProtocol.MAXIMUM_TEXT_BYTES) return@synchronized false
         val current = queuedSharesLocked()
+        if (current.any { it.id == id } || id in deliveredShares()) return@synchronized true
         if (current.size >= MAX_QUEUED_SHARES) return@synchronized false
-        saveSharesLocked(current + QueuedShare(UUID.randomUUID().toString(), text))
+        saveSharesLocked(current + QueuedShare(id, text))
     }
 
     fun nextQueuedShare(): QueuedShare? = synchronized(shareLock) { queuedSharesLocked().firstOrNull() }
@@ -87,10 +88,14 @@ class DeviceStore(context: Context) {
     fun removeQueuedShare(id: String): Boolean = synchronized(shareLock) {
         val current = queuedSharesLocked()
         if (current.firstOrNull()?.id != id) return@synchronized false
-        saveSharesLocked(current.drop(1))
+        saveSharesLocked(current.drop(1), (deliveredShares() + id).takeLast(64))
     }
 
-    fun clearQueuedShares() = synchronized(shareLock) { prefs.edit().remove(SHARE_OUTBOX).commit() }
+    fun deliveredShares(): List<String> = prefs.getString("delivered_shares", null)?.split(' ').orEmpty()
+
+    fun clearQueuedShares() = synchronized(shareLock) {
+        prefs.edit().remove(SHARE_OUTBOX).remove("delivered_shares").commit()
+    }
 
     private fun queuedSharesLocked(): List<QueuedShare> = runCatching {
         val encrypted = prefs.getString(SHARE_OUTBOX, null) ?: return emptyList()
@@ -104,11 +109,14 @@ class DeviceStore(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    private fun saveSharesLocked(shares: List<QueuedShare>): Boolean {
+    private fun saveSharesLocked(shares: List<QueuedShare>, delivered: List<String>? = null): Boolean {
         val array = JSONArray().also { output -> shares.forEach { share ->
             output.put(JSONObject().put("id", share.id).put("text", share.text))
         } }
-        return prefs.edit().putString(SHARE_OUTBOX, encrypt(array.toString().toByteArray(Charsets.UTF_8))).commit()
+        return prefs.edit().apply {
+            putString(SHARE_OUTBOX, encrypt(array.toString().toByteArray(Charsets.UTF_8)))
+            delivered?.let { putString("delivered_shares", it.joinToString(" ")) }
+        }.commit()
     }
 
     var customDeviceName: String?
@@ -227,6 +235,7 @@ class DeviceStore(context: Context) {
         fileTransfers.clearPairing()
         members = emptyList()
         pendingText = null
+        pendingSharedText = null
     }
 
     /** Unpair and clear saved keys and member roster. Preserves stable device ID. */
@@ -253,6 +262,15 @@ class DeviceStore(context: Context) {
             if (value == null) remove("pending_text_enc")
             else putString("pending_text_enc", encrypt(value.toByteArray(Charsets.UTF_8)))
         }.apply()
+    fun hasPendingSharedText(): Boolean = prefs.contains("pending_shared_text")
+
+    var pendingSharedText: String?
+        get() = prefs.getString("pending_shared_text", null)?.let(::decrypt)?.toString(Charsets.UTF_8)
+        set(value) = prefs.edit().apply {
+            if (value == null) remove("pending_shared_text")
+            else putString("pending_shared_text", encrypt(value.toByteArray(Charsets.UTF_8)))
+        }.apply()
+
     fun setRootClipboardAutomationEnabled(enabled: Boolean) { prefs.edit().putBoolean("root_clipboard_automation", enabled).apply() }
     /** Set after Shizuku capture first works, so a later missing Shizuku is reported as paused rather than unset. */
     fun isShizukuCaptureConfigured(): Boolean = prefs.getBoolean("shizuku_capture_configured", false)
@@ -262,6 +280,10 @@ class DeviceStore(context: Context) {
     /** Bluetooth LE fallback for text/links; on by default, engages only off-Wi-Fi. */
     fun isBtFallbackEnabled(): Boolean = prefs.getBoolean("bluetooth_fallback", AppProfile.current.bluetoothEnabledByDefault)
     fun setBtFallbackEnabled(enabled: Boolean) { prefs.edit().putBoolean("bluetooth_fallback", enabled).apply() }
+
+    var autoApplyClipboard: Boolean
+        get() = prefs.getBoolean("auto_apply_clipboard", AppProfile.current.isDebug)
+        set(value) { prefs.edit().putBoolean("auto_apply_clipboard", value).apply() }
 
     /** Suppress transient toasts shown for clipboard copy/receive/send by default. */
     fun isSyncToastHidden(): Boolean = prefs.getBoolean("hide_sync_toasts", true)

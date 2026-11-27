@@ -101,11 +101,11 @@
     <string name="transfer_failed">Falha na transferência; verifique o tamanho e o espaço disponível</string>
     <string name="transfer_invalid">Falha na validação de integridade ou sequência</string>
     <string name="transfer_paused">Transferência pausada; reconectando…</string>
-    <string name="share_error_file">Não foi possível colocar o arquivo na fila. Limite: 100 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.</string>
+    <string name="share_error_file">Não foi possível colocar o arquivo na fila. Limite: 512 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.</string>
     <string name="received_files">Arquivos recebidos</string>
     <string name="send_file">Enviar arquivo…</string>
     <string name="file_connection_required">Arquivos exigem Wi-Fi ou mesh e aplicativos atualizados nos dois dispositivos.</string>
-    <string name="file_picker_help">Escolha até oito arquivos de no máximo 100 MiB cada.</string>
+    <string name="file_picker_help">Selecione até 128 arquivos de até 512 MiB cada.</string>
     <string name="share_preparing">Preparando o envio…</string>
     <string name="transfer_queued">Aguardando Wi-Fi ou mesh. Os arquivos serão enviados quando o Mac se reconectar.</string>
     <string name="transfer_kind_text">texto</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">Conectando…</string>
     <string name="scan_error">Não foi possível ler o código QR. Tente novamente.</string>
     <string name="search">Pesquisar</string>
-    <string name="share_error_too_many">Você pode compartilhar até oito arquivos por vez.</string>
+    <string name="share_error_too_many">Selecione até 128 arquivos de uma vez.</string>
     <plurals name="share_file_count">
         <item quantity="one">%d arquivo</item>
         <item quantity="other">%d arquivos</item>
@@ -197,4 +197,21 @@
     <string name="debug_clip_content">Conteúdo privado: %1$s</string>
     <string name="debug_clip_image">Imagem privada recebida/pronta</string>
     <string name="debug_clip_empty">A área de transferência privada está vazia</string>
+    <string name="transfers_title">Transferências</string>
+    <string name="transfers_empty">Nenhuma transferência ainda</string>
+    <string name="transfers_saved_count">%1$d de %2$d arquivos salvos</string>
+    <string name="transfers_waiting">Aguardando conexão</string>
+    <string name="transfers_saved">Salvo</string>
+    <string name="transfers_unreadable">Não foi possível ler este arquivo. Selecione-o novamente.</string>
+    <string name="transfers_too_large">O arquivo excede 512 MiB</string>
+    <string name="transfers_storage">Não foi possível preparar este arquivo</string>
+    <string name="transfers_queue_full">A caixa de saída está cheia. Selecione o arquivo novamente quando houver espaço.</string>
+    <string name="transfers_expired">Transferência expirada</string>
+    <string name="transfers_retry">Tentar novamente</string>
+    <string name="transfers_verifying">Verificando a entrega…</string>
+    <string name="clipboard_auto_apply">Substituir automaticamente a área de transferência</string>
+    <string name="clipboard_auto_apply_on">Os itens recebidos são copiados automaticamente.</string>
+    <string name="clipboard_auto_apply_off">Use Copiar para aplicar os itens recebidos.</string>
+    <string name="shared_text_ready">Texto compartilhado pronto para copiar</string>
+    <string name="transfers_open">Abrir</string>
 </resources>

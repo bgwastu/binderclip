@@ -17,6 +17,8 @@ internal class ChunkedTransferSession(
     private val onImage: (ImagePayload) -> Unit,
     private val onFile: (ReceivedFile) -> Unit,
     private val onStatus: (TransferProgress) -> Unit,
+    private val announceBatches: Boolean = false,
+    private val publishFile: ((ReceivedFile) -> String)? = null,
     private val onOrderedImage: ((ImagePayload, ClipboardStamp?) -> Unit)? = null,
 ) {
     private var outgoing: OutgoingTransfer? = null
@@ -26,6 +28,7 @@ internal class ChunkedTransferSession(
     private var deadline: ScheduledFuture<*>? = null
     private val incoming = LinkedHashMap<String, TransferMetadata>()
     private var closed = false
+    private val announced = mutableMapOf<String, String>()
     private val cancelled = LinkedHashSet<String>()
 
     fun cancel(id: String): Boolean {
@@ -33,7 +36,7 @@ internal class ChunkedTransferSession(
         // The final chunk may have reached the Mac before its receipt reaches us.
         // Once all bytes are in flight, leave the receipt to determine completion.
         if (!offered && expectedOffset == transfer.metadata.size) {
-            onStatus(transfer.metadata.progress(TransferProgress.State.SENDING, 100))
+            onStatus(transfer.metadata.progress(TransferProgress.State.VERIFYING, 100))
             return true
         }
         val metadata = store.cancelOutgoing(peerId, id) ?: return false
@@ -49,13 +52,39 @@ internal class ChunkedTransferSession(
     }
 
     fun pump() {
-        if (closed || outgoing != null) return
+        if (closed) return
+        if (announceBatches && !announceShares()) { disconnect(); close(); return }
+        if (outgoing != null) return
         val next = store.next(peerId) ?: return
         outgoing = next
         offered = true
+        expectedOffset = 0L
+        lastAcknowledged = 0L
         if (!sendText(next.metadata.json())) { close(); return }
         waitForReply()
         onStatus(next.metadata.progress(TransferProgress.State.OFFERING))
+    }
+
+    private fun announceShares(): Boolean {
+        val batches = store.shareFiles(peerId).filter { it.state != ShareFileState.PREPARING }.groupBy { it.batch.id }.values.take(16)
+        val active = batches.mapTo(mutableSetOf()) { it.first().batch.id }
+        announced.keys.retainAll(active)
+        for (items in batches) {
+            val batch = items.first().batch
+            val entries = org.json.JSONArray().also { array ->
+                items.sortedBy { it.batch.index }.forEach { file ->
+                    array.put(JSONObject().put("id", file.id).put("index", file.batch.index)
+                        .put("name", file.name).put("size", file.bytes).put("state", file.state.name))
+                }
+            }
+            val json = JSONObject().put("type", "transfer_batch").put("id", batch.id)
+                .put("count", batch.count).put("items", entries)
+            val snapshot = json.toString()
+            if (announced[batch.id] == snapshot) continue
+            if (!sendText(json)) return false
+            announced[batch.id] = snapshot
+        }
+        return true
     }
 
     fun handle(json: JSONObject) {
@@ -63,18 +92,25 @@ internal class ChunkedTransferSession(
         val id = json.optString("id")
         if (!FileTransferProtocol.validId(id)) { disconnect(); return }
         if (id in cancelled) return // Ignore acknowledgements/receipts already in flight when cancelled.
+        val type = json.optString("type")
+        var offeredMeta: TransferMetadata? = null
+        var acceptedOffer = false
         try {
-            when (json.getString("type")) {
+            when (type) {
                 "transfer_offer" -> {
                     val meta = TransferMetadata.parse(json)
+                    offeredMeta = meta
                     require(incoming.size < 4 || incoming.containsKey(id))
-                    val state = store.accept(peerId, meta)
+                    val state = store.accept(peerId, meta, publishDownload = publishFile != null)
                     if (state.completed) {
                         sendText(JSONObject().put("type", "transfer_done").put("id", id))
-                    } else if (state.offset == meta.size) {
-                        complete(meta)
                     } else {
+                        acceptedOffer = true
                         incoming[id] = meta
+                        if (state.offset == meta.size) {
+                            complete(meta)
+                            return
+                        }
                         acknowledge(id, state.offset)
                         onStatus(meta.progress(TransferProgress.State.RECEIVING, isOutgoing = false))
                     }
@@ -99,13 +135,14 @@ internal class ChunkedTransferSession(
                     expectedOffset = offset + count
                     if (!sendBinary(FileTransferProtocol.packChunk(id, offset, bytes))) { disconnect(); close(); return }
                     waitForReply()
-                    onStatus(transfer.metadata.progress(TransferProgress.State.SENDING, (expectedOffset * 100 / transfer.metadata.size).toInt()))
+                    val state = if (expectedOffset == transfer.metadata.size) TransferProgress.State.VERIFYING else TransferProgress.State.SENDING
+                    onStatus(transfer.metadata.progress(state, (offset * 100 / transfer.metadata.size).toInt()))
                 }
                 "transfer_done" -> {
                     val transfer = outgoing?.takeIf { it.metadata.id == id } ?: return
                     require(offered || expectedOffset == transfer.metadata.size)
                     deadline?.cancel(false)
-                    store.removeOutgoing(id)
+                    store.finishOutgoing(peerId, id, ShareFileState.SENT)
                     outgoing = null
                     onStatus(transfer.metadata.progress(TransferProgress.State.SENT))
                     pump()
@@ -114,7 +151,7 @@ internal class ChunkedTransferSession(
                     incoming.remove(id)?.let { store.discardIncoming(peerId, id) }
                     outgoing?.takeIf { it.metadata.id == id }?.let { transfer ->
                         deadline?.cancel(false)
-                        store.removeOutgoing(id)
+                        store.finishOutgoing(peerId, id, ShareFileState.REJECTED)
                         outgoing = null
                         onStatus(transfer.metadata.progress(TransferProgress.State.DECLINED))
                         pump()
@@ -122,12 +159,15 @@ internal class ChunkedTransferSession(
                 }
             }
         } catch (_: Exception) {
-            val metadata = outgoing?.metadata?.takeIf { it.id == id } ?: incoming[id]
-            incoming.remove(id)
-            store.discardIncoming(peerId, id)
-            sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
-            onStatus(metadata?.progress(TransferProgress.State.FAILED) ?: TransferProgress(TransferProgress.State.FAILED, transferId = id))
-            if (outgoing?.metadata?.id == id) { disconnect(); close() }
+            if (type == "transfer_offer") {
+                if (acceptedOffer && offeredMeta != null) failReceive(offeredMeta)
+                sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
+                offeredMeta?.let { onStatus(it.progress(TransferProgress.State.FAILED, isOutgoing = false)) }
+            } else if (outgoing?.metadata?.id == id) {
+                outgoing?.let { onStatus(it.metadata.progress(TransferProgress.State.FAILED)) }
+                disconnect()
+                close()
+            }
         }
     }
 
@@ -147,11 +187,18 @@ internal class ChunkedTransferSession(
             }
         } catch (_: Exception) {
             if (id != null) {
-                incoming.remove(id)
-                store.discardIncoming(peerId, id)
+                metadata?.let(::failReceive)
                 sendText(JSONObject().put("type", "transfer_cancel").put("id", id))
             } else disconnect()
-            onStatus(metadata?.progress(TransferProgress.State.INVALID) ?: TransferProgress(TransferProgress.State.INVALID, transferId = id))
+            onStatus(metadata?.progress(TransferProgress.State.INVALID, isOutgoing = false) ?: TransferProgress(TransferProgress.State.INVALID, transferId = id))
+        }
+    }
+
+    private fun failReceive(meta: TransferMetadata) {
+        incoming.remove(meta.id)
+        runCatching {
+            if (meta.kind == "file") store.markReceiveFailed(peerId, meta)
+            else store.discardIncoming(peerId, meta.id)
         }
     }
 
@@ -159,13 +206,17 @@ internal class ChunkedTransferSession(
         if (!sendText(JSONObject().put("type", "transfer_ack").put("id", id).put("offset", offset))) disconnect()
     }
     private fun complete(meta: TransferMetadata) {
-        val file = store.complete(peerId, meta)
-        incoming.remove(meta.id)
+        val file = store.complete(peerId, meta, publishDownload = publishFile != null)
         if (meta.kind == "image") {
             val image = ImagePayload(id = meta.id, mimeType = meta.mimeType, data = file.file.readBytes())
             if (onOrderedImage != null) onOrderedImage.invoke(image, meta.clipboard) else onImage(image)
             file.file.delete()
+        } else if (publishFile != null) {
+            val uri = publishFile.invoke(file)
+            store.finishPublication(peerId, file, uri)
+            onFile(file.copy(downloadUri = uri))
         } else onFile(file)
+        incoming.remove(meta.id)
         sendText(JSONObject().put("type", "transfer_done").put("id", meta.id))
         onStatus(meta.progress(TransferProgress.State.RECEIVED, isOutgoing = false))
     }

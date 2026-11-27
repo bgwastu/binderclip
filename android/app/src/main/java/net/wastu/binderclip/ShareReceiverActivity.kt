@@ -1,283 +1,262 @@
 package net.wastu.binderclip
 
+import android.app.Application
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import android.view.WindowManager
+import android.webkit.MimeTypeMap
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Schedule
+import androidx.activity.viewModels
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
+import androidx.core.content.IntentCompat
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import java.io.FileNotFoundException
+import java.io.InputStream
+import java.util.UUID
+import kotlin.coroutines.coroutineContext
 
 class ShareReceiverActivity : ComponentActivity() {
-    private var message by mutableIntStateOf(R.string.share_preparing)
-    private var importing by mutableStateOf(true)
-    private var failed by mutableStateOf(false)
-    private var success by mutableStateOf(false)
-    /** Handed to the service but not yet confirmed by the Mac; never shown as "Sent". */
-    private var sending by mutableStateOf(false)
-    private var fileShare = false
-    private var deliveryRevision by mutableLongStateOf(0)
-    private var stagedTransferIds = emptySet<String>()
-    private var cancelling by mutableStateOf(false)
-    private var sharedFileName by mutableStateOf<String?>(null)
+    private val importer by viewModels<ShareImport>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setDimAmount(0.32f)
-        DiagnosticLog.initialize(this)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (importer.state.value.message != R.string.share_preparing) finish()
+            }
+        })
+        val batchId = savedInstanceState?.getString("batchId") ?: UUID.randomUUID().toString()
+        importer.start(intent, batchId) {
+            ContextCompat.startForegroundService(applicationContext, Intent(applicationContext, BinderClipService::class.java)
+                .setAction(BinderClipService.ACTION_SEND_SHARED))
+        }
         setContent {
             BinderClipTheme {
+                val state by importer.state.collectAsState()
                 val runtime by AppRuntime.state.collectAsState()
-                val targetPeerName = runtime.peer?.name ?: AppProfile.current.displayName
-                val progress = runtime.transferProgress?.takeIf {
-                    !importing && !failed && if (fileShare) it.transferId in stagedTransferIds
-                    else runtime.transferRevision > deliveryRevision && it.kind in setOf("text", "link") && it.isSuccess
+                val delivered = remember(state.textId, runtime.transferRevision) {
+                    state.textId?.let { it in DeviceStore(applicationContext).deliveredShares() } == true
                 }
                 AlertDialog(
-                    onDismissRequest = { if (!importing) finish() },
-                    icon = {
-                        when {
-                            progress?.fileName != null -> Icon(
-                                fileTypeIcon(progress.mimeType, progress.fileName),
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            importing || sending || progress?.isBusy == true -> CircularProgressIndicator(
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 3.dp,
-                            )
-                            failed || progress?.isError == true -> Icon(
-                                Icons.Outlined.ErrorOutline,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                            success || progress?.isSuccess == true -> Icon(
-                                Icons.Outlined.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            else -> Icon(
-                                Icons.Outlined.Schedule,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    title = {
-                        val titleText = when {
-                            importing -> stringResource(R.string.share_preparing)
-                            failed -> stringResource(R.string.share_error_unsupported)
-                            success || progress?.isSuccess == true -> stringResource(R.string.share_sent_confirmation, targetPeerName)
-                            sending || progress?.isBusy == true -> stringResource(R.string.share_sending_to, targetPeerName)
-                            else -> targetPeerName
-                        }
-                        Text(titleText, style = MaterialTheme.typography.titleMedium)
-                    },
+                    onDismissRequest = { if (state.message != R.string.share_preparing) finish() },
+                    title = { Text(stringResource(if (state.message == R.string.share_preparing) R.string.share_preparing else R.string.transfers_title)) },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            val fileName = progress?.fileName ?: sharedFileName
-                            if (fileName != null) {
-                                Text(
-                                    fileName,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (!importing) {
-                                Text(
-                                    progress?.message(this@ShareReceiverActivity)
-                                        ?: stringResource(message),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            } else if (intent.hasExtra(Intent.EXTRA_STREAM)) {
-                                Text(
-                                    stringResource(R.string.file_picker_help),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                        val peerId = state.peerId
+                        if (peerId != null && state.files) {
+                            if (state.message == R.string.share_error_delivery) Text(stringResource(state.message))
+                            ShareTransferList(peerId, batchId, runtime.transferProgress,
+                                retry = { fileAction(BinderClipService.ACTION_RETRY_TRANSFER, it) },
+                                cancel = { fileAction(BinderClipService.ACTION_CANCEL_TRANSFER, it) },
+                            )
+                        } else {
+                            val receipt = runtime.transferProgress?.takeIf { state.textId != null && it.transferId == state.textId }
+                            Text(receipt?.message(this) ?: if (delivered) {
+                                stringResource(R.string.share_sent_confirmation, runtime.peer?.name.orEmpty())
+                            } else stringResource(state.message))
                         }
                     },
                     confirmButton = {
-                        if (!importing) {
-                            TextButton(onClick = { finish() }) {
-                                Text(
-                                    stringResource(
-                                        if (progress?.canCancel == true) R.string.hide_transfer else R.string.close,
-                                    ),
-                                )
-                            }
-                        }
-                    },
-                    dismissButton = {
-                        if (progress?.canCancel == true) {
-                            TextButton(
-                                enabled = !cancelling,
-                                onClick = {
-                                    cancelling = true
-                                    ContextCompat.startForegroundService(
-                                        this@ShareReceiverActivity,
-                                        Intent(this@ShareReceiverActivity, BinderClipService::class.java)
-                                            .setAction(BinderClipService.ACTION_CANCEL_TRANSFER)
-                                            .putExtra(BinderClipService.EXTRA_TRANSFER_ID, progress.transferId),
-                                    )
-                                },
-                            ) {
-                                Text(
-                                    stringResource(R.string.cancel_transfer),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
+                        if (state.message != R.string.share_preparing) {
+                            TextButton(onClick = { finish() }) { Text(stringResource(R.string.close)) }
                         }
                     },
                 )
             }
-        }
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { importShare() }.getOrDefault(R.string.share_error_unsupported) }
-            if (result != null) {
-                importing = false
-                failed = true
-                message = result
-                return@launch
-            }
-            try {
-                deliveryRevision = AppRuntime.state.value.transferRevision
-                ContextCompat.startForegroundService(
-                    this@ShareReceiverActivity,
-                    Intent(this@ShareReceiverActivity, BinderClipService::class.java)
-                        .setAction(BinderClipService.ACTION_SEND_SHARED),
-                )
-                val runtime = AppRuntime.state.value
-                val canSend = runtime.peer?.connected == true &&
-                    (!fileShare || runtime.transportType == TransportType.LAN || runtime.transportType == TransportType.MESH)
-                if (!canSend) {
-                    importing = false
-                    message = if (fileShare) R.string.transfer_queued else R.string.share_queued
-                    delay(2000)
-                } else if (fileShare) {
-                    // Files keep sending in the background; their progress lives in the notification.
-                    importing = false
-                    sending = true
-                    message = R.string.transfer_kind_file
-                    delay(1200)
-                } else {
-                    importing = false
-                    sending = true
-                    message = R.string.share_text_content
-                    // Only claim "Sent" once the service reports the Mac received it.
-                    val delivered = withTimeoutOrNull(4_000) {
-                        AppRuntime.state.first { state ->
-                            state.transferRevision > deliveryRevision &&
-                                state.transferProgress?.let { it.kind in setOf("text", "link") && it.isSuccess } == true
-                        }
-                    } != null
-                    sending = false
-                    if (delivered) { success = true; delay(1200) }
-                    else { message = R.string.share_queued; delay(2000) }
-                }
-            } catch (_: RuntimeException) {
-                DiagnosticLog.warning("Could not start share delivery")
-                importing = false
-                failed = true
-                message = R.string.share_error_delivery
-                return@launch
-            }
-            finish()
         }
     }
 
-    private fun importShare(): Int? {
-        val deviceStore = DeviceStore(this)
-        val peerId = deviceStore.peer?.deviceId?.takeIf { it.isNotBlank() }
-        if (deviceStore.groupKey == null || peerId == null) return R.string.tile_not_paired
-        if (intent.action !in setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) return R.string.share_error_unsupported
-        val explicitStreams: List<Uri> = if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
-            if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
-            else @Suppress("DEPRECATION") (intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty())
-        } else {
-            val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-            else @Suppress("DEPRECATION") intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-            listOfNotNull(uri)
-        }
-        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }
-            ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()?.takeIf { it.isNotBlank() }
-        // Explicit streams are documents, even when their MIME type is text/plain.
-        // A browser thumbnail in ClipData must not take precedence over a URL share.
-        if (explicitStreams.isEmpty() && text != null) {
-            sharedFileName = text.take(60)
-            return if (runCatching { deviceStore.enqueueShare(text) }.getOrDefault(false)) null else R.string.share_error_queue_full
-        }
-        val streams = explicitStreams.ifEmpty {
-            intent.clipData?.let { clip -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }.orEmpty()
-        }.distinct()
-        if (streams.isEmpty()) return R.string.share_error_unsupported
-        if (streams.size > 8) return R.string.share_error_too_many
-        fileShare = true
-        val transfers = FileTransferStore.forContext(this)
-        return try {
-            val sources = streams.map { uri ->
-                require(uri.scheme == "content" && uri.authority != "$packageName.images")
-                val mime = (contentResolver.getType(uri) ?: intent.type)?.substringBefore(';')?.trim()?.lowercase()
-                    ?.takeIf { it.matches(Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")) && it.length <= 127 } ?: "application/octet-stream"
-                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0) else null
-                } ?: "file"
-                val kind = if (!intent.getBooleanExtra("share_as_file", false) && mime in ImagePayload.ALLOWED_MIME_TYPES) "image" else "file"
-                SharedFileSource(name, mime, kind) { contentResolver.openInputStream(uri) ?: error("Unreadable shared content") }
+    private fun fileAction(action: String, id: String) {
+        ContextCompat.startForegroundService(this, Intent(this, BinderClipService::class.java)
+            .setAction(action).putExtra(BinderClipService.EXTRA_TRANSFER_ID, id))
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("batchId", importer.batchId)
+        super.onSaveInstanceState(outState)
+    }
+}
+
+internal class ShareImport(private val app: Application) : AndroidViewModel(app) {
+    data class State(
+        val message: Int = R.string.share_preparing,
+        val peerId: String? = null,
+        val files: Boolean = false,
+        val textId: String? = null,
+    )
+
+    val state = MutableStateFlow(State())
+    var batchId: String? = null
+        private set
+
+    fun start(intent: Intent, id: String, startDelivery: () -> Unit) {
+        if (batchId != null) return
+        batchId = id
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    import(intent, id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    State(R.string.share_error_unsupported)
+                }
             }
-            sharedFileName = if (sources.size == 1) sources.first().name
-                else resources.getQuantityString(R.plurals.share_file_count, sources.size, sources.size)
-            stagedTransferIds = transfers.stageBatch(peerId, sources) {
-                val current = DeviceStore(this)
-                check(current.groupKey != null && current.peer?.deviceId == peerId)
-            }.map { it.metadata.id }.toSet()
-            null
-        } catch (_: Exception) {
-            DiagnosticLog.warning("Shared file import failed")
-            if (DeviceStore(this).groupKey == null || DeviceStore(this).peer?.deviceId != peerId) R.string.tile_not_paired
-            else R.string.share_error_file
+            if (result.files || result.textId != null) {
+                try {
+                    startDelivery()
+                } catch (_: RuntimeException) {
+                    state.value = result.copy(message = R.string.share_error_delivery)
+                    return@launch
+                }
+            }
+            state.value = result
+        }
+    }
+
+    private suspend fun import(intent: Intent, id: String): State {
+        val devices = DeviceStore(app)
+        val peerId = devices.peer?.deviceId?.takeIf(String::isNotBlank)
+        val key = devices.groupKey
+        if (key == null || peerId == null) return State(R.string.tile_not_paired)
+        val multiple = intent.action == Intent.ACTION_SEND_MULTIPLE
+        if (!multiple && intent.action != Intent.ACTION_SEND) return State(R.string.share_error_unsupported)
+
+        val explicit = if (multiple) {
+            val extras: List<*> = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            extras.map { it as? Uri ?: error("Invalid share item") }
+        } else listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+
+        val clip = intent.clipData
+        val items = clip?.let { data -> List(data.itemCount) { data.getItemAt(it) } }.orEmpty()
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf(String::isNotBlank)
+            ?: items.firstNotNullOfOrNull { it.text?.toString()?.takeIf(String::isNotBlank) }
+        val clipUris = items.mapNotNull { it.uri }
+        val textShare = !multiple && explicit.isEmpty() && text != null && (clipUris.isEmpty() ||
+            (intent.type?.startsWith("text/", ignoreCase = true) == true &&
+                (WebLinks.isWebUrl(text.trim()) || clipUris.all {
+                    runCatching { app.contentResolver.getType(it)?.startsWith("image/") == true }.getOrDefault(false)
+                })))
+        val streams = if (textShare) emptyList() else explicit.ifEmpty { clipUris }.distinct()
+        if (streams.isEmpty()) {
+            if (text == null) return State(R.string.share_error_unsupported)
+            if (!devices.enqueueShare(text, id)) return State(R.string.share_error_queue_full)
+            return State(R.string.share_queued, peerId, textId = id)
+        }
+        if (streams.size > TransferBatch.MAX_FILES) return State(R.string.share_error_too_many)
+        val transfers = FileTransferStore.forContext(app)
+        val resolver = app.contentResolver
+        val jobContext = coroutineContext
+        fun checkPairing() {
+            jobContext.ensureActive()
+            if (devices.peer?.deviceId != peerId || devices.groupKey?.contentEquals(key) != true) throw PairingChanged()
+        }
+        try {
+            transfers.beginShare(peerId, TransferBatch(id, 0, streams.size), ::checkPairing)
+            for ((index, uri) in streams.withIndex()) {
+                jobContext.ensureActive()
+                val batch = TransferBatch(id, index, streams.size)
+                var name: String? = null
+                val failure = try {
+                    if (uri.scheme != ContentResolver.SCHEME_CONTENT || uri.authority == null ||
+                        uri.authority?.substringAfterLast('@') == "${app.packageName}.images"
+                    ) throw FileNotFoundException()
+                    val document = resolver.describe(uri, intent.type)
+                    name = document.name
+                    transfers.stageSharedFile(peerId, batch, document.name, document.mime, document.open,
+                        checkActive = jobContext::ensureActive, validateCommit = ::checkPairing)
+                    null
+                } catch (e: PairingChanged) {
+                    throw e
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: ShareFileTooLarge) {
+                    ShareFileState.TOO_LARGE
+                } catch (_: ShareQueueFull) {
+                    ShareFileState.QUEUE_FULL
+                } catch (_: FileNotFoundException) {
+                    ShareFileState.UNREADABLE
+                } catch (_: SecurityException) {
+                    ShareFileState.UNREADABLE
+                } catch (_: Exception) {
+                    ShareFileState.STORAGE
+                }
+                if (failure != null) {
+                    // A full disk can prevent even a history update. The batch plan still records a missing item.
+                    try {
+                        transfers.recordImportFailure(peerId, batch, name, failure, ::checkPairing)
+                    } catch (e: PairingChanged) {
+                        throw e
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: java.io.IOException) {
+                        DiagnosticLog.warning("Could not record a share import failure")
+                    }
+                }
+            }
+        } catch (_: PairingChanged) {
+            return State(R.string.tile_not_paired)
+        } finally {
+            transfers.endShare(id)
+        }
+        return State(R.string.share_queued, peerId, files = true)
+    }
+}
+
+private class PairingChanged : Exception()
+
+private data class SharedDocument(val name: String, val mime: String, val open: () -> InputStream)
+
+private fun ContentResolver.describe(uri: Uri, intentType: String?): SharedDocument {
+    val name = runCatching {
+        query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    }.getOrNull()?.takeIf(String::isNotBlank) ?: "file"
+    val mime = sequenceOf(runCatching { getType(uri) }.getOrNull(), intentType)
+        .mapNotNull { it?.substringBefore(';')?.trim()?.lowercase() }
+        .firstOrNull { it.length <= 127 && it.matches(Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")) }
+        ?: "application/octet-stream"
+    if (!isVirtualDocument(uri)) {
+        return SharedDocument(name, mime) { openInputStream(uri) ?: throw FileNotFoundException() }
+    }
+    val export = getStreamTypes(uri, "*/*")?.let { types -> types.firstOrNull { it == mime } ?: types.firstOrNull() }
+        ?: throw FileNotFoundException()
+    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(export)
+    val exportName = if (extension == null || name.endsWith(".$extension", ignoreCase = true)) name else "$name.$extension"
+    return SharedDocument(exportName, export) {
+        val descriptor = openTypedAssetFileDescriptor(uri, export, null) ?: throw FileNotFoundException()
+        try {
+            descriptor.createInputStream()
+        } catch (e: Exception) {
+            descriptor.close()
+            throw e
         }
     }
 }
+
+private fun ContentResolver.isVirtualDocument(uri: Uri): Boolean = runCatching {
+    query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use {
+        val column = it.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+        column >= 0 && it.moveToFirst() && it.getLong(column) and DocumentsContract.Document.FLAG_VIRTUAL_DOCUMENT.toLong() != 0L
+    } == true
+}.getOrDefault(false)

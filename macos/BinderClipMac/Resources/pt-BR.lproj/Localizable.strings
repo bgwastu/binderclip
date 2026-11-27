@@ -92,10 +92,10 @@
 "transfer_failed" = "Falha na transferência; verifique o tamanho e o espaço disponível";
 "transfer_invalid" = "Falha na validação de integridade ou sequência";
 "transfer_paused" = "Transferência pausada; reconectando…";
-"share_error_file" = "Não foi possível colocar o arquivo na fila. Limite: 100 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.";
+"share_error_file" = "Não foi possível colocar o arquivo na fila. Limite: 512 MiB (imagens da área de transferência: 30 MiB). Verifique o acesso e o espaço livre.";
 "send_file" = "Enviar arquivo…";
 "file_connection_required" = "Arquivos exigem Wi-Fi ou mesh e aplicativos atualizados nos dois dispositivos.";
-"file_picker_help" = "Escolha até oito arquivos de no máximo 100 MiB cada.";
+"file_picker_help" = "Selecione até 128 arquivos de até 512 MiB cada.";
 "file_received_format" = "Arquivo recebido: %@";
 "launch_at_login" = "Iniciar no Login";
 "diagnostic_logs" = "Registros de Diagnóstico…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "Conteúdo privado: %@";
 "debug_clip_image" = "Imagem privada: %@, %d bytes";
 "debug_clip_empty" = "A área de transferência privada está vazia ou não é compatível";
+
+"transfers_title" = "Transferências";
+"transfers_empty" = "Nenhuma transferência ainda";
+"transfers_saved_count" = "%1$d de %2$d arquivos salvos";
+"transfers_waiting" = "Aguardando conexão";
+"transfers_saved" = "Salvo";
+"transfers_unreadable" = "Não foi possível ler este arquivo. Selecione-o novamente.";
+"transfers_too_large" = "O arquivo excede 512 MiB";
+"transfers_storage" = "Não foi possível preparar este arquivo";
+"transfers_queue_full" = "A caixa de saída está cheia. Selecione o arquivo novamente quando houver espaço.";
+"transfers_expired" = "Transferência expirada";
+"transfers_retry" = "Tentar novamente";
+"clipboard_auto_apply" = "Substituir automaticamente a área de transferência";
+"transfers_reveal" = "Mostrar no Finder";
+"transfers_open_folder" = "Abrir a pasta Downloads";
+"transfers_notify" = "Notificar ao concluir transferências";
+"clipboard_copy_received" = "Copiar item recebido";
+"shared_text_ready" = "Texto compartilhado pronto para copiar";
+"transfers_cancelled" = "Cancelado";
+"clipboard_copy_shared" = "Copiar texto compartilhado";

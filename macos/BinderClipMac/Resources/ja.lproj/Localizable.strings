@@ -92,10 +92,10 @@
 "transfer_failed" = "転送に失敗しました。サイズと空き容量を確認してください";
 "transfer_invalid" = "転送の整合性または順序の検証に失敗しました";
 "transfer_paused" = "転送を一時停止しました。再接続中…";
-"share_error_file" = "ファイルを待機列に追加できませんでした。上限は100 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。";
+"share_error_file" = "ファイルを待機列に追加できませんでした。上限は512 MiB（クリップボード画像は30 MiB）です。アクセス権と空き容量を確認してください。";
 "send_file" = "ファイルを送信…";
 "file_connection_required" = "ファイルにはWi-Fiまたはmesh接続と、両端末のアプリの更新が必要です。";
-"file_picker_help" = "最大8個、各100 MiB以下のファイルを選択してください。";
+"file_picker_help" = "1 ファイルあたり 512 MiB まで、最大 128 件を選択できます。";
 "file_received_format" = "受信ファイル：%@";
 "launch_at_login" = "ログイン時に起動";
 "diagnostic_logs" = "診断ログ…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "プライベート内容: %@";
 "debug_clip_image" = "プライベート画像: %@、%d バイト";
 "debug_clip_empty" = "プライベートクリップボードは空か、未対応の内容です";
+
+"transfers_title" = "転送";
+"transfers_empty" = "転送はまだありません";
+"transfers_saved_count" = "%2$d 件中 %1$d 件を保存済み";
+"transfers_waiting" = "接続を待機中";
+"transfers_saved" = "保存済み";
+"transfers_unreadable" = "このファイルを読み込めません。選択し直してください。";
+"transfers_too_large" = "ファイルが 512 MiB を超えています";
+"transfers_storage" = "このファイルを準備できませんでした";
+"transfers_queue_full" = "送信トレイに空きがありません。空きができたらファイルを選択し直してください。";
+"transfers_expired" = "転送の有効期限切れ";
+"transfers_retry" = "再試行";
+"clipboard_auto_apply" = "クリップボードを自動で置き換える";
+"transfers_reveal" = "Finder に表示";
+"transfers_open_folder" = "ダウンロードフォルダを開く";
+"transfers_notify" = "転送完了時に通知する";
+"clipboard_copy_received" = "受信したクリップボード項目をコピー";
+"shared_text_ready" = "共有テキストをコピーできます";
+"transfers_cancelled" = "キャンセル済み";
+"clipboard_copy_shared" = "共有テキストをコピー";

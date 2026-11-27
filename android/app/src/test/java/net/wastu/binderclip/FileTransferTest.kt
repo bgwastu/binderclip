@@ -11,31 +11,29 @@ import java.util.ArrayDeque
 import java.util.concurrent.Executors
 
 class FileTransferTest {
-    @Test fun failedShareBatchCannotSendItsFirstFileBeforeReportingImportFailure() {
+    @Test fun aSlowUnreadableItemDoesNotBlockOrRollBackPreparedFiles() {
         val root = temporary.newFolder()
-        val importer = FileTransferStore(root)
-        val sender = FileTransferStore(root)
-        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
-        var pending: java.util.concurrent.Future<OutgoingTransfer?>? = null
+        val store = FileTransferStore(root)
+        val batch = TransferBatch(id, 0, 3)
+        store.stageSharedFile("mac", batch, "archive.zip", "application/zip", { byteArrayOf(1).inputStream() })
+        val failed = batch.copy(index = 1)
+        val executor = Executors.newSingleThreadExecutor()
         try {
-            assertThrows(Exception::class.java) {
-                importer.stageBatch("mac", listOf(
-                    SharedFileSource("first.txt", "text/plain", "file") { byteArrayOf(1).inputStream() },
-                    SharedFileSource("unreadable.txt", "text/plain", "file") {
-                        val started = java.util.concurrent.CountDownLatch(1)
-                        pending = executor.submit<OutgoingTransfer?> { started.countDown(); sender.next("mac") }
-                        assertTrue(started.await(1, java.util.concurrent.TimeUnit.SECONDS))
-                        // A live sender races the import, just as it does after reconnect or transfer_done.
-                        try { pending!!.get(150, java.util.concurrent.TimeUnit.MILLISECONDS) }
-                        catch (_: java.util.concurrent.TimeoutException) { }
-                        throw java.io.IOException("Unreadable second document")
-                    }
-                ))
+            assertThrows(java.io.IOException::class.java) {
+                store.stageSharedFile("mac", failed, "unreadable.txt", "text/plain", {
+                    val prepared = executor.submit<OutgoingTransfer?> { FileTransferStore(root).next("mac") }
+                    assertEquals(batch.transferId(), prepared.get(2, java.util.concurrent.TimeUnit.SECONDS)?.metadata?.id)
+                    throw java.io.IOException("Unreadable document")
+                })
             }
-            assertEquals("No file may be offered from a failed share", null,
-                pending!!.get(1, java.util.concurrent.TimeUnit.SECONDS))
-            assertEquals(null, sender.next("mac"))
         } finally { executor.shutdownNow() }
+        store.recordImportFailure("mac", failed, "unreadable.txt", ShareFileState.UNREADABLE) {}
+        store.stageSharedFile("mac", batch.copy(index = 2), "photo.png", "image/png", { byteArrayOf(2).inputStream() })
+        store.finishOutgoing("mac", batch.transferId(), ShareFileState.SENT)
+        val restarted = FileTransferStore(root)
+        assertEquals("file", restarted.next("mac")?.metadata?.kind)
+        assertEquals(listOf(ShareFileState.SENT, ShareFileState.UNREADABLE, ShareFileState.QUEUED),
+            restarted.shareFiles("mac").sortedBy { it.batch.index }.map { it.state })
     }
 
     @get:Rule val temporary = TemporaryFolder()
@@ -44,13 +42,25 @@ class FileTransferTest {
     @Test fun streamCloseFailureCannotLeaveASendableFileBehindAnImportError() {
         val store = FileTransferStore(temporary.newFolder())
         assertThrows(java.io.IOException::class.java) {
-            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
+            store.stageSharedFile("mac", TransferBatch(id, 0, 1), "report.txt", "text/plain", {
                 object : java.io.ByteArrayInputStream(byteArrayOf(1, 2, 3)) {
                     override fun close() { throw java.io.IOException("Provider close failed") }
                 }
-            }))
+            })
         }
         assertNull("Import error must never leave the file available to send", store.next("mac"))
+    }
+
+    @Test fun explicitFileLargerThanTheOldLimitUsesTheDiskOutbox() {
+        val source = temporary.newFile("large.zip")
+        val size = 101L * 1024 * 1024
+        RandomAccessFile(source, "rw").use { it.setLength(size) }
+        val store = FileTransferStore(temporary.newFolder())
+        val batch = TransferBatch(id, 0, 1)
+        store.stageSharedFile("mac", batch, "large.zip", "application/zip", source::inputStream)
+        val staged = checkNotNull(store.next("mac"))
+        assertEquals(size, staged.metadata.size)
+        assertEquals(size, staged.file.length())
     }
 
     @Test fun chunkMatchesCrossPlatformWireVectorAndRejectsMalformedFrames() {
@@ -69,7 +79,7 @@ class FileTransferTest {
     @Test fun metadataRejectsTraversalInvalidTypesAndOversizedFiles() {
         val valid = TransferMetadata(id, "file", "note.txt", "text/plain", 0, SyncProtocol.sha256Hex(byteArrayOf()))
         for ((key, value) in listOf("name" to "../note.txt", "name" to "a\\b", "size" to -1,
-            "size" to 100L * 1024 * 1024 + 1, "size" to "12", "size" to true, "size" to 1.5,
+            "size" to FileTransferProtocol.MAXIMUM_FILE_BYTES + 1, "size" to "12", "size" to true, "size" to 1.5,
             "id" to "../../other", "sha256" to "wrong", "mimeType" to "../file", "kind" to "executable")) {
             assertThrows("$key=$value", Exception::class.java) { TransferMetadata.parse(valid.json().put(key, value)) }
         }
@@ -164,7 +174,11 @@ class FileTransferTest {
         assertThrows(Exception::class.java) { store.accept("phone", TransferMetadata(id, "file", "f5", "text/plain", 1, SyncProtocol.sha256Hex(byteArrayOf(1)))) }
     }
 
-    private class Wire(val sender: FileTransferStore, val receiver: FileTransferStore) : AutoCloseable {
+    private class Wire(
+        val sender: FileTransferStore,
+        val receiver: FileTransferStore,
+        publishFile: ((ReceivedFile) -> String)? = null,
+    ) : AutoCloseable {
         private data class Packet(val toReceiver: Boolean, val kind: Byte, val bytes: ByteArray)
         private val queue = ArrayDeque<Packet>()
         private val executor = Executors.newSingleThreadScheduledExecutor()
@@ -190,7 +204,7 @@ class FileTransferTest {
         val b = ChunkedTransferSession("phone", receiver, executor,
             sendText = { if (it.optString("type") == "transfer_ack") resumeOffsets += it.getLong("offset"); enqueue(false, 1, it.toString().toByteArray()) },
             sendBinary = { enqueue(false, 2, it) }, disconnect = { fail("Unexpected disconnect") },
-            onImage = { deliveredImage = it }, onFile = { deliveredFiles++ }, onStatus = {})
+            onImage = { deliveredImage = it }, onFile = { deliveredFiles++ }, onStatus = {}, publishFile = publishFile)
         fun step(): Boolean {
             val packet = queue.poll() ?: return false
             val plaintext = (if (packet.toReceiver) server else client).open(packet.bytes, packet.kind)
@@ -205,33 +219,78 @@ class FileTransferTest {
     @Test fun successFeedbackWaitsForTheReceivingMacToConfirmDelivery() {
         val sender = FileTransferStore(temporary.newFolder())
         val receiver = FileTransferStore(temporary.newFolder())
-        val staged = sender.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
-            byteArrayOf(1, 2, 3).inputStream()
-        }))
+        val batch = TransferBatch(id, 0, 1)
+        sender.stageSharedFile("mac", batch, "report.txt", "text/plain", { byteArrayOf(1, 2, 3).inputStream() })
         Wire(sender, receiver).use { wire ->
             wire.a.pump()
             assertTrue(wire.senderProgress.last().isBusy)
             assertFalse(wire.senderProgress.any { it.isSuccess })
             assertTrue(wire.step()) // Offer reaches receiver.
             assertTrue(wire.step()) // Sender gets acknowledgement and sends final chunk.
-            assertEquals(100, wire.senderProgress.last().percent)
+            assertEquals(TransferProgress.State.VERIFYING, wire.senderProgress.last().state)
             assertFalse("100% sent bytes still needs a delivery receipt", wire.senderProgress.last().isSuccess)
             assertFalse("Final bytes in flight cannot be cancelled reliably", wire.senderProgress.last().canCancel)
-            assertTrue(wire.a.cancel(staged.single().metadata.id)) // A tap racing the final chunk must wait for the receipt.
-            assertEquals(TransferProgress.State.SENDING, wire.senderProgress.last().state)
+            assertTrue(wire.a.cancel(batch.transferId())) // A tap racing the final chunk must wait for the receipt.
+            assertEquals(TransferProgress.State.VERIFYING, wire.senderProgress.last().state)
             assertNotNull(sender.next("mac"))
             assertTrue(wire.step()) // Receiver commits, receipt still on wire.
             assertFalse(wire.senderProgress.last().isSuccess)
             assertTrue(wire.step()) // Mac's transfer_done confirms delivery.
             assertEquals(TransferProgress.State.SENT, wire.senderProgress.last().state)
             assertTrue("Feedback must identify the share it belongs to",
-                wire.senderProgress.all { it.transferId == staged.single().metadata.id })
+                wire.senderProgress.all { it.transferId == batch.transferId() })
             assertTrue("Filename and MIME type must survive every transfer status",
                 wire.senderProgress.all { it.fileName == "report.txt" && it.mimeType == "text/plain" })
             assertTrue(wire.senderProgress.last().isSuccess)
             assertFalse(wire.senderProgress.last().isBusy)
             assertFalse(wire.senderProgress.last().isError)
             assertNull(sender.next("mac"))
+        }
+    }
+
+    @Test fun remoteBatchShowsFilesThatNeverReachedTheReceiverAndPersistsAcrossRestart() {
+        val root = temporary.newFolder()
+        val receiver = FileTransferStore(root)
+        val batch = TransferBatch(id, 0, 2)
+        val good = batch.transferId()
+        val failed = batch.copy(index = 1).transferId()
+        receiver.acceptRemoteBatch("mac", JSONObject().put("id", batch.id).put("count", batch.count).put("items",
+            org.json.JSONArray().put(JSONObject().put("id", good).put("index", 0).put("state", "QUEUED"))
+                .put(JSONObject().put("id", failed).put("index", 1).put("state", "UNREADABLE"))))
+        val meta = TransferMetadata(good, "file", "empty.zip", "application/zip", 0,
+            SyncProtocol.sha256Hex(byteArrayOf()), batch = batch)
+        receiver.accept("mac", meta, publishDownload = true)
+        val file = receiver.complete("mac", meta, publishDownload = true)
+        receiver.finishPublication("mac", file, "content://test/download")
+        val history = FileTransferStore(root).downloadHistory("mac").sortedBy { it.batch.index }
+        assertEquals(listOf(ShareFileState.RECEIVED, ShareFileState.UNREADABLE), history.map { it.state })
+        assertEquals("content://test/download", history.first().downloadUri)
+        assertTrue(FileTransferStore(root).downloadHistory("different-mac").isEmpty())
+    }
+
+    @Test fun failedDownloadPublicationCanRetryWithoutAcknowledgingOrDownloadingAgain() {
+        val sender = FileTransferStore(temporary.newFolder())
+        val receiverRoot = temporary.newFolder()
+        val batch = TransferBatch(id, 0, 1)
+        val bytes = byteArrayOf(4, 5, 6)
+        sender.stageSharedFile("mac", batch, "archive.zip", "application/zip", { bytes.inputStream() })
+        Wire(sender, FileTransferStore(receiverRoot), { throw java.io.IOException("Save failed") }).use { wire ->
+            wire.a.pump()
+            wire.drain()
+            assertEquals(0, wire.deliveredFiles)
+            assertFalse(wire.senderProgress.any { it.isSuccess })
+            assertEquals(ShareFileState.REJECTED, sender.shareFiles("mac").single().state)
+        }
+        assertTrue(sender.retryShare("mac", batch.transferId()))
+        Wire(sender, FileTransferStore(receiverRoot), { file ->
+            assertArrayEquals(bytes, file.file.readBytes())
+            "content://test/download"
+        }).use { wire ->
+            wire.a.pump()
+            wire.drain()
+            assertTrue(wire.resumeOffsets.isEmpty())
+            assertEquals(1, wire.deliveredFiles)
+            assertEquals(ShareFileState.SENT, sender.shareFiles("mac").single().state)
         }
     }
 
@@ -284,12 +343,11 @@ class FileTransferTest {
         assertNull(FileTransferStore(root).next("mac"))
     }
 
-    @Test fun pairingChangeDuringImportRollsBackTheEntireSelection() {
+    @Test fun pairingChangeDuringImportPreventsThePreparedBodyFromEnteringTheOutbox() {
         val store = FileTransferStore(temporary.newFolder())
         assertThrows(IllegalStateException::class.java) {
-            store.stageBatch("mac", listOf(SharedFileSource("report.txt", "text/plain", "file") {
-                byteArrayOf(1).inputStream()
-            })) { error("Pairing changed") }
+            store.stageSharedFile("mac", TransferBatch(id, 0, 1), "report.txt", "text/plain",
+                { byteArrayOf(1).inputStream() }, validateCommit = { error("Pairing changed") })
         }
         assertNull(store.next("mac"))
     }

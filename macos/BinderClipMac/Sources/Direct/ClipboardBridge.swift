@@ -66,6 +66,16 @@ final class ClipboardBridge {
         return true
     }
 
+    func copyReceived(_ text: String) -> Bool {
+        changeCount = pasteboard.changeCount
+        return applyRemote(text)
+    }
+
+    func copyReceived(_ image: ImagePayload) -> Bool {
+        changeCount = pasteboard.changeCount
+        return applyRemote(image)
+    }
+
     func sendCurrentClipboard() {
         changeCount = pasteboard.changeCount
         hasCaptured = true

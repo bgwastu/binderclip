@@ -177,7 +177,8 @@ final class FileTransferTests: XCTestCase {
         let first = try await FileWireClient.connect(port: port, key: roster.groupKey)
         defer { first.close() }
         let bytes = Data((0..<(FileTransferProtocol.chunkBytes * 2 + 37)).map { UInt8($0 % 211) })
-        let metadata = meta(bytes)
+        var metadata = meta(bytes)
+        metadata.batch = TransferBatch(id: UUID().uuidString.lowercased(), index: 0, count: 3)
         try await first.send(metadata.json)
         let firstAck = try await first.control("transfer_ack")
         XCTAssertEqual(firstAck["offset"] as? Int, 0)
@@ -219,11 +220,38 @@ final class FileTransferTests: XCTestCase {
         XCTAssertEqual(progressEvents.last?.fraction, 1)
         XCTAssertTrue(progressEvents.allSatisfy { $0.metadata.name == metadata.name && $0.direction == .receiving })
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(receivedURL)), bytes)
+        XCTAssertEqual(progressEvents.last?.destination, receivedURL)
+        XCTAssertTrue(progressEvents.allSatisfy { $0.metadata.batch == metadata.batch })
         resumed.onTransferProgress = nil
         try await second.send(metadata.json)
         let repeatedDone = try await second.control("transfer_done")
         XCTAssertEqual(repeatedDone["id"] as? String, id)
         XCTAssertEqual(count, 1)
+    }
+
+    func testMacBatchKeepsAnUnreadableItemSeparateFromAFileThatCanBeSent() async throws {
+        let (root, _) = try isolated()
+        let suite = "binderclip-mixed-batch-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let (server, roster, port) = try await startServer(root: root, defaults: defaults)
+        defer { server.stop() }
+        let client = try await FileWireClient.connect(port: port, key: roster.groupKey, sharing: true)
+        defer { client.close() }
+        let source = root.appendingPathComponent("photo.png")
+        let bytes = Data([1, 2, 3, 4])
+        try bytes.write(to: source)
+        server.sendFiles([source, root.appendingPathComponent("missing.zip")], targetDeviceID: "wire-phone")
+        let meta = try TransferMetadata.parse(try await client.control("transfer_offer"))
+        let received = try await client.receiveTransfer(meta)
+        XCTAssertEqual(received, bytes)
+        XCTAssertEqual(meta.kind, "file")
+        let snapshot = try await client.control("transfer_batch")
+        let batch = try XCTUnwrap(TransferBatchSnapshot.parse(snapshot))
+        XCTAssertEqual(batch.id, meta.batch?.id)
+        XCTAssertEqual(batch.count, 2)
+        XCTAssertEqual(batch.items.map(\.state), ["QUEUED", "STORAGE"])
+        XCTAssertEqual(batch.items.first?.id, meta.id)
     }
 
     func testMacSendsLargeImageAndExplicitFileWithAcknowledgedEncryptedChunks() async throws {
@@ -281,11 +309,12 @@ private final class FileWireClient {
     private let session: URLSession
     private let socket: URLSessionWebSocketTask
     private let channel: SecureChannel
+    private var batches = [[String: Any]]()
     private init(session: URLSession, socket: URLSessionWebSocketTask, channel: SecureChannel) {
         self.session = session; self.socket = socket; self.channel = channel
     }
     private static func text(_ object: [String: Any]) throws -> String { String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self) }
-    static func connect(port: UInt16, key: Data) async throws -> FileWireClient {
+    static func connect(port: UInt16, key: Data, sharing: Bool = false) async throws -> FileWireClient {
         let session = URLSession(configuration: .ephemeral)
         let socket = session.webSocketTask(with: URL(string: "ws://127.0.0.1:\(port)")!)
         socket.resume()
@@ -297,7 +326,7 @@ private final class FileWireClient {
         let proof = SecureChannel.proof(psk: key, serverNonce: nonce, clientNonce: clientNonce, transport: "ws")
         try await socket.send(.string(text(["type": "secure_reply", "nonce": clientNonce.base64EncodedString(), "proof": proof.base64EncodedString()])))
         let result = FileWireClient(session: session, socket: socket, channel: channel)
-        try await result.send(["type": "auth", "deviceId": "wire-phone", "deviceName": "Test Phone", "version": 3, "pairing": true, "chunkedTransfers": 1])
+        try await result.send(["type": "auth", "deviceId": "wire-phone", "deviceName": "Test Phone", "version": 3, "pairing": true, "chunkedTransfers": 1, "sharing": sharing ? 1 : 0])
         let auth = try await result.control("auth_ok")
         guard auth["chunkedTransfers"] as? Int == 1 else { throw SecureChannelError.invalidHandshake }
         return result
@@ -321,11 +350,13 @@ private final class FileWireClient {
         }
     }
     func control(_ type: String) async throws -> [String: Any] {
+        if type == "transfer_batch", !batches.isEmpty { return batches.removeFirst() }
         for _ in 0..<10 {
             let message = try await receive()
             guard let json = message.json else { throw SecureChannelError.invalidFrame }
             if json["type"] as? String == type { return json }
             if json["type"] as? String == "ping" { try await send(["type": "pong", "t": json["t"] ?? 0]) }
+            else if json["type"] as? String == "transfer_batch" { batches.append(json) }
             else if json["type"] as? String != "power" { throw SecureChannelError.invalidFrame }
         }
         throw SecureChannelError.invalidFrame
@@ -338,6 +369,7 @@ private final class FileWireClient {
             if let json = message.json, json["type"] as? String == "ping" {
                 try await send(["type": "pong", "t": json["t"] ?? 0]); continue
             }
+            if let json = message.json, json["type"] as? String == "transfer_batch" { batches.append(json); continue }
             let packet = try XCTUnwrap(message.data)
             XCTAssertLessThanOrEqual(packet.count, FileTransferProtocol.headerBytes + FileTransferProtocol.chunkBytes)
             let (id, offset, bytes) = try FileTransferProtocol.unpackChunk(packet)

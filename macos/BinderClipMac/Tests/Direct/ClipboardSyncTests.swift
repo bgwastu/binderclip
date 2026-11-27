@@ -27,6 +27,31 @@ final class ClipboardSyncTests: XCTestCase {
         XCTAssertEqual(json[key] as? Int, expected, file: file, line: line)
     }
 
+    func testExplicitShareIsAcknowledgedAndDeduplicatedWithoutChangingClipboardState() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "binderclip-share-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let (server, roster, port) = try await start(root: root, defaults: defaults)
+        defer { server.stop() }
+        server.sendClipboard("local copy kept")
+        var shared = [String]()
+        server.onSharedText = { text in shared.append(text); return true }
+        server.onClipboard = { _ in XCTFail("A share must not apply to the clipboard") }
+        let client = try await ClipboardWireClient.connect(port: port, key: roster.groupKey, id: "phone-a")
+        defer { client.close() }
+        let previous = try await client.control("clipboard_state")
+        let id = UUID().uuidString.lowercased()
+        let message = ["type": "shared_text", "id": id, "text": "explicit share"]
+        for _ in 0..<2 {
+            try await client.send(message)
+            assertString(try await client.control("shared_ack"), "id", id)
+        }
+        XCTAssertEqual(shared, ["explicit share"])
+        try await client.send(["type": "clipboard_request", "requestEvent": try XCTUnwrap(previous["clipEvent"])])
+        assertString(try await client.control("clipboard"), "text", "local copy kept")
+    }
+
     func testDelayedConflictsAndOfflineCopiesConvergeAcrossTwoPeersAndReconnects() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let suite = "binderclip-catchup-\(UUID().uuidString)"
@@ -167,7 +192,7 @@ private final class ClipboardWireClient {
         let proof = SecureChannel.proof(psk: key, serverNonce: nonce, clientNonce: clientNonce, transport: "ws")
         try await socket.send(.string(text(["type": "secure_reply", "nonce": clientNonce.base64EncodedString(), "proof": proof.base64EncodedString()])))
         let result = ClipboardWireClient(session: session, socket: socket, channel: channel)
-        try await result.send(["type": "auth", "deviceId": id, "deviceName": "Test Phone", "version": 3, "pairing": true, "clipboardSync": 1, "chunkedTransfers": 1, "clockProbe": 10])
+        try await result.send(["type": "auth", "deviceId": id, "deviceName": "Test Phone", "version": 3, "pairing": true, "clipboardSync": 1, "chunkedTransfers": 1, "sharing": 1, "clockProbe": 10])
         let auth = try await result.control("auth_ok")
         guard auth["clipboardSync"] as? Int == 1, auth["clockProbe"] as? Int == 10 else { throw SecureChannelError.invalidHandshake }
         return result

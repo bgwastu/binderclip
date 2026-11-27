@@ -79,7 +79,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-internal enum class Screen { Home, Setup, Settings }
+internal enum class Screen { Home, Setup, Settings, Transfers }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -94,9 +94,11 @@ internal fun HomeScreen(
     onSend: () -> Unit,
     onSendFile: () -> Unit,
     onCopy: () -> Unit,
+    onCopyShared: () -> Unit,
     onRefresh: () -> Unit,
     onManage: (RememberedPeer) -> Unit,
     onOpenSetup: () -> Unit,
+    onOpenTransfers: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -166,7 +168,19 @@ internal fun HomeScreen(
                             onManage = { onManage(device) },
                         )
                     }
+                    item {
+                        TextButton(onClick = onOpenTransfers) { Text(stringResource(R.string.transfers_title)) }
+                    }
                     item(key = "capture") { CaptureRow(state, onOpenSetup) }
+                }
+
+                if (state.pendingSharedText) {
+                    item {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.shared_text_ready)) },
+                            trailingContent = { TextButton(onClick = onCopyShared) { Text(stringResource(R.string.copy)) } },
+                        )
+                    }
                 }
 
                 if (state.pendingText || state.pendingImage) {
@@ -381,6 +395,7 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onToggleBtFallback: (Boolean) -> Unit,
     onToggleAutostart: (Boolean) -> Unit,
+    onAutoApplyClipboard: (Boolean) -> Unit,
     onRequestBluetooth: () -> Unit,
     onScan: () -> Unit,
     onShowLogs: () -> Unit,
@@ -401,6 +416,14 @@ internal fun SettingsScreen(
                 modifier = Modifier.align(Alignment.TopCenter).widthIn(max = 600.dp).fillMaxSize().consumeWindowInsets(insets),
                 contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 32.dp),
             ) {
+                item {
+                    PreferenceToggle(
+                        title = stringResource(R.string.clipboard_auto_apply),
+                        summary = stringResource(if (state.autoApplyClipboard) R.string.clipboard_auto_apply_on else R.string.clipboard_auto_apply_off),
+                        checked = state.autoApplyClipboard,
+                        onChanged = onAutoApplyClipboard,
+                    )
+                }
                 item {
                     PreferenceToggle(
                         title = stringResource(R.string.bt_fallback_title),

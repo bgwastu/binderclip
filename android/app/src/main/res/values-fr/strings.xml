@@ -101,11 +101,11 @@
     <string name="transfer_failed">Échec du transfert ; vérifiez la taille et l’espace disponible</string>
     <string name="transfer_invalid">Échec de la validation de l’intégrité ou de la séquence</string>
     <string name="transfer_paused">Transfert en pause ; reconnexion…</string>
-    <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 100 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
+    <string name="share_error_file">Impossible de mettre le fichier en attente. Limite : 512 MiB (images du presse-papiers : 30 MiB). Vérifiez l’accès et l’espace libre.</string>
     <string name="received_files">Fichiers reçus</string>
     <string name="send_file">Envoyer un fichier…</string>
     <string name="file_connection_required">Les fichiers nécessitent le Wi-Fi ou mesh et les deux applications à jour.</string>
-    <string name="file_picker_help">Choisissez jusqu’à huit fichiers de 100 MiB maximum chacun.</string>
+    <string name="file_picker_help">Sélectionnez jusqu’à 128 fichiers de 512 Mio maximum chacun.</string>
     <string name="share_preparing">Préparation de l’envoi…</string>
     <string name="transfer_queued">En attente du Wi-Fi ou du mesh. Les fichiers seront envoyés dès que votre Mac sera reconnecté.</string>
     <string name="transfer_kind_text">texte</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">Connexion…</string>
     <string name="scan_error">Impossible de lire le code QR. Réessayez.</string>
     <string name="search">Rechercher</string>
-    <string name="share_error_too_many">Vous pouvez partager jusqu\'à huit fichiers à la fois.</string>
+    <string name="share_error_too_many">Sélectionnez jusqu’à 128 fichiers à la fois.</string>
     <plurals name="share_file_count">
         <item quantity="one">%d fichier</item>
         <item quantity="other">%d fichiers</item>
@@ -197,4 +197,21 @@
     <string name="debug_clip_content">Contenu privé : %1$s</string>
     <string name="debug_clip_image">Image privée reçue/prête</string>
     <string name="debug_clip_empty">Le presse-papiers privé est vide</string>
+    <string name="transfers_title">Transferts</string>
+    <string name="transfers_empty">Aucun transfert pour le moment</string>
+    <string name="transfers_saved_count">%1$d fichiers enregistrés sur %2$d</string>
+    <string name="transfers_waiting">En attente d’une connexion</string>
+    <string name="transfers_saved">Enregistré</string>
+    <string name="transfers_unreadable">Impossible de lire ce fichier. Sélectionnez-le à nouveau.</string>
+    <string name="transfers_too_large">Le fichier dépasse 512 MiB</string>
+    <string name="transfers_storage">Impossible de préparer ce fichier</string>
+    <string name="transfers_queue_full">La boîte d’envoi est pleine. Sélectionnez à nouveau le fichier dès qu’il y a de la place.</string>
+    <string name="transfers_expired">Transfert expiré</string>
+    <string name="transfers_retry">Réessayer</string>
+    <string name="transfers_verifying">Vérification de la livraison…</string>
+    <string name="clipboard_auto_apply">Remplacer automatiquement le presse-papiers</string>
+    <string name="clipboard_auto_apply_on">Les éléments reçus sont copiés automatiquement.</string>
+    <string name="clipboard_auto_apply_off">Utilisez Copier pour appliquer un élément reçu.</string>
+    <string name="shared_text_ready">Texte partagé prêt à être copié</string>
+    <string name="transfers_open">Ouvrir</string>
 </resources>

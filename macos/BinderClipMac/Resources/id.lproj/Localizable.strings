@@ -92,10 +92,10 @@
 "transfer_failed" = "Transfer gagal; periksa ukuran file dan ruang penyimpanan";
 "transfer_invalid" = "Validasi integritas atau urutan transfer gagal";
 "transfer_paused" = "Transfer dijeda; menghubungkan kembali…";
-"share_error_file" = "File gagal masuk antrean. Batas: 100 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.";
+"share_error_file" = "File gagal masuk antrean. Batas: 512 MiB (gambar papan klip: 30 MiB). Periksa akses dan ruang kosong.";
 "send_file" = "Kirim File…";
 "file_connection_required" = "File memerlukan Wi-Fi atau mesh dan aplikasi terbaru di kedua perangkat.";
-"file_picker_help" = "Pilih hingga delapan file, masing-masing maksimal 100 MiB.";
+"file_picker_help" = "Pilih hingga 128 file, masing-masing paling besar 512 MiB.";
 "file_received_format" = "File diterima: %@";
 "launch_at_login" = "Buka Saat Masuk";
 "diagnostic_logs" = "Log Diagnostik…";
@@ -129,3 +129,23 @@
 "debug_clip_content" = "Konten privat: %@";
 "debug_clip_image" = "Gambar privat: %@, %d byte";
 "debug_clip_empty" = "Papan klip privat kosong atau tidak didukung";
+
+"transfers_title" = "Transfer";
+"transfers_empty" = "Belum ada transfer";
+"transfers_saved_count" = "%1$d dari %2$d file disimpan";
+"transfers_waiting" = "Menunggu koneksi";
+"transfers_saved" = "Disimpan";
+"transfers_unreadable" = "File tidak dapat dibaca. Pilih lagi.";
+"transfers_too_large" = "Ukuran file melebihi 512 MiB";
+"transfers_storage" = "File tidak dapat disiapkan";
+"transfers_queue_full" = "Kotak keluar penuh. Pilih lagi file ini setelah ruang tersedia.";
+"transfers_expired" = "Transfer kedaluwarsa";
+"transfers_retry" = "Coba lagi";
+"clipboard_auto_apply" = "Ganti isi papan klip otomatis";
+"transfers_reveal" = "Tampilkan di Finder";
+"transfers_open_folder" = "Buka Folder Unduhan";
+"transfers_notify" = "Beri tahu saat transfer selesai";
+"clipboard_copy_received" = "Salin Item Papan Klip yang Diterima";
+"shared_text_ready" = "Teks yang dibagikan siap disalin";
+"transfers_cancelled" = "Dibatalkan";
+"clipboard_copy_shared" = "Salin Teks yang Dibagikan";

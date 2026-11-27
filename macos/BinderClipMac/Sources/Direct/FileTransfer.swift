@@ -3,6 +3,58 @@ import CoreFoundation
 import Darwin
 import Foundation
 
+struct TransferBatch: Codable, Equatable, Sendable {
+    static let maximumFiles = 128
+    let id: String
+    let index: Int
+    let count: Int
+
+    var isValid: Bool {
+        FileTransferProtocol.validID(id) && (1...Self.maximumFiles).contains(count) && (0..<count).contains(index)
+    }
+
+    var json: [String: Any] { ["id": id, "index": index, "count": count] }
+}
+
+struct TransferBatchSnapshot: Codable, Sendable {
+    struct Item: Codable, Sendable {
+        let id: String
+        let index: Int
+        let name: String?
+        let size: Int64?
+        let state: String
+    }
+
+    let id: String
+    let count: Int
+    let items: [Item]
+
+    var json: [String: Any] {
+        let entries: [[String: Any]] = items.map { item in
+            var result: [String: Any] = ["id": item.id, "index": item.index, "state": item.state]
+            result["name"] = item.name
+            result["size"] = item.size
+            return result
+        }
+        return ["type": "transfer_batch", "id": id, "count": count, "items": entries]
+    }
+
+    static func parse(_ json: [String: Any]) -> Self? {
+        guard let data = try? JSONSerialization.data(withJSONObject: json), data.count <= 96 * 1024,
+              let snapshot = try? JSONDecoder().decode(Self.self, from: data),
+              FileTransferProtocol.validID(snapshot.id), (1...TransferBatch.maximumFiles).contains(snapshot.count),
+              (1...snapshot.count).contains(snapshot.items.count),
+              Set(snapshot.items.map(\.index)).count == snapshot.items.count,
+              Set(snapshot.items.map(\.id)).count == snapshot.items.count,
+              snapshot.items.allSatisfy({ item in
+                  FileTransferProtocol.validID(item.id) && (0..<snapshot.count).contains(item.index) &&
+                  (item.name.map { $0 == FileTransferProtocol.safeName($0) } ?? true) &&
+                  (item.size.map { (0...FileTransferProtocol.maximumFileBytes).contains($0) } ?? true)
+              }) else { return nil }
+        return snapshot
+    }
+}
+
 struct TransferMetadata: Codable, Equatable, Sendable {
     let id: String
     let kind: String
@@ -11,6 +63,7 @@ struct TransferMetadata: Codable, Equatable, Sendable {
     let size: Int64
     let sha256: String
     var clipboard: ClipboardStamp? = nil
+    var batch: TransferBatch? = nil
 
     func validate() throws {
         try clipboard?.validate()
@@ -21,6 +74,7 @@ struct TransferMetadata: Codable, Equatable, Sendable {
               (0...maximum).contains(size),
               kind != "image" || (size > 0 && ImagePayload.allowedMIMETypes.contains(mimeType)),
               sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
+              batch == nil || (kind == "file" && batch?.isValid == true),
               clipboard == nil || (kind == "image" && clipboard?.kind == "image" && clipboard?.hash == sha256) else {
             throw FileTransferError.invalidMetadata
         }
@@ -28,6 +82,7 @@ struct TransferMetadata: Codable, Equatable, Sendable {
     var json: [String: Any] {
         var value: [String: Any] = ["type": "transfer_offer", "id": id, "kind": kind, "name": name, "mimeType": mimeType, "size": size, "sha256": sha256]
         if let clipboard { value["clipboard"] = clipboard.fields }
+        if let batch { value["batch"] = batch.json }
         return value
     }
     static func parse(_ json: [String: Any]) throws -> Self {
@@ -50,7 +105,7 @@ enum FileTransferProtocol {
     static let capability = "chunkedTransfers"
     static let version = 1
     static let chunkBytes = 512 * 1024
-    static let maximumFileBytes: Int64 = 100 * 1024 * 1024
+    static let maximumFileBytes: Int64 = 512 * 1024 * 1024
     static let headerBytes = 48
     private static let magic = Data([0x42, 0x43, 0x54, 0x31])
 
@@ -96,16 +151,21 @@ enum FileTransferProtocol {
 
 struct OutgoingTransfer: Sendable { let peerID: String; let metadata: TransferMetadata; let file: URL }
 struct ReceivedFile: Sendable { let metadata: TransferMetadata; let file: URL }
-struct TransferReceipt { let offset: Int64; let completed: Bool }
+struct TransferReceipt {
+    let offset: Int64
+    let completed: Bool
+    var destination: URL? = nil
+}
 
 struct TransferProgress: Sendable {
-    enum Direction: String, Sendable { case sending, receiving }
-    enum Phase: Sendable { case preparing, sending, receiving, verifying, sent, received, declined, failed, invalid, paused }
+    enum Direction: String, Codable, Sendable { case sending, receiving }
+    enum Phase: String, Codable, Sendable { case queued, preparing, sending, receiving, verifying, sent, received, declined, failed, invalid, paused }
     let peerID: String
     let metadata: TransferMetadata
     let direction: Direction
     let phase: Phase
     let completedBytes: Int64
+    var destination: URL? = nil
     var identity: String { peerID + "/" + direction.rawValue + "/" + metadata.id }
     var isActive: Bool { [.preparing, .sending, .receiving, .verifying].contains(phase) }
     var fraction: Double {
@@ -116,6 +176,7 @@ struct TransferProgress: Sendable {
     var message: String {
         let kind = L10n.tr(metadata.kind == "image" ? "transfer_kind_image" : "transfer_kind_file")
         switch phase {
+        case .queued: return L10n.tr("transfers_waiting")
         case .preparing: return L10n.tr("transfer_offering", kind)
         case .sending: return L10n.tr("transfer_sending", kind, Int(fraction * 100))
         case .receiving: return L10n.tr("transfer_receiving", kind) + " (\(Int(fraction * 100))%)"
@@ -144,6 +205,7 @@ final class FileTransferStore: @unchecked Sendable {
     let receivedDirectory: URL
     private let manager = FileManager.default
     private var outgoing: URL { root.appendingPathComponent("outgoing", isDirectory: true) }
+    private var batches: URL { root.appendingPathComponent("batches", isDirectory: true) }
     private var incoming: URL { root.appendingPathComponent("incoming", isDirectory: true) }
     private let maximumAge: TimeInterval = 24 * 60 * 60
 
@@ -152,7 +214,8 @@ final class FileTransferStore: @unchecked Sendable {
         self.receivedDirectory = receivedDirectory
     }
 
-    func stage(peerID: String, name: String, mimeType: String, kind: String, input: FileHandle, clipboard: ClipboardStamp? = nil) throws -> OutgoingTransfer {
+    func stage(peerID: String, name: String, mimeType: String, kind: String, input: FileHandle,
+               clipboard: ClipboardStamp? = nil, batch: TransferBatch? = nil, id: String = UUID().uuidString.lowercased()) throws -> OutgoingTransfer {
         cleanup()
         if let clipboard {
             for directory in children(outgoing) {
@@ -162,8 +225,11 @@ final class FileTransferStore: @unchecked Sendable {
                 return OutgoingTransfer(peerID: peerID, metadata: meta, file: directory.appendingPathComponent("body"))
             }
         }
-        guard !peerID.isEmpty, children(outgoing).count < 8 else { throw FileTransferError.queueFull }
-        let id = UUID().uuidString.lowercased()
+        let queued = children(outgoing)
+        let limit = batch == nil ? 8 : TransferBatch.maximumFiles
+        let spoolBytes = queued.reduce(Int64(0)) { $0 + max(0, fileSize($1.appendingPathComponent("body"))) }
+        guard !peerID.isEmpty, FileTransferProtocol.validID(id), queued.count < limit,
+              spoolBytes < 1024 * 1024 * 1024 else { throw FileTransferError.queueFull }
         let directory = outgoing.appendingPathComponent(id, isDirectory: true)
         try makeDirectory(directory)
         let body = directory.appendingPathComponent("body")
@@ -176,13 +242,14 @@ final class FileTransferStore: @unchecked Sendable {
             var hash = SHA256()
             while let data = try input.read(upToCount: 64 * 1024), !data.isEmpty {
                 size += Int64(data.count)
+                guard spoolBytes + size <= 1024 * 1024 * 1024 else { throw FileTransferError.queueFull }
                 guard size <= maximum else { throw FileTransferError.invalidMetadata }
                 hash.update(data: data)
                 try output.write(contentsOf: data)
             }
             try output.synchronize()
             let meta = TransferMetadata(id: id, kind: kind, name: FileTransferProtocol.safeName(name), mimeType: mimeType,
-                size: size, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(), clipboard: clipboard)
+                size: size, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(), clipboard: clipboard, batch: batch)
             try meta.validate()
             var json = meta.json
             json["peerId"] = peerID
@@ -203,11 +270,28 @@ final class FileTransferStore: @unchecked Sendable {
         cleanup()
         return children(outgoing).sorted { modification($0) < modification($1) }.compactMap { directory -> OutgoingTransfer? in
             guard let json = try? readJSON(directory.appendingPathComponent("metadata")), json["peerId"] as? String == peerID,
-                  let meta = try? TransferMetadata.parse(json), fileSize(directory.appendingPathComponent("body")) == meta.size else { return nil }
+                  json["rejected"] as? Bool != true, let meta = try? TransferMetadata.parse(json), fileSize(directory.appendingPathComponent("body")) == meta.size else { return nil }
             return OutgoingTransfer(peerID: peerID, metadata: meta, file: directory.appendingPathComponent("body"))
         }.first
     }
     func removeOutgoing(_ id: String) { if FileTransferProtocol.validID(id) { try? manager.removeItem(at: outgoing.appendingPathComponent(id)) } }
+    func rejectOutgoing(_ transfer: OutgoingTransfer) {
+        guard transfer.metadata.batch != nil else { removeOutgoing(transfer.metadata.id); return }
+        let manifest = transfer.file.deletingLastPathComponent().appendingPathComponent("metadata")
+        guard var json = try? readJSON(manifest) else { return }
+        json["rejected"] = true
+        try? writeJSON(json, to: manifest)
+    }
+
+    func retryOutgoing(peerID: String, id: String) -> TransferMetadata? {
+        cleanup()
+        guard FileTransferProtocol.validID(id) else { return nil }
+        let manifest = outgoing.appendingPathComponent(id).appendingPathComponent("metadata")
+        guard var json = try? readJSON(manifest), json["peerId"] as? String == peerID,
+              json.removeValue(forKey: "rejected") as? Bool == true, let meta = try? TransferMetadata.parse(json) else { return nil }
+        do { try writeJSON(json, to: manifest); return meta } catch { return nil }
+    }
+
     func accept(peerID: String, meta: TransferMetadata) throws -> TransferReceipt {
         try meta.validate()
         cleanup()
@@ -216,16 +300,20 @@ final class FileTransferStore: @unchecked Sendable {
         if manager.fileExists(atPath: manifest.path) {
             let saved = try readJSON(manifest)
             guard try TransferMetadata.parse(saved) == meta else { throw FileTransferError.invalidMetadata }
-            if saved["completed"] as? Bool == true { return TransferReceipt(offset: meta.size, completed: true) }
+            if saved["completed"] as? Bool == true {
+                let destination = (saved["destination"] as? String).flatMap(receivedURL)
+                return TransferReceipt(offset: meta.size, completed: true, destination: destination)
+            }
             if meta.kind == "file", let name = saved["destination"] as? String,
-               name == FileTransferProtocol.safeName(name, maximumBytes: 240), saved["committing"] as? Bool == true {
-                let destination = receivedDirectory.appendingPathComponent(name)
+               let destination = receivedURL(name), saved["committing"] as? Bool == true {
                 let body = directory.appendingPathComponent("body")
                 if !manager.fileExists(atPath: body.path), fileSize(destination) == meta.size,
                    try FileTransferProtocol.hash(destination) == meta.sha256 {
-                    var receipt = meta.json; receipt["completed"] = true
+                    var receipt = meta.json
+                    receipt["completed"] = true
+                    receipt["destination"] = name
                     try writeJSON(receipt, to: manifest)
-                    return TransferReceipt(offset: meta.size, completed: true)
+                    return TransferReceipt(offset: meta.size, completed: true, destination: destination)
                 }
             }
         } else {
@@ -282,23 +370,52 @@ final class FileTransferStore: @unchecked Sendable {
         }
         var receipt = meta.json
         receipt["completed"] = true
+        if meta.kind == "file" { receipt["destination"] = destination.lastPathComponent }
         try writeJSON(receipt, to: directory.appendingPathComponent("metadata"))
         return ReceivedFile(metadata: meta, file: destination)
     }
     func discardIncoming(peerID: String, id: String) {
-        if let directory = try? incomingDirectory(peerID: peerID, id: id) { try? manager.removeItem(at: directory) }
+        guard let directory = try? incomingDirectory(peerID: peerID, id: id) else { return }
+        if let saved = try? readJSON(directory.appendingPathComponent("metadata")) {
+            if saved["completed"] as? Bool == true { return }
+            if saved["committing"] as? Bool == true, !manager.fileExists(atPath: directory.appendingPathComponent("body").path) {
+                return
+            }
+        }
+        try? manager.removeItem(at: directory)
     }
+    func recordBatch(peerID: String, batch: TransferBatchSnapshot) throws {
+        try makeDirectory(batches)
+        try writeJSON(batch.json, to: batches.appendingPathComponent(SyncProtocol.sha256Hex(peerID) + "-" + batch.id))
+    }
+
+    func recentBatches(peerID: String) -> [[String: Any]] {
+        let prefix = SyncProtocol.sha256Hex(peerID) + "-"
+        return children(batches).filter { $0.lastPathComponent.hasPrefix(prefix) }
+            .sorted { modification($0) > modification($1) }.prefix(16)
+            .compactMap { try? readJSON($0, maximumBytes: 96 * 1024) }
+    }
+
     func clearPairing(peerID: String? = nil) {
         if let peerID {
             for directory in children(outgoing) where (try? readJSON(directory.appendingPathComponent("metadata"))["peerId"] as? String) == peerID { try? manager.removeItem(at: directory) }
             let prefix = SyncProtocol.sha256Hex(peerID) + "-"
-            for directory in children(incoming) where directory.lastPathComponent.hasPrefix(prefix) { try? manager.removeItem(at: directory) }
-        } else { try? manager.removeItem(at: outgoing); try? manager.removeItem(at: incoming) }
+            for directory in children(incoming) + children(batches) where directory.lastPathComponent.hasPrefix(prefix) {
+                try? manager.removeItem(at: directory)
+            }
+        } else {
+            for directory in [outgoing, incoming, batches] { try? manager.removeItem(at: directory) }
+        }
     }
     private func incomingDirectory(peerID: String, id: String) throws -> URL {
         guard !peerID.isEmpty, FileTransferProtocol.validID(id) else { throw FileTransferError.invalidMetadata }
         return incoming.appendingPathComponent(SyncProtocol.sha256Hex(peerID) + "-" + id, isDirectory: true)
     }
+    private func receivedURL(_ name: String) -> URL? {
+        guard name == FileTransferProtocol.safeName(name, maximumBytes: 240) else { return nil }
+        return receivedDirectory.appendingPathComponent(name)
+    }
+
     private func uniqueDestination(_ name: String) -> URL {
         let original = receivedDirectory.appendingPathComponent(name)
         if !manager.fileExists(atPath: original.path) { return original }
@@ -312,7 +429,7 @@ final class FileTransferStore: @unchecked Sendable {
         }
     }
     private func cleanup() {
-        for base in [outgoing, incoming] {
+        for base in [outgoing, incoming, batches] {
             for directory in children(base) where modification(directory) < Date().addingTimeInterval(-maximumAge) { try? manager.removeItem(at: directory) }
         }
     }
@@ -320,8 +437,8 @@ final class FileTransferStore: @unchecked Sendable {
     private func modification(_ url: URL) -> Date { (try? manager.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast }
     private func fileSize(_ url: URL) -> Int64 { (try? manager.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? -1 }
     private func makeDirectory(_ url: URL) throws { try manager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
-    private func readJSON(_ url: URL) throws -> [String: Any] {
-        guard (1...8192).contains(fileSize(url)), let json = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else { throw FileTransferError.invalidMetadata }
+    private func readJSON(_ url: URL, maximumBytes: Int64 = 8192) throws -> [String: Any] {
+        guard (1...maximumBytes).contains(fileSize(url)), let json = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else { throw FileTransferError.invalidMetadata }
         return json
     }
     private func writeJSON(_ json: [String: Any], to url: URL) throws {

@@ -101,11 +101,11 @@
     <string name="transfer_failed">Übertragung fehlgeschlagen; Dateigröße und freien Speicher prüfen</string>
     <string name="transfer_invalid">Integritäts- oder Reihenfolgeprüfung fehlgeschlagen</string>
     <string name="transfer_paused">Übertragung pausiert; Verbindung wird wiederhergestellt…</string>
-    <string name="share_error_file">Datei konnte nicht vorgemerkt werden. Limit: 100 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.</string>
+    <string name="share_error_file">Datei konnte nicht vorgemerkt werden. Limit: 512 MiB (Zwischenablagebilder: 30 MiB). Zugriff und freien Speicher prüfen.</string>
     <string name="received_files">Empfangene Dateien</string>
     <string name="send_file">Datei senden…</string>
     <string name="file_connection_required">Dateien benötigen WLAN oder mesh und aktuelle Apps auf beiden Geräten.</string>
-    <string name="file_picker_help">Bis zu acht Dateien mit jeweils höchstens 100 MiB auswählen.</string>
+    <string name="file_picker_help">Wähle bis zu 128 Dateien mit jeweils höchstens 512 MiB aus.</string>
     <string name="share_preparing">Senden wird vorbereitet…</string>
     <string name="transfer_queued">Warten auf WLAN oder Mesh. Die Dateien werden gesendet, sobald dein Mac wieder verbunden ist.</string>
     <string name="transfer_kind_text">Text</string>
@@ -172,7 +172,7 @@
     <string name="pair_connecting">Verbinden…</string>
     <string name="scan_error">QR-Code konnte nicht gelesen werden. Versuche es erneut.</string>
     <string name="search">Suchen</string>
-    <string name="share_error_too_many">Du kannst bis zu acht Dateien gleichzeitig teilen.</string>
+    <string name="share_error_too_many">Wähle bis zu 128 Dateien auf einmal aus.</string>
     <plurals name="share_file_count">
         <item quantity="one">%d Datei</item>
         <item quantity="other">%d Dateien</item>
@@ -197,4 +197,21 @@
     <string name="debug_clip_content">Privater Inhalt: %1$s</string>
     <string name="debug_clip_image">Privates Bild empfangen/bereit</string>
     <string name="debug_clip_empty">Private Zwischenablage ist leer</string>
+    <string name="transfers_title">Übertragungen</string>
+    <string name="transfers_empty">Noch keine Übertragungen</string>
+    <string name="transfers_saved_count">%1$d von %2$d Dateien gespeichert</string>
+    <string name="transfers_waiting">Warten auf eine Verbindung</string>
+    <string name="transfers_saved">Gespeichert</string>
+    <string name="transfers_unreadable">Diese Datei kann nicht gelesen werden. Wähle sie erneut aus.</string>
+    <string name="transfers_too_large">Die Datei ist größer als 512 MiB</string>
+    <string name="transfers_storage">Datei konnte nicht vorbereitet werden</string>
+    <string name="transfers_queue_full">Der Postausgang ist voll. Wähle die Datei erneut aus, sobald Platz frei ist.</string>
+    <string name="transfers_expired">Übertragung abgelaufen</string>
+    <string name="transfers_retry">Erneut versuchen</string>
+    <string name="transfers_verifying">Zustellung wird geprüft…</string>
+    <string name="clipboard_auto_apply">Zwischenablage automatisch ersetzen</string>
+    <string name="clipboard_auto_apply_on">Empfangene Zwischenablageinhalte werden automatisch kopiert.</string>
+    <string name="clipboard_auto_apply_off">Wähle „Kopieren“, um empfangene Zwischenablageinhalte zu übernehmen.</string>
+    <string name="shared_text_ready">Geteilter Text kann kopiert werden</string>
+    <string name="transfers_open">Öffnen</string>
 </resources>
