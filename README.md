@@ -18,8 +18,9 @@
 
 ## Features
 
-- Automatic clipboard sync for text and images up to 30 MiB
-- Share text, images, and browser links from Android to Mac; send the current Mac browser tab to your phone
+- Clipboard sync for text and images up to 30 MiB. Use **Copy** to apply incoming items, or turn on **Automatically replace clipboard** on each device.
+- Share up to 128 files from Android or Mac, up to 512 MiB each, over LAN or mesh VPN. The **Transfers** view shows each file’s outcome. Files received on Mac are saved in `~/Downloads/BinderClip`.
+- Share text and browser links between devices. Shared text is available to copy, and attachments leave the clipboard alone.
 - Encrypted, replay-resistant connections over LAN, mesh VPN, and Bluetooth (protocol 3)
 - Sleep-aware background sync and automatic reconnection
 - macOS updates in the app; Android updates through [Obtainium](https://obtainium.imranr.dev/)
@@ -28,6 +29,8 @@
 ## Install
 
 Requires **macOS 13 or later** and **Android 12 or later**. Automatic phone → Mac clipboard sync needs either [KernelSU](https://kernelsu.org/)/[Magisk](https://github.com/topjohnwu/Magisk) root or [Shizuku](https://shizuku.rikka.app/) (no root); Mac → phone sync and sharing work on any phone. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
+
+Update both apps together to use batch status, larger files, and explicit text sharing.
 
 ### Mac — option 1: Terminal
 

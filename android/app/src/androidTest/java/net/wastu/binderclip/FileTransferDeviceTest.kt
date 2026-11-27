@@ -70,12 +70,18 @@ class FileTransferDeviceTest {
                 action = Intent.ACTION_SEND
                 type = mime
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra("share_as_file", true)
                 clipData = ClipData.newUri(context.contentResolver, "BinderClip synthetic test file", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            val name = context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)!!
+                .use { check(it.moveToFirst()); it.getString(0) }
+            val peerId = checkNotNull(DeviceStore(context).peer?.deviceId)
             ActivityScenario.launch<ShareReceiverActivity>(intent).use {
-                waitFor("share activity import") { it.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+                waitFor("share activity import") {
+                    FileTransferStore.forContext(context).shareFiles(peerId).any { row ->
+                        row.name == name && row.state in setOf(ShareFileState.QUEUED, ShareFileState.SENT)
+                    }
+                }
             }
         }
         ActivityScenario.launch(MainActivity::class.java).use { main ->

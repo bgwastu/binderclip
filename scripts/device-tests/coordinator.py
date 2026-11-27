@@ -27,6 +27,9 @@ backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
 if clip('save',backup): raise RuntimeError('Could not back up the Mac clipboard')
 try:
     a('shell','run-as','net.wastu.binderclip.debug','rm','-f','files/device-test-stage.txt','files/device-test-ack.txt','files/device-test-selected-transport.txt')
+    share_sentinel = 'BinderClip private share sentinel'
+    if manual and clip('set-text', share_sentinel):
+        raise RuntimeError('Could not set the debug clipboard marker')
     with open('/tmp/binderclip-device-instrumentation.log','w') as log:
         process=subprocess.Popen([adb,'-s',phone,'shell','am','instrument','-w','-e','cacheObserveSeconds',str(cacheSeconds),'-e','hardwareRoundTrip','true','-e','hardwareManualShare','true' if manual else 'false','-e','hardwareImageCache','true' if cache else 'false','-e','largeText','true' if large else 'false','-e','expectedTransport','BLUETOOTH' if bluetooth else 'MESH' if '--mesh' in sys.argv else 'LAN' if '--lan' in sys.argv else 'NETWORK','-e','class','net.wastu.binderclip.ManualShareDeviceTest' if manual else 'net.wastu.binderclip.ImageCacheDeviceTest' if cache else 'net.wastu.binderclip.TransportDeviceTest','net.wastu.binderclip.debug.test/androidx.test.runner.AndroidJUnitRunner'],stdout=log,stderr=subprocess.STDOUT)
         handled=set()
@@ -34,10 +37,11 @@ try:
         while time.monotonic()<deadline:
             stage=readstage()
             if stage=='manual-android-text' and stage not in handled:
-                if clip('match-text','BinderClip manual share Android to Mac')==0:
-                    checks.append('Android share sheet text delivered');print(checks[-1],flush=True)
-                    if clip('service-text','BinderClip Mac Services to Android'):raise RuntimeError('Mac Services invocation failed')
-                    handled.add(stage)
+                if clip('match-text', share_sentinel):
+                    raise RuntimeError('Android text share changed the Mac debug clipboard')
+                checks.append('Android share delivered without changing the Mac clipboard');print(checks[-1],flush=True)
+                if clip('service-text','BinderClip Mac Services to Android'):raise RuntimeError('Mac Services invocation failed')
+                handled.add(stage)
             elif stage=='manual-copied-url' and stage not in handled:
                 if clip('match-text','https://example.com/?binderclip-test=copied')==0:
                     checks.append('Mac Services text delivered; copied URL remains clipboard text');print(checks[-1],flush=True)

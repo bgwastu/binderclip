@@ -54,9 +54,18 @@ class ManualShareDeviceTest {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, androidText)
                 }
-                ActivityScenario.launch<ShareReceiverActivity>(share).close()
+                val revision = AppRuntime.state.value.transferRevision
+                ActivityScenario.launch<ShareReceiverActivity>(share).use {
+                    waitFor("Mac acknowledged shared text") {
+                        val state = AppRuntime.state.value
+                        state.transferRevision > revision && state.transferProgress?.let { it.kind == "text" && it.isSuccess } == true
+                    }
+                }
                 status.writeText("manual-android-text")
-                waitFor("Mac Services text return") { clipboard.primaryClip?.getItemAt(0)?.text?.toString() == macText }
+                waitFor("Mac Services text ready to copy") { AppRuntime.state.value.pendingSharedText }
+                assertTrue(clipboard.primaryClip?.getItemAt(0)?.text?.toString() != macText)
+                context.startService(Intent(context, BinderClipService::class.java).setAction(BinderClipService.ACTION_COPY_SHARED_TEXT))
+                waitFor("Mac Services text copied") { clipboard.primaryClip?.getItemAt(0)?.text?.toString() == macText }
                 clipboard.setPrimaryClip(ClipData.newPlainText("BinderClip copied URL test", copiedUrl))
                 Thread.sleep(1_000)
                 assertTrue("Copying a URL must not create Browser Links", notifications.activeNotifications.none { it.id == 103 })
