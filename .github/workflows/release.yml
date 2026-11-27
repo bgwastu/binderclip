@@ -198,6 +198,9 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Install Android compile SDK
+        run: sdkmanager --install 'platforms;android-37.0'
+
       - name: Restore release keystore
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
