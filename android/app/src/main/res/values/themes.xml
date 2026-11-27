@@ -1,10 +1,13 @@
 <resources>
-    <style name="Theme.BinderClip" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.BinderClip.Base" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/window_accent</item>
+        <item name="colorOnPrimary">@color/window_on_accent</item>
         <item name="android:windowBackground">@color/window_background</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightStatusBar">@bool/window_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/window_light_bars</item>
     </style>
-    <style name="Theme.BinderClip.ShareOverlay" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.BinderClip" parent="Theme.BinderClip.Base" />
+    <style name="Theme.BinderClip.ShareOverlay" parent="Theme.BinderClip.Base">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>
