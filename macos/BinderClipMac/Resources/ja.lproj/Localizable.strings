@@ -102,6 +102,7 @@
 "file_received_format" = "受信ファイル：%@";
 "launch_at_login" = "ログイン時に起動";
 "diagnostic_logs" = "診断ログ…";
+"menu_settings" = "設定";
 "copy_pairing_link" = "ペアリングリンクをコピー";
 "pairing_link_copied" = "クリップボードにコピーしました";
 "pairing_expires_in" = "残り時間: %@";

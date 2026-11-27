@@ -102,6 +102,7 @@
 "file_received_format" = "Получен файл: %@";
 "launch_at_login" = "Запуск при входе";
 "diagnostic_logs" = "Журнал диагностики…";
+"menu_settings" = "Настройки";
 "copy_pairing_link" = "Скопировать ссылку для сопряжения";
 "pairing_link_copied" = "Скопировано в буфер обмена";
 "pairing_expires_in" = "Истекает через %@";

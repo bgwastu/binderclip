@@ -102,6 +102,7 @@
 "file_received_format" = "Datei empfangen: %@";
 "launch_at_login" = "Beim Login starten";
 "diagnostic_logs" = "Diagnoseprotokolle…";
+"menu_settings" = "Einstellungen";
 "copy_pairing_link" = "Kopplungslink kopieren";
 "pairing_link_copied" = "In Zwischenablage kopiert";
 "pairing_expires_in" = "Gültig für %@";

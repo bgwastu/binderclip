@@ -102,6 +102,7 @@
 "file_received_format" = "Fichier reçu : %@";
 "launch_at_login" = "Lancer à la connexion";
 "diagnostic_logs" = "Journaux de diagnostic…";
+"menu_settings" = "Réglages";
 "copy_pairing_link" = "Copier le lien d'association";
 "pairing_link_copied" = "Copié dans le presse-papiers";
 "pairing_expires_in" = "Expire dans %@";

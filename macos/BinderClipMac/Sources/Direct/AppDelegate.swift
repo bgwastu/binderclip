@@ -43,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
     private var peerIdsBeforePairing: Set<String>?
     private var peers: [Peer] = [] { didSet { scheduleStateRefresh() } }
     private var status = "" { didSet { scheduleStateRefresh() } }
-    private var lastTransferStatus: String?
     private var localNetworkPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private var automationPermissionRequired = false { didSet { scheduleStateRefresh() } }
     private let browserTabs = BrowserTabReader()
@@ -131,7 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
             DiagnosticLog.shared.info(message)
         }
         transport.onTransferStatus = { [weak self] message in
-            self?.lastTransferStatus = message
             self?.status = message
         }
         transport.onTransferProgress = { [weak self] progress in
@@ -370,26 +368,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         }
     }
 
-    private func hostCaption() -> String {
-        let connected = peers.filter(\.connected)
-        if !connected.isEmpty {
-            return connected.count == 1 ? L10n.tr("connected_count_one") : L10n.tr("connected_count_many", connected.count)
-        }
-        if peers.isEmpty { return L10n.tr("listening") }
-        if peers.count == 1 { return L10n.tr("waiting_for_device_named", peers[0].name) }
-        return L10n.tr("waiting_for_devices")
-    }
-
-    private func addSectionHeader(_ title: String, to menu: NSMenu) {
-        if #available(macOS 14.0, *) {
-            menu.addItem(.sectionHeader(title: title))
-        } else {
-            let header = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            header.isEnabled = false
-            menu.addItem(header)
-        }
-    }
-
     private func peerSymbolName(for platform: String) -> String {
         if platform == "macOS" { return "laptopcomputer" }
         if #available(macOS 14.0, *) { return "smartphone" }
@@ -447,22 +425,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         menu.removeAllItems()
         renderPendingPermissions(into: menu)
 
-        if lastTransferStatus != nil || isTransferring {
-            let progressItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-            progressItem.isEnabled = false
-            menu.addItem(progressItem)
+        func command(_ key: String, _ selector: Selector, in target: NSMenu, shortcut: String = "", suffix: String = "") -> NSMenuItem {
+            let item = NSMenuItem(title: L10n.tr(key) + suffix, action: selector, keyEquivalent: shortcut)
+            item.target = self
+            target.addItem(item)
+            return item
+        }
+
+        if let progress = activeTransferProgress {
+            let item = NSMenuItem(title: progress.message, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
             menu.addItem(.separator())
         }
 
-        let headerText = AppProfile.current.isDebug
-            ? "\(transport.localDeviceName) (Port \(AppProfile.current.port))"
-            : transport.localDeviceName
-        addSectionHeader(headerText, to: menu)
-
         if peers.isEmpty {
-            let empty = NSMenuItem(title: L10n.tr("no_phones_yet"), action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            menu.addItem(empty)
+            let item = NSMenuItem(title: L10n.tr("no_phones_yet"), action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            _ = command("add_device", #selector(showPairing), in: menu, shortcut: "n", suffix: "…")
         } else {
             for peer in peers.filter(\.connected) + peers.filter({ !$0.connected }) {
                 menu.addItem(deviceItem(for: peer))
@@ -470,60 +451,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUUpd
         }
 
         menu.addItem(.separator())
+        if pendingClipboard != nil { _ = command("clipboard_copy_received", #selector(copyReceivedClipboard), in: menu) }
+        if !pendingSharedTexts.isEmpty { _ = command("clipboard_copy_shared", #selector(copySharedText), in: menu) }
+        _ = command("transfers_title", #selector(showTransfers), in: menu)
 
-        let pair = NSMenuItem(title: L10n.tr("add_device") + "…", action: #selector(showPairing), keyEquivalent: "n")
-        pair.target = self
-        menu.addItem(pair)
-
-        func command(_ key: String, _ selector: Selector) -> NSMenuItem {
-            let item = NSMenuItem(title: L10n.tr(key), action: selector, keyEquivalent: "")
-            item.target = self
-            menu.addItem(item)
-            return item
+        let settings = NSMenu()
+        settings.autoenablesItems = false
+        command("clipboard_auto_apply", #selector(toggleAutoApplyClipboard), in: settings).state = autoApplyClipboard ? .on : .off
+        command("transfers_notify", #selector(toggleTransferNotifications), in: settings).state = transferNotifications ? .on : .off
+        if !AppProfile.current.isDebug {
+            command("launch_at_login", #selector(toggleLaunchAtLogin), in: settings).state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
-        _ = command("transfers_title", #selector(showTransfers))
-        command("transfers_notify", #selector(toggleTransferNotifications)).state = transferNotifications ? .on : .off
-        command("clipboard_auto_apply", #selector(toggleAutoApplyClipboard)).state = autoApplyClipboard ? .on : .off
-        if pendingClipboard != nil { _ = command("clipboard_copy_received", #selector(copyReceivedClipboard)) }
-        if !pendingSharedTexts.isEmpty { _ = command("clipboard_copy_shared", #selector(copySharedText)) }
 
-        let logs = NSMenuItem(title: L10n.tr("diagnostic_logs"), action: #selector(showLogs), keyEquivalent: "l")
-        logs.target = self
-        menu.addItem(logs)
-
-        // Revocation: a leaked QR stays valid until the key rotates, so keep both reachable.
+        settings.addItem(.separator())
         if !peers.isEmpty {
-            let unpairAll = NSMenuItem(title: L10n.tr("unpair_all_devices"), action: #selector(unpairAllDevices), keyEquivalent: "")
-            unpairAll.target = self
-            menu.addItem(unpairAll)
+            _ = command("add_device", #selector(showPairing), in: settings, shortcut: "n", suffix: "…")
+            _ = command("unpair_all_devices", #selector(unpairAllDevices), in: settings)
         }
-        let resetKey = NSMenuItem(title: L10n.tr("reset_pairing_key"), action: #selector(resetPairingKey), keyEquivalent: "")
-        resetKey.target = self
-        menu.addItem(resetKey)
+        _ = command("reset_pairing_key", #selector(resetPairingKey), in: settings)
 
+        settings.addItem(.separator())
+        _ = command("diagnostic_logs", #selector(showLogs), in: settings, shortcut: "l")
         if AppProfile.current.isDebug {
-            menu.addItem(.separator())
-            let item = NSMenuItem(title: L10n.tr("debug_clip_menu"), action: #selector(showDebugClipboard), keyEquivalent: "d")
-            item.target = self; menu.addItem(item)
-            let bluetooth = NSMenuItem(title: L10n.tr("debug_bt_menu"), action: #selector(toggleDebugBluetooth), keyEquivalent: "")
-            bluetooth.target = self
-            bluetooth.state = transport.isBluetoothEnabled ? .on : .off
-            menu.addItem(bluetooth)
+            _ = command("debug_clip_menu", #selector(showDebugClipboard), in: settings, shortcut: "d")
+            command("debug_bt_menu", #selector(toggleDebugBluetooth), in: settings).state = transport.isBluetoothEnabled ? .on : .off
+        } else {
+            _ = command("check_for_updates", #selector(checkForUpdates), in: settings)
         }
 
-        menu.addItem(.separator())
-
-        let login = NSMenuItem(title: L10n.tr("launch_at_login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        login.target = self
-        login.state = (!AppProfile.current.isDebug && SMAppService.mainApp.status == .enabled) ? .on : .off
-        if AppProfile.current.isDebug { login.isEnabled = false }
-        menu.addItem(login)
-
-        let updates = NSMenuItem(title: L10n.tr("check_for_updates"), action: #selector(checkForUpdates), keyEquivalent: "")
-        updates.target = self
-        updates.isEnabled = !AppProfile.current.isDebug
-        menu.addItem(updates)
-
+        let item = NSMenuItem(title: L10n.tr("menu_settings"), action: nil, keyEquivalent: "")
+        item.submenu = settings
+        menu.addItem(item)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: L10n.tr("quit_binderclip"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }

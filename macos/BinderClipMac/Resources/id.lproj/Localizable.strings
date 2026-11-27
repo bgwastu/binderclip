@@ -102,6 +102,7 @@
 "file_received_format" = "File diterima: %@";
 "launch_at_login" = "Buka Saat Masuk";
 "diagnostic_logs" = "Log Diagnostik…";
+"menu_settings" = "Pengaturan";
 "copy_pairing_link" = "Salin Tautan Penyandingan";
 "pairing_link_copied" = "Disalin ke Papan Klip";
 "pairing_expires_in" = "Kedaluwarsa dalam %@";

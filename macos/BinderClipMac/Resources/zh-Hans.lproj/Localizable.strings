@@ -102,6 +102,7 @@
 "file_received_format" = "已收到文件：%@";
 "launch_at_login" = "登录时启动";
 "diagnostic_logs" = "诊断日志…";
+"menu_settings" = "设置";
 "copy_pairing_link" = "复制配对链接";
 "pairing_link_copied" = "已复制到剪贴板";
 "pairing_expires_in" = "%@ 后过期";

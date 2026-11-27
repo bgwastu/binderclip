@@ -102,6 +102,7 @@
 "file_received_format" = "Arquivo recebido: %@";
 "launch_at_login" = "Iniciar no Login";
 "diagnostic_logs" = "Registros de Diagnóstico…";
+"menu_settings" = "Ajustes";
 "copy_pairing_link" = "Copiar Link de Pareamento";
 "pairing_link_copied" = "Copiado para a Área de Transferência";
 "pairing_expires_in" = "Expira em %@";

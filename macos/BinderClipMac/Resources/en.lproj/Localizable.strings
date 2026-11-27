@@ -102,6 +102,7 @@
 "file_received_format" = "Received file: %@";
 "launch_at_login" = "Launch at Login";
 "diagnostic_logs" = "Diagnostic Logs…";
+"menu_settings" = "Settings";
 "copy_pairing_link" = "Copy Pairing Link";
 "pairing_link_copied" = "Copied to Clipboard";
 "pairing_expires_in" = "Expires in %@";
