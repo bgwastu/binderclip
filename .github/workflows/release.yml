@@ -167,6 +167,7 @@ jobs:
             --download-url-prefix "$RELEASE_URL" \
             appcast-input
           rm -f "$KEY_FILE"
+          grep -q '<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>' appcast-input/appcast.xml
           cp appcast-input/appcast.xml dist/appcast.xml
 
       - name: Upload macOS release artifacts

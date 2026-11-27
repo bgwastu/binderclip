@@ -1,5 +1,9 @@
 // App entry point: single-instance guard and NSApplication bootstrap.
 
+#if !arch(arm64)
+#error("BinderClip requires Apple Silicon")
+#endif
+
 import AppKit
 import Darwin
 import os

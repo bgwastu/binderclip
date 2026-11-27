@@ -28,7 +28,9 @@
 
 ## Install
 
-Requires **macOS 13 or later** and **Android 12 or later**. Automatic phone → Mac clipboard sync needs either [KernelSU](https://kernelsu.org/)/[Magisk](https://github.com/topjohnwu/Magisk) root or [Shizuku](https://shizuku.rikka.app/) (no root); Mac → phone sync and sharing work on any phone. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
+Requires an **Apple Silicon Mac with macOS 13 or later** and a phone with **Android 12 or later**. Automatic phone → Mac clipboard sync needs either [KernelSU](https://kernelsu.org/)/[Magisk](https://github.com/topjohnwu/Magisk) root or [Shizuku](https://shizuku.rikka.app/) (no root). Mac → phone sync and sharing work on any supported phone. Download the apps from [GitHub Releases](https://github.com/bgwastu/BinderClip/releases).
+
+[BinderClip 1.20.0](https://github.com/bgwastu/binderclip/releases/tag/v1.20.0) is the last Mac release for Intel.
 
 Update both apps together to use batch status, larger files, and explicit text sharing.
 
@@ -47,7 +49,7 @@ curl -fL -o BinderClip.zip \
   && open /Applications/BinderClip.app
 ```
 
-**Why `xattr -cr`?** The Mac release is ad hoc signed and is not notarized by Apple. This command recursively clears extended attributes, including the download quarantine flag, so macOS can open this copy of the app. For later updates, use BinderClip’s in-app updater.
+**Why `xattr -cr`?** The Mac release uses BinderClip’s signing certificate and is not notarized by Apple. This command clears the download quarantine flag so macOS can open this copy of the app. For later updates, use BinderClip’s in-app updater.
 
 ### Mac — option 2: no Terminal
 

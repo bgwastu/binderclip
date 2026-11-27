@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-# Build a universal direct-only BinderClip.app and DMG.
+# Build BinderClip.app and a DMG for Apple Silicon.
 
 set -euo pipefail
 
@@ -35,14 +35,15 @@ FEED_URL="${SPARKLE_FEED_URL:-https://github.com/${GITHUB_REPOSITORY:-bgwastu/Bi
 rm -rf "$BUILD_ROOT" "$APP_PATH" "$OUTPUT_DIR"
 print "Building BinderClip $VERSION..."
 swift build --package-path "$PACKAGE_DIR" --configuration release --triple arm64-apple-macosx13.0 --scratch-path "$BUILD_ROOT/arm64"
-swift build --package-path "$PACKAGE_DIR" --configuration release --triple x86_64-apple-macosx13.0 --scratch-path "$BUILD_ROOT/x86_64"
 
 ARM_EXECUTABLE="$BUILD_ROOT/arm64/release/BinderClip"
-INTEL_EXECUTABLE="$BUILD_ROOT/x86_64/release/BinderClip"
-[[ -x "$ARM_EXECUTABLE" && -x "$INTEL_EXECUTABLE" ]] || { print -u2 "Universal build did not produce both architectures"; exit 1; }
+[[ -x "$ARM_EXECUTABLE" && "$(lipo -archs "$ARM_EXECUTABLE")" == arm64 ]] || {
+  print -u2 "Expected an Apple Silicon BinderClip executable at $ARM_EXECUTABLE"
+  exit 1
+}
 
 mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources" "$APP_PATH/Contents/Frameworks" "$OUTPUT_DIR"
-lipo -create "$ARM_EXECUTABLE" "$INTEL_EXECUTABLE" -output "$APP_PATH/Contents/MacOS/BinderClip"
+cp "$ARM_EXECUTABLE" "$APP_PATH/Contents/MacOS/BinderClip"
 
 SPARKLE_FRAMEWORK="$BUILD_ROOT/arm64/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
 if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
