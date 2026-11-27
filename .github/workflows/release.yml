@@ -4,123 +4,27 @@ on:
   push:
     tags:
       - 'v*'
-      - 'macos-v*'
-      - 'android-v*'
   workflow_dispatch:
-    inputs:
-      platform:
-        description: 'Platform to build (all, macos, android)'
-        required: false
-        default: 'all'
 
 permissions:
   contents: write
 
 jobs:
-  detect-targets:
+  release-version:
     runs-on: ubuntu-latest
     outputs:
-      build-macos: ${{ steps.detect.outputs.build-macos }}
-      build-android: ${{ steps.detect.outputs.build-android }}
-      version-name: ${{ steps.detect.outputs.version-name }}
-      release-title: ${{ steps.detect.outputs.release-title }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          fetch-depth: 0
-      - id: detect
-        env:
-          REF: ${{ github.ref_name }}
+      - id: version
         run: |
-          echo "Triggered ref: $REF"
-          if [ "${{ github.ref_type }}" != "tag" ]; then
-            echo "::error::Run this workflow from a release tag (v*, macos-v*, android-v*), not a branch."
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Run this workflow on a release tag such as v1.2.3."
             exit 1
           fi
-
-          if [[ ! "$REF" =~ ^(macos-|android-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            echo "::error::Expected a release tag such as v1.2.3, macos-v1.2.3, or android-v1.2.3."
-            exit 1
-          fi
-          VERSION_NAME="${BASH_REMATCH[2]}"
-          echo "version-name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
-
-          # Manual dispatch override
-          DISPATCH_PLATFORM="${{ inputs.platform || 'all' }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$DISPATCH_PLATFORM" != "all" ]; then
-            if [ "$DISPATCH_PLATFORM" = "macos" ]; then
-              echo "build-macos=true" >> "$GITHUB_OUTPUT"
-              echo "build-android=false" >> "$GITHUB_OUTPUT"
-              echo "release-title=BinderClip macOS $VERSION_NAME" >> "$GITHUB_OUTPUT"
-            else
-              echo "build-macos=false" >> "$GITHUB_OUTPUT"
-              echo "build-android=true" >> "$GITHUB_OUTPUT"
-              echo "release-title=BinderClip Android $VERSION_NAME" >> "$GITHUB_OUTPUT"
-            fi
-            exit 0
-          fi
-
-          # Explicit platform tags: macos-v* or android-v*
-          if [[ "$REF" == macos-* ]]; then
-            echo "Platform tag for macOS detected."
-            echo "build-macos=true" >> "$GITHUB_OUTPUT"
-            echo "build-android=false" >> "$GITHUB_OUTPUT"
-            echo "release-title=BinderClip macOS $VERSION_NAME" >> "$GITHUB_OUTPUT"
-            exit 0
-          elif [[ "$REF" == android-* ]]; then
-            echo "Platform tag for Android detected."
-            echo "build-macos=false" >> "$GITHUB_OUTPUT"
-            echo "build-android=true" >> "$GITHUB_OUTPUT"
-            echo "release-title=BinderClip Android $VERSION_NAME" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Generic tag (v*): check diff against previous tag
-          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^(v|macos-v|android-v)[0-9]' | grep -v "^$REF$" | head -n 1 || true)
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found; building both targets."
-            echo "build-macos=true" >> "$GITHUB_OUTPUT"
-            echo "build-android=true" >> "$GITHUB_OUTPUT"
-            echo "release-title=BinderClip $REF" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Comparing changes between $PREV_TAG and $REF..."
-          DIFF=$(git diff --name-only "$PREV_TAG" "$REF")
-          echo "Changed files:"
-          echo "$DIFF"
-
-          BUILD_MACOS=false
-          BUILD_ANDROID=false
-
-          if echo "$DIFF" | grep -qE '^(macos/|AGENTS.md|\.github/)'; then
-            BUILD_MACOS=true
-          fi
-
-          if echo "$DIFF" | grep -qE '^(android/|AGENTS.md|\.github/)'; then
-            BUILD_ANDROID=true
-          fi
-
-          if [ "$BUILD_MACOS" = "false" ] && [ "$BUILD_ANDROID" = "false" ]; then
-            echo "Changes did not explicitly target either platform folder; building both as fallback."
-            BUILD_MACOS=true
-            BUILD_ANDROID=true
-          fi
-
-          echo "build-macos=$BUILD_MACOS" >> "$GITHUB_OUTPUT"
-          echo "build-android=$BUILD_ANDROID" >> "$GITHUB_OUTPUT"
-
-          if [ "$BUILD_MACOS" = "true" ] && [ "$BUILD_ANDROID" = "false" ]; then
-            echo "release-title=BinderClip macOS $VERSION_NAME" >> "$GITHUB_OUTPUT"
-          elif [ "$BUILD_MACOS" = "false" ] && [ "$BUILD_ANDROID" = "true" ]; then
-            echo "release-title=BinderClip Android $VERSION_NAME" >> "$GITHUB_OUTPUT"
-          else
-            echo "release-title=BinderClip $REF" >> "$GITHUB_OUTPUT"
-          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
   build-macos:
-    needs: detect-targets
-    if: needs.detect-targets.outputs.build-macos == 'true'
+    needs: release-version
     runs-on: macos-15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -142,7 +46,7 @@ jobs:
           SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-          VERSION: ${{ needs.detect-targets.outputs.version-name }}
+          VERSION: ${{ needs.release-version.outputs.version }}
         run: |
           test -n "$MACOS_SIGNING_IDENTITY"
           ./macos/package-release.sh
@@ -189,8 +93,7 @@ jobs:
         run: python3 macos/mac-signing.py cleanup
 
   build-android:
-    needs: detect-targets
-    if: needs.detect-targets.outputs.build-android == 'true'
+    needs: release-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -218,13 +121,13 @@ jobs:
           BINDERCLIP_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           BINDERCLIP_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           BINDERCLIP_STORE_FILE: ${{ github.workspace }}/android/clipboard-release.keystore
-          VERSION_NAME: ${{ needs.detect-targets.outputs.version-name }}
+          VERSION_NAME: ${{ needs.release-version.outputs.version }}
         run: |
           ./android/gradlew -p android testDebugUnitTest :app:assembleRelease
 
       - name: Verify and name release APK
         env:
-          VERSION_NAME: ${{ needs.detect-targets.outputs.version-name }}
+          VERSION_NAME: ${{ needs.release-version.outputs.version }}
         run: |
           apk=android/app/build/outputs/apk/release/app-release.apk
           version_code=$(git rev-list --count HEAD)
@@ -243,8 +146,7 @@ jobs:
           path: BinderClip-*.apk
 
   publish:
-    needs: [detect-targets, build-macos, build-android]
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [release-version, build-macos, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -255,24 +157,23 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Preserve Sparkle appcast feed
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ ! -f release-assets/appcast.xml ]; then
-            echo "macOS was not rebuilt in this release; preserving existing appcast.xml for Sparkle..."
-            # Fail loudly: a release without appcast.xml becomes "latest" and breaks Sparkle updates.
-            gh release download --pattern 'appcast.xml' --dir release-assets
-          fi
-
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TITLE: ${{ needs.detect-targets.outputs.release-title }}
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.release-version.outputs.version }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/* --clobber
+          assets=(
+            "release-assets/BinderClip-$VERSION.apk"
+            "release-assets/BinderClip-$VERSION.dmg"
+            "release-assets/BinderClip-$VERSION.zip"
+            "release-assets/appcast.xml"
+          )
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           else
-            gh release create "$TAG" release-assets/* --verify-tag --title "$RELEASE_TITLE" --generate-notes
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --title "BinderClip $GITHUB_REF_NAME" --generate-notes
           fi

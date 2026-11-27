@@ -17,7 +17,7 @@ Mac menu bar app and Android app that sync the clipboard. The Mac hosts the WebS
 - Never log clipboard content, URLs, PSKs, key fragments, or pairing invitations.
 - Localize every string for en, id, es, zh, ja, de, fr, pt, ru. macOS uses `L10n.tr`; Android uses `strings.xml`.
 - Debug builds are isolated from production: package `net.wastu.binderclip.debug`, port `39422`, separate keys. During debug testing, never stop or reinstall production, copy its keys, operate its boot scripts, or change global radio/Doze settings.
-- Tags: `macos-v*`, `android-v*`, or `v*` for both. Diff detection builds only the affected platform.
+- Release tags use `vMAJOR.MINOR.PATCH`. Every release includes both signed apps so GitHub-based Android updaters can find a matching APK and Sparkle can find its appcast.
 
 ## Non-obvious constraints
 
